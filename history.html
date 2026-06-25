@@ -15,6 +15,16 @@
 <body>
   <h1>📋 작업 이력 (History)</h1>
 
+  <h2>칸반 보드 앱 구현 (Trello 클론) <time>2026-06-26</time></h2>
+  <ul>
+    <li>외부 라이브러리 없이 TypeScript/HTML5/CSS로 동작하는 칸반 보드 앱을 완성했습니다.</li>
+    <li><strong>핵심 로직</strong>: 데이터 모델, 순수 보드 연산(model), 손상 데이터 정규화(normalize), IndexedDB 저장소(localStorage·메모리 폴백), 한/영 다국어 — 단위 테스트 18개 통과.</li>
+    <li><strong>UI</strong>: DOM 렌더링, 카드/리스트 인라인 편집, 마우스·터치 드래그 앤 드롭, 핀치/휠/버튼 줌, Canvas 기반 PNG 저장, 전체 JSON 가져오기/내보내기.</li>
+    <li><strong>영속성</strong>: 디바운스 저장 + 페이지 종료 시 즉시 flush, savedAt 기준 최신본 선택으로 새로고침 후에도 이어하기 보장.</li>
+    <li><strong>빌드</strong>: 외부 의존성 없는 자체 번들러로 모든 CSS·JS를 단일 <code>index.html</code>로 산출. <code>build.sh</code>(POSIX) / <code>build.bat</code>(cp949) 제공.</li>
+    <li><strong>검증</strong>: Playwright 브라우저 스모크 테스트로 렌더링·추가·언어·줌·영속성·드래그 앤 드롭 7개 항목 통과, 런타임 에러 0.</li>
+  </ul>
+
   <h2>CLAUDE.md 완성 <time>2026-06-26</time></h2>
   <ul>
     <li>프로젝트 가이드라인 문서(CLAUDE.md)를 정리·완성했습니다.</li>

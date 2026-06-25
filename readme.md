@@ -1,0 +1,94 @@
+# 칸반 보드 (Kanban Board)
+
+HTML5 기반의 Trello 클론 칸반 보드 앱입니다. **외부 라이브러리 없이** 순수 TypeScript/HTML5/CSS로 동작하며, 모든 데이터는 브라우저의 IndexedDB에 저장되어 **작업 이어하기**가 가능합니다.
+
+## ✨ 주요 기능
+
+- **보드 / 리스트 / 카드** 관리 (추가·수정·삭제)
+- **드래그 앤 드롭** — 카드와 리스트를 마우스/터치로 이동 (Click & Drag)
+- **인라인 편집** — 카드·리스트 제목을 클릭하여 바로 수정
+- **카드 색상** — 🎨 버튼으로 강조 색상 순환
+- **여러 보드 관리** — 새 보드 생성, 이름 변경, 삭제, 전환
+- **자동 저장 / 이어하기** — IndexedDB에 자동 저장, 새로고침해도 복원
+- **JSON 내보내기 / 가져오기** — 전체 데이터를 하나의 JSON으로 백업·복원
+- **PNG 저장** — 현재 보드를 고해상도 이미지로 저장 (Canvas 직접 렌더링)
+- **확대 / 축소** — 버튼, `Ctrl/⌘ + 마우스 휠`, 모바일 **두 손가락 핀치 줌**
+- **다국어** — 한국어 / English 전환
+- **반응형** — PC·모바일 터치·폴더블 펼침 화면 지원
+- **손상 복원력** — DB·파일이 손상되어도 기본값으로 복구하여 동작
+
+## 🚀 실행 방법
+
+### 1) 개발 모드 (소스 그대로 실행)
+
+```bash
+python -m http.server 8001
+```
+
+브라우저에서 `http://localhost:8001/index.html` 접속.
+
+> 컴파일된 JS(`js/`)가 저장소에 포함되어 있어 별도 빌드 없이 바로 실행됩니다.
+> TypeScript 소스를 수정했다면 `npx tsc` 로 다시 컴파일하세요.
+
+### 2) 단일 파일 빌드
+
+모든 CSS·JS를 하나의 `index.html`로 인라인하여 `release/` 폴더에 산출합니다.
+
+```bash
+# macOS / Linux
+./build.sh
+
+# Windows
+build.bat
+```
+
+산출물 실행:
+
+```bash
+cd release
+python -m http.server 8001
+```
+
+## 🧪 테스트
+
+```bash
+npm test     # 단위 테스트 (순수 로직 18개)
+npm run smoke # 브라우저 스모크 테스트 (Playwright, 개발용)
+```
+
+- 단위 테스트: 외부 프레임워크 없는 자체 하니스 (`test/`)
+- 스모크 테스트: 렌더링·카드 추가·리스트 추가·언어 전환·줌·영속성·드래그 앤 드롭 검증
+
+## 🗂 프로젝트 구조
+
+```
+src/        TypeScript 소스
+  types.ts      데이터 모델
+  model.ts      순수 보드 연산 (테스트 대상)
+  normalize.ts  손상/임포트 데이터 정규화
+  store.ts      IndexedDB + localStorage 폴백 저장소
+  i18n.ts       한/영 다국어
+  render.ts     DOM 렌더링
+  dnd.ts        드래그 앤 드롭
+  zoom.ts       핀치/휠/버튼 줌
+  png.ts        Canvas PNG 내보내기
+  jsonio.ts     JSON 가져오기/내보내기
+  app.ts        앱 컨트롤러
+  main.ts       진입점
+js/         tsc 컴파일 산출물 (브라우저 실행용)
+test/       단위 + 스모크 테스트
+tools/      단일 파일 번들러
+index.html  앱 진입 HTML
+styles.css  스타일 (브라우저 기본 폰트만 사용)
+```
+
+## 🛠 기술 스택
+
+- **언어:** TypeScript (런타임 의존성 0)
+- **저장:** IndexedDB (localStorage·메모리 폴백)
+- **렌더링:** 표준 DOM API, Canvas 2D
+- **폰트:** 브라우저 기본 폰트만 사용
+
+## 📄 라이선스
+
+[MIT](LICENSE)

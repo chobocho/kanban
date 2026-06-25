@@ -1,0 +1,7 @@
+# Keep the Windows build script untouched: it is CP949-encoded with CRLF line
+# endings so Korean text renders correctly in the cmd console. Marking it binary
+# stops git from re-encoding or converting line endings.
+build.bat binary
+
+# Normalize text files to LF in the repo.
+* text=auto eol=lf
