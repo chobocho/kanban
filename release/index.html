@@ -1,0 +1,1890 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>칸반 보드</title>
+  <style>
+/* Kanban Board styles. Uses only browser-default fonts and no external assets,
+   so the app runs fully offline. Layout is responsive and touch-friendly, and
+   scales cleanly on foldable large screens. */
+
+:root {
+  --bg: #0d6efd;
+  --toolbar-bg: #0b5ed7;
+  --column-bg: #ebecf0;
+  --card-bg: #ffffff;
+  --text: #172b4d;
+  --muted: #5e6c84;
+  --radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Malgun Gothic", sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  /* Prevent the browser's own pinch-zoom so the app can handle it. */
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Toolbar -------------------------------------------------------------- */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  background: var(--toolbar-bg);
+  color: #fff;
+}
+
+.app-title {
+  font-size: 18px;
+  margin: 0 8px 0 0;
+  white-space: nowrap;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.control {
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.control:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+select.control {
+  background: #fff;
+  color: var(--text);
+  max-width: 180px;
+}
+
+/* Emoji icon buttons: square, centered, slightly larger glyph. */
+.icon-control {
+  font-size: 16px;
+  line-height: 1;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* Board surface -------------------------------------------------------- */
+.board-surface {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.board-scale {
+  transform-origin: top left;
+  width: max-content;
+}
+
+.columns {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 200px;
+}
+
+/* Column --------------------------------------------------------------- */
+.column {
+  width: 272px;
+  flex: 0 0 auto;
+  background: var(--column-bg);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 120px);
+}
+
+.column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  font-weight: 700;
+  cursor: grab;
+  gap: 6px;
+}
+
+.column-title {
+  flex: 1;
+  word-break: break-word;
+}
+
+.cards-list {
+  padding: 4px 8px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 12px;
+}
+
+.column-footer {
+  padding: 8px;
+}
+
+.add-card-btn {
+  width: 100%;
+  text-align: center;
+  font: inherit;
+  font-size: 16px;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.add-card-btn:hover {
+  background: rgba(9, 30, 66, 0.08);
+}
+
+/* Card ----------------------------------------------------------------- */
+.card {
+  position: relative;
+  background: var(--card-bg);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 0 rgba(9, 30, 66, 0.25);
+  cursor: grab;
+  overflow: hidden;
+}
+
+.card-stripe {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+}
+
+.card-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 18px;
+  padding-left: 4px;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.card:hover .card-actions {
+  opacity: 1;
+}
+
+.icon-btn {
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  color: var(--muted);
+}
+
+.icon-btn:hover {
+  background: rgba(9, 30, 66, 0.12);
+}
+
+.empty-hint {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 6px 4px;
+}
+
+.inline-edit {
+  width: 100%;
+  font: inherit;
+  border: 2px solid var(--bg);
+  border-radius: 4px;
+  padding: 6px;
+  resize: vertical;
+  min-height: 38px;
+}
+
+.add-column {
+  flex: 0 0 auto;
+  width: 272px;
+  font: inherit;
+  font-size: 16px;
+  padding: 12px;
+  border: none;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.3);
+  color: #fff;
+  cursor: pointer;
+  text-align: center;
+}
+
+.add-column:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+/* Drag and drop -------------------------------------------------------- */
+.drag-clone {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0.9;
+  transform: rotate(2deg);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+.card-placeholder,
+.column-placeholder {
+  border: 2px dashed rgba(9, 30, 66, 0.35);
+  border-radius: 6px;
+  background: rgba(9, 30, 66, 0.06);
+  margin-bottom: 8px;
+}
+
+.column-placeholder {
+  flex: 0 0 auto;
+}
+
+/* Custom modal dialogs (replace native alert/confirm/prompt) ----------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(9, 30, 66, 0.5);
+  padding: 16px;
+  animation: modal-fade 0.12s ease-out;
+}
+
+.modal-dialog {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  width: min(420px, 100%);
+  padding: 20px;
+  animation: modal-pop 0.12s ease-out;
+}
+
+.modal-message {
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.modal-input {
+  width: 100%;
+  margin-top: 14px;
+  font: inherit;
+  font-size: 15px;
+  padding: 9px 10px;
+  border: 2px solid #c1c7d0;
+  border-radius: 6px;
+}
+
+.modal-input:focus {
+  outline: none;
+  border-color: var(--bg);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.modal-btn {
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 38px;
+}
+
+.modal-cancel {
+  background: #ebecf0;
+  color: var(--text);
+}
+
+.modal-cancel:hover {
+  background: #dfe1e6;
+}
+
+.modal-ok {
+  background: var(--bg);
+  color: #fff;
+}
+
+.modal-ok:hover {
+  background: #0b5ed7;
+}
+
+@keyframes modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-pop {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* High-DPI / foldable large screens: show more columns comfortably. */
+@media (min-width: 1600px) {
+  .app-title {
+    font-size: 20px;
+  }
+}
+
+</style>
+</head>
+<body>
+  <header class="toolbar">
+    <h1 class="app-title" data-i18n="appTitle">칸반 보드</h1>
+
+    <div class="toolbar-group">
+      <label class="visually-hidden" for="boardSelect" data-i18n="boards">보드</label>
+      <select id="boardSelect" class="control" title="boards"></select>
+      <button id="newBoardBtn" class="control icon-control" data-i18n-title="newBoard">🆕</button>
+      <button id="renameBoardBtn" class="control icon-control" data-i18n-title="rename">✏️</button>
+      <button id="deleteBoardBtn" class="control icon-control" data-i18n-title="delete">🗑️</button>
+    </div>
+
+    <div class="toolbar-group">
+      <button id="zoomOutBtn" class="control icon-control" data-i18n-title="zoomOut">🔍➖</button>
+      <button id="zoomResetBtn" class="control icon-control" data-i18n-title="zoomReset">↩️</button>
+      <button id="zoomInBtn" class="control icon-control" data-i18n-title="zoomIn">🔍➕</button>
+    </div>
+
+    <div class="toolbar-group">
+      <button id="exportJsonBtn" class="control icon-control" data-i18n-title="exportJson">💾</button>
+      <label class="control icon-control file-label" for="importJsonInput" data-i18n-title="importJson">📂</label>
+      <input id="importJsonInput" type="file" accept="application/json,.json" hidden />
+      <button id="exportPngBtn" class="control icon-control" data-i18n-title="exportPng">🖼️</button>
+    </div>
+
+    <div class="toolbar-group">
+      <label class="visually-hidden" for="langSelect" data-i18n="language">언어</label>
+      <select id="langSelect" class="control" title="language">
+        <option value="ko">한국어</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+  </header>
+
+  <main id="boardSurface" class="board-surface">
+    <div id="boardScale" class="board-scale">
+      <div id="columns" class="columns"></div>
+    </div>
+  </main>
+
+  <script>
+(function(){
+const __modules = {}, __cache = {};
+function __require(id){
+  if (__cache[id]) return __cache[id];
+  const e = {}; __cache[id] = e;
+  __modules[id](e, __require);
+  return e;
+}
+__modules["app"] = function(__exports, __require){
+// Application controller. Owns the in-memory state, persists every change to
+// IndexedDB (so work resumes across sessions), and wires the renderer, drag and
+// drop, zoom, JSON import/export and PNG export together. No global variables
+// are used; all state lives on the instance.
+const { loadData, saveData } = __require("store");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard } = __require("model");
+const { setLanguage, t } = __require("i18n");
+const { renderBoard, CARD_COLORS } = __require("render");
+const { DragController } = __require("dnd");
+const { ZoomController } = __require("zoom");
+const { downloadJson, readJsonFile } = __require("jsonio");
+const { exportBoardPng } = __require("png");
+const { customAlert, customConfirm, customPrompt } = __require("modal");
+class KanbanApp {
+    constructor(doc) {
+        this.doc = doc;
+        this.saveTimer = 0;
+        this.columnsEl = this.byId('columns');
+        this.boardSelect = this.byId('boardSelect');
+        this.langSelect = this.byId('langSelect');
+    }
+    byId(id) {
+        const node = this.doc.getElementById(id);
+        if (!node)
+            throw new Error(`missing element #${id}`);
+        return node;
+    }
+    /** Load persisted state and start the app. */
+    async start() {
+        this.data = await loadData();
+        setLanguage(this.data.settings.lang);
+        const surface = this.byId('boardSurface');
+        const scale = this.byId('boardScale');
+        this.zoom = new ZoomController(scale, surface, (value) => {
+            this.data.settings.zoom = value;
+            this.persist();
+        });
+        this.zoom.setScale(this.data.settings.zoom);
+        new DragController(this.columnsEl, {
+            moveCard: (from, cardId, to, index) => {
+                const board = this.active();
+                if (board && moveCard(board, from, cardId, to, index))
+                    this.commit();
+            },
+            moveColumn: (from, to) => {
+                const board = this.active();
+                if (board && moveColumn(board, from, to))
+                    this.commit();
+            },
+            isBlocked: () => this.zoom.isPinching(),
+        });
+        this.wireToolbar();
+        // Flush any pending debounced save before the page is hidden/closed so that
+        // work always resumes exactly where the user left off.
+        const view = this.doc.defaultView;
+        view?.addEventListener('pagehide', () => this.flush());
+        this.doc.addEventListener('visibilitychange', () => {
+            if (this.doc.visibilityState === 'hidden')
+                this.flush();
+        });
+        this.render();
+    }
+    /** Immediately persist, cancelling any pending debounced save. */
+    flush() {
+        const view = this.doc.defaultView;
+        if (view && this.saveTimer) {
+            view.clearTimeout(this.saveTimer);
+            this.saveTimer = 0;
+        }
+        void saveData(this.data);
+    }
+    active() {
+        return getActiveBoard(this.data);
+    }
+    get handlers() {
+        return {
+            addCard: (colId) => {
+                const board = this.active();
+                if (board && addCard(board, colId, t('newCardText')))
+                    this.commit();
+            },
+            editCard: (colId, cardId, text) => {
+                const board = this.active();
+                if (board && updateCard(board, colId, cardId, { text }))
+                    this.commit();
+            },
+            deleteCard: (colId, cardId) => {
+                const board = this.active();
+                if (board && removeCard(board, colId, cardId))
+                    this.commit();
+            },
+            cycleCardColor: (colId, cardId) => {
+                const board = this.active();
+                if (!board)
+                    return;
+                const column = board.columns.find((c) => c.id === colId);
+                const card = column?.cards.find((c) => c.id === cardId);
+                if (!card)
+                    return;
+                const next = CARD_COLORS[(CARD_COLORS.indexOf(card.color) + 1) % CARD_COLORS.length];
+                if (updateCard(board, colId, cardId, { color: next }))
+                    this.commit();
+            },
+            addColumn: () => {
+                const board = this.active();
+                if (board) {
+                    addColumn(board, t('newColumnTitle'));
+                    this.commit();
+                }
+            },
+            renameColumn: (colId, title) => {
+                const board = this.active();
+                if (board && renameColumn(board, colId, title))
+                    this.commit();
+            },
+            deleteColumn: async (colId) => {
+                const board = this.active();
+                if (!board)
+                    return;
+                if (await customConfirm(t('deleteColumnConfirm'))) {
+                    if (removeColumn(board, colId))
+                        this.commit();
+                }
+            },
+        };
+    }
+    wireToolbar() {
+        this.byId('newBoardBtn').addEventListener('click', () => this.newBoard());
+        this.byId('renameBoardBtn').addEventListener('click', () => this.renameBoard());
+        this.byId('deleteBoardBtn').addEventListener('click', () => this.deleteBoard());
+        this.boardSelect.addEventListener('change', () => {
+            this.data.activeBoardId = this.boardSelect.value;
+            this.commit();
+        });
+        this.langSelect.addEventListener('change', () => {
+            this.setLang(this.langSelect.value);
+        });
+        this.byId('zoomInBtn').addEventListener('click', () => this.zoom.zoomIn());
+        this.byId('zoomOutBtn').addEventListener('click', () => this.zoom.zoomOut());
+        this.byId('zoomResetBtn').addEventListener('click', () => this.zoom.reset());
+        this.byId('exportJsonBtn').addEventListener('click', () => downloadJson(this.data));
+        this.byId('exportPngBtn').addEventListener('click', () => {
+            const board = this.active();
+            if (board)
+                exportBoardPng(board);
+        });
+        const importInput = this.byId('importJsonInput');
+        importInput.addEventListener('change', async () => {
+            const file = importInput.files?.[0];
+            if (!file)
+                return;
+            try {
+                this.data = await readJsonFile(file);
+                setLanguage(this.data.settings.lang);
+                this.zoom.setScale(this.data.settings.zoom);
+                this.commit();
+            }
+            catch {
+                void customAlert(t('importError'));
+            }
+            finally {
+                importInput.value = '';
+            }
+        });
+    }
+    async newBoard() {
+        const name = await customPrompt(t('boardNamePrompt'), t('newBoard'));
+        if (name === null)
+            return;
+        const board = createBoard(name || t('newBoard'), [
+            createColumn('To Do'),
+            createColumn('In Progress'),
+            createColumn('Done'),
+        ]);
+        this.data.boards.push(board);
+        this.data.activeBoardId = board.id;
+        this.commit();
+    }
+    async renameBoard() {
+        const board = this.active();
+        if (!board)
+            return;
+        const name = await customPrompt(t('boardNamePrompt'), board.name);
+        if (name === null)
+            return;
+        board.name = name || board.name;
+        this.commit();
+    }
+    async deleteBoard() {
+        const board = this.active();
+        if (!board)
+            return;
+        if (!(await customConfirm(t('deleteBoardConfirm'))))
+            return;
+        this.data.boards = this.data.boards.filter((b) => b.id !== board.id);
+        if (this.data.boards.length === 0) {
+            const fresh = createBoard('My Board', [
+                createColumn('To Do'),
+                createColumn('In Progress'),
+                createColumn('Done'),
+            ]);
+            this.data.boards.push(fresh);
+        }
+        this.data.activeBoardId = this.data.boards[0].id;
+        this.commit();
+    }
+    setLang(lang) {
+        this.data.settings.lang = lang;
+        setLanguage(lang);
+        this.doc.documentElement.lang = lang;
+        this.commit();
+    }
+    /** Apply state changes: persist and re-render. */
+    commit() {
+        this.persist();
+        this.render();
+    }
+    /** Debounced save so rapid edits do not thrash IndexedDB. */
+    persist() {
+        const view = this.doc.defaultView;
+        if (!view)
+            return;
+        if (this.saveTimer)
+            view.clearTimeout(this.saveTimer);
+        this.saveTimer = view.setTimeout(() => {
+            void saveData(this.data);
+        }, 200);
+    }
+    render() {
+        const board = this.active();
+        if (board)
+            renderBoard(this.columnsEl, board, this.handlers);
+        this.refreshBoardSelect();
+        this.refreshLabels();
+    }
+    refreshBoardSelect() {
+        this.boardSelect.replaceChildren();
+        for (const board of this.data.boards) {
+            const option = this.doc.createElement('option');
+            option.value = board.id;
+            option.textContent = board.name;
+            this.boardSelect.appendChild(option);
+        }
+        this.boardSelect.value = this.data.activeBoardId ?? '';
+        this.langSelect.value = this.data.settings.lang;
+    }
+    /** Update all static labels marked with data-i18n / data-i18n-title. */
+    refreshLabels() {
+        this.doc.querySelectorAll('[data-i18n]').forEach((node) => {
+            const key = node.dataset.i18n;
+            if (key)
+                node.textContent = t(key);
+        });
+        this.doc.querySelectorAll('[data-i18n-title]').forEach((node) => {
+            const key = node.dataset.i18nTitle;
+            if (key)
+                node.title = t(key);
+        });
+        this.doc.title = t('appTitle');
+    }
+}
+
+__exports.KanbanApp = KanbanApp;
+
+};
+__modules["dnd"] = function(__exports, __require){
+// Pointer-based drag and drop for cards and columns. Works with both mouse and
+// touch (Pointer Events). A floating clone follows the pointer and a live
+// placeholder shows the drop position, giving a Trello-like feel. The board is
+// re-rendered by the app after each drop, so transient DOM edits here are safe.
+const DRAG_THRESHOLD = 6;
+class DragController {
+    constructor(root, cb) {
+        this.pointerId = null;
+        this.mode = null;
+        this.dragging = false;
+        this.startX = 0;
+        this.startY = 0;
+        this.sourceEl = null;
+        this.clone = null;
+        this.placeholder = null;
+        this.cardId = '';
+        this.fromColId = '';
+        this.fromIndex = -1;
+        this.offsetX = 0;
+        this.offsetY = 0;
+        this.root = root;
+        this.cb = cb;
+        root.addEventListener('pointerdown', (e) => this.onDown(e));
+        root.addEventListener('pointermove', (e) => this.onMove(e));
+        root.addEventListener('pointerup', (e) => this.onUp(e));
+        root.addEventListener('pointercancel', () => this.cancel());
+    }
+    onDown(e) {
+        if (this.pointerId !== null || e.button !== 0)
+            return;
+        const target = e.target;
+        // Ignore interactive controls so editing/buttons still work.
+        if (target.closest('button, textarea, input, select, [contenteditable="true"]'))
+            return;
+        const handle = target.closest('[data-col-handle]');
+        const card = target.closest('[data-card-id]');
+        if (card) {
+            this.mode = 'card';
+            this.sourceEl = card;
+            this.cardId = card.dataset.cardId ?? '';
+            this.fromColId = card.dataset.colId ?? '';
+        }
+        else if (handle) {
+            const column = handle.closest('[data-col-id]');
+            if (!column)
+                return;
+            this.mode = 'column';
+            this.sourceEl = column;
+            this.fromColId = column.dataset.colId ?? '';
+            this.fromIndex = Number(column.dataset.colIndex ?? -1);
+        }
+        else {
+            return;
+        }
+        this.pointerId = e.pointerId;
+        this.startX = e.clientX;
+        this.startY = e.clientY;
+    }
+    onMove(e) {
+        if (this.pointerId !== e.pointerId || !this.sourceEl)
+            return;
+        if (!this.dragging) {
+            const moved = Math.hypot(e.clientX - this.startX, e.clientY - this.startY);
+            if (moved < DRAG_THRESHOLD)
+                return;
+            if (this.cb.isBlocked()) {
+                this.reset();
+                return;
+            }
+            this.begin(e);
+        }
+        if (!this.dragging || !this.clone)
+            return;
+        e.preventDefault();
+        this.clone.style.left = `${e.clientX - this.offsetX}px`;
+        this.clone.style.top = `${e.clientY - this.offsetY}px`;
+        if (this.mode === 'card')
+            this.updateCardPlaceholder(e);
+        else
+            this.updateColumnPlaceholder(e);
+    }
+    begin(e) {
+        if (!this.sourceEl)
+            return;
+        this.dragging = true;
+        this.root.setPointerCapture(e.pointerId);
+        const rect = this.sourceEl.getBoundingClientRect();
+        this.offsetX = e.clientX - rect.left;
+        this.offsetY = e.clientY - rect.top;
+        // Floating clone follows the pointer; pointer-events none so it does not
+        // interfere with elementFromPoint hit testing.
+        const clone = this.sourceEl.cloneNode(true);
+        clone.classList.add('drag-clone');
+        clone.style.width = `${rect.width}px`;
+        clone.style.height = `${rect.height}px`;
+        clone.style.left = `${rect.left}px`;
+        clone.style.top = `${rect.top}px`;
+        document.body.appendChild(clone);
+        this.clone = clone;
+        // Placeholder where the item will drop.
+        const placeholder = document.createElement('div');
+        placeholder.className = this.mode === 'card' ? 'card-placeholder' : 'column-placeholder';
+        placeholder.style.height = `${rect.height}px`;
+        placeholder.style.width = `${rect.width}px`;
+        this.placeholder = placeholder;
+        this.sourceEl.style.display = 'none';
+        this.sourceEl.after(placeholder);
+    }
+    updateCardPlaceholder(e) {
+        const list = this.listAtPoint(e.clientX, e.clientY);
+        if (!list || !this.placeholder)
+            return;
+        const cards = Array.from(list.querySelectorAll('[data-card-id]')).filter((c) => c.style.display !== 'none');
+        let inserted = false;
+        for (const card of cards) {
+            const box = card.getBoundingClientRect();
+            if (e.clientY < box.top + box.height / 2) {
+                list.insertBefore(this.placeholder, card);
+                inserted = true;
+                break;
+            }
+        }
+        if (!inserted)
+            list.appendChild(this.placeholder);
+    }
+    updateColumnPlaceholder(e) {
+        if (!this.placeholder)
+            return;
+        const columns = Array.from(this.root.querySelectorAll('[data-col-id]')).filter((c) => c.style.display !== 'none');
+        let inserted = false;
+        for (const col of columns) {
+            const box = col.getBoundingClientRect();
+            if (e.clientX < box.left + box.width / 2) {
+                col.before(this.placeholder);
+                inserted = true;
+                break;
+            }
+        }
+        if (!inserted) {
+            const addBtn = this.root.querySelector('[data-add-column]');
+            if (addBtn)
+                addBtn.before(this.placeholder);
+            else
+                this.root.appendChild(this.placeholder);
+        }
+    }
+    listAtPoint(x, y) {
+        const el = document.elementFromPoint(x, y);
+        if (!el)
+            return null;
+        const column = el.closest('[data-col-id]');
+        if (!column)
+            return null;
+        return column.querySelector('[data-cards]');
+    }
+    onUp(e) {
+        if (this.pointerId !== e.pointerId)
+            return;
+        if (!this.dragging) {
+            this.reset();
+            return;
+        }
+        if (this.mode === 'card')
+            this.dropCard();
+        else
+            this.dropColumn();
+        this.cleanup();
+        this.reset();
+    }
+    dropCard() {
+        if (!this.placeholder)
+            return;
+        const list = this.placeholder.closest('[data-cards]');
+        if (!list)
+            return;
+        const toColId = list.closest('[data-col-id]')?.dataset.colId ?? '';
+        const siblings = Array.from(list.children).filter((c) => c === this.placeholder || c.matches('[data-card-id]'));
+        const toIndex = siblings.indexOf(this.placeholder);
+        this.cb.moveCard(this.fromColId, this.cardId, toColId, toIndex);
+    }
+    dropColumn() {
+        if (!this.placeholder || !this.placeholder.parentElement)
+            return;
+        const siblings = Array.from(this.placeholder.parentElement.children).filter((c) => c === this.placeholder || c.matches('[data-col-id]'));
+        const toIndex = siblings.indexOf(this.placeholder);
+        this.cb.moveColumn(this.fromIndex, toIndex);
+    }
+    cleanup() {
+        this.clone?.remove();
+        this.placeholder?.remove();
+        if (this.sourceEl)
+            this.sourceEl.style.display = '';
+    }
+    cancel() {
+        this.cleanup();
+        this.reset();
+    }
+    reset() {
+        this.pointerId = null;
+        this.mode = null;
+        this.dragging = false;
+        this.sourceEl = null;
+        this.clone = null;
+        this.placeholder = null;
+        this.cardId = '';
+        this.fromColId = '';
+        this.fromIndex = -1;
+    }
+}
+
+__exports.DragController = DragController;
+
+};
+__modules["i18n"] = function(__exports, __require){
+// Minimal internationalization helper. Supports Korean and English with no
+// external dependency. Strings are looked up by key with a Korean fallback.
+const translations = {
+    ko: {
+        appTitle: '칸반 보드',
+        addCard: '+ 카드 추가',
+        addColumn: '+ 리스트 추가',
+        newColumnTitle: '새 리스트',
+        newCardText: '새 카드',
+        color: '색상 변경',
+        deleteColumnConfirm: '이 리스트를 삭제할까요?',
+        deleteBoardConfirm: '이 보드를 삭제할까요?',
+        renameColumn: '리스트 이름',
+        boards: '보드',
+        newBoard: '새 보드',
+        rename: '이름 변경',
+        delete: '삭제',
+        exportJson: 'JSON 내보내기',
+        importJson: 'JSON 가져오기',
+        exportPng: 'PNG 저장',
+        language: '언어',
+        zoomIn: '확대',
+        zoomOut: '축소',
+        zoomReset: '원래대로',
+        save: '저장',
+        cancel: '취소',
+        ok: '확인',
+        boardNamePrompt: '보드 이름을 입력하세요',
+        emptyColumn: '카드가 없습니다',
+        importError: 'JSON 파일을 읽을 수 없습니다',
+    },
+    en: {
+        appTitle: 'Kanban Board',
+        addCard: '+ Add card',
+        addColumn: '+ Add list',
+        newColumnTitle: 'New list',
+        newCardText: 'New card',
+        color: 'Change color',
+        deleteColumnConfirm: 'Delete this list?',
+        deleteBoardConfirm: 'Delete this board?',
+        renameColumn: 'List title',
+        boards: 'Boards',
+        newBoard: 'New board',
+        rename: 'Rename',
+        delete: 'Delete',
+        exportJson: 'Export JSON',
+        importJson: 'Import JSON',
+        exportPng: 'Save PNG',
+        language: 'Language',
+        zoomIn: 'Zoom in',
+        zoomOut: 'Zoom out',
+        zoomReset: 'Reset zoom',
+        save: 'Save',
+        cancel: 'Cancel',
+        ok: 'OK',
+        boardNamePrompt: 'Enter a board name',
+        emptyColumn: 'No cards',
+        importError: 'Could not read the JSON file',
+    },
+};
+let current = 'ko';
+function setLanguage(lang) {
+    current = lang;
+}
+function getLanguage() {
+    return current;
+}
+/** Translate a key into the current language, falling back to the key itself. */
+function t(key) {
+    return translations[current][key] ?? translations.ko[key] ?? key;
+}
+
+__exports.setLanguage = setLanguage;
+__exports.getLanguage = getLanguage;
+__exports.t = t;
+
+};
+__modules["id"] = function(__exports, __require){
+// Unique id generator. Avoids external dependencies by combining a timestamp
+// with a counter and a small random suffix so ids stay unique even when many
+// are created within the same millisecond.
+let counter = 0;
+/** Generate a reasonably unique id with the given prefix. */
+function makeId(prefix) {
+    counter = (counter + 1) % 1000000;
+    const time = Date.now().toString(36);
+    const rand = Math.floor(Math.random() * 0x10000).toString(36);
+    return `${prefix}_${time}${counter.toString(36)}${rand}`;
+}
+
+__exports.makeId = makeId;
+
+};
+__modules["jsonio"] = function(__exports, __require){
+// Import/export of the whole application state as a single JSON document.
+// Importing always runs through normalization so a malformed file cannot break
+// the app.
+const { normalizeAppData } = __require("normalize");
+/** Download the entire app state as a JSON file. */
+function downloadJson(data, filename = 'kanban-data.json') {
+    const text = JSON.stringify(data, null, 2);
+    const blob = new Blob([text], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+/** Parse JSON text into a valid AppData. Throws if the text is not JSON. */
+function parseJson(text) {
+    const raw = JSON.parse(text);
+    return normalizeAppData(raw);
+}
+/** Read a File chosen by the user and resolve to a valid AppData. */
+function readJsonFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                resolve(parseJson(String(reader.result)));
+            }
+            catch (err) {
+                reject(err);
+            }
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(file);
+    });
+}
+
+__exports.downloadJson = downloadJson;
+__exports.parseJson = parseJson;
+__exports.readJsonFile = readJsonFile;
+
+};
+__modules["main"] = function(__exports, __require){
+// Entry point: construct the app and start it once the DOM is ready.
+const { KanbanApp } = __require("app");
+function boot() {
+    const app = new KanbanApp(document);
+    void app.start();
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+}
+else {
+    boot();
+}
+
+
+
+};
+__modules["modal"] = function(__exports, __require){
+// Custom modal dialogs that replace the browser's native alert/confirm/prompt.
+// They are promise-based, keyboard-accessible (Enter/Escape), close on backdrop
+// click, and use only the DOM (no external library).
+const { t } = __require("i18n");
+function openModal(opts) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        const dialog = document.createElement('div');
+        dialog.className = 'modal-dialog';
+        dialog.setAttribute('role', opts.kind === 'alert' ? 'alertdialog' : 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        overlay.appendChild(dialog);
+        const message = document.createElement('div');
+        message.className = 'modal-message';
+        message.textContent = opts.message;
+        dialog.appendChild(message);
+        let input = null;
+        if (opts.kind === 'prompt') {
+            input = document.createElement('input');
+            input.className = 'modal-input';
+            input.type = 'text';
+            input.value = opts.defaultValue ?? '';
+            dialog.appendChild(input);
+        }
+        const cancelValue = opts.kind === 'confirm' ? false : null;
+        const okValue = () => {
+            if (opts.kind === 'confirm')
+                return true;
+            if (opts.kind === 'prompt')
+                return input ? input.value : '';
+            return null;
+        };
+        let settled = false;
+        const close = (result) => {
+            if (settled)
+                return;
+            settled = true;
+            document.removeEventListener('keydown', onKey, true);
+            overlay.remove();
+            resolve(result);
+        };
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                close(cancelValue);
+            }
+            else if (e.key === 'Enter') {
+                e.preventDefault();
+                close(okValue());
+            }
+        };
+        const actions = document.createElement('div');
+        actions.className = 'modal-actions';
+        if (opts.kind !== 'alert') {
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'modal-btn modal-cancel';
+            cancelBtn.textContent = t('cancel');
+            cancelBtn.addEventListener('click', () => close(cancelValue));
+            actions.appendChild(cancelBtn);
+        }
+        const okBtn = document.createElement('button');
+        okBtn.className = 'modal-btn modal-ok';
+        okBtn.textContent = t('ok');
+        okBtn.addEventListener('click', () => close(okValue()));
+        actions.appendChild(okBtn);
+        dialog.appendChild(actions);
+        overlay.addEventListener('pointerdown', (e) => {
+            if (e.target === overlay)
+                close(cancelValue);
+        });
+        document.addEventListener('keydown', onKey, true);
+        document.body.appendChild(overlay);
+        if (input) {
+            input.focus();
+            input.select();
+        }
+        else {
+            okBtn.focus();
+        }
+    });
+}
+/** Custom replacement for window.alert. */
+function customAlert(message) {
+    return openModal({ kind: 'alert', message }).then(() => undefined);
+}
+/** Custom replacement for window.confirm. */
+function customConfirm(message) {
+    return openModal({ kind: 'confirm', message }).then((r) => r === true);
+}
+/** Custom replacement for window.prompt. Resolves null if cancelled. */
+function customPrompt(message, defaultValue = '') {
+    return openModal({ kind: 'prompt', message, defaultValue }).then((r) => typeof r === 'string' ? r : null);
+}
+
+__exports.customAlert = customAlert;
+__exports.customConfirm = customConfirm;
+__exports.customPrompt = customPrompt;
+
+};
+__modules["model"] = function(__exports, __require){
+// Pure board operations. These functions contain the core business logic and
+// are intentionally free of any DOM or storage concerns so they can be unit
+// tested in isolation (see test/model.test.ts).
+const { SCHEMA_VERSION } = __require("types");
+const { makeId } = __require("id");
+/** Create an empty card with the given text. */
+function createCard(text) {
+    return { id: makeId('card'), text, color: '', createdAt: Date.now() };
+}
+/** Create an empty column with the given title. */
+function createColumn(title) {
+    return { id: makeId('col'), title, cards: [] };
+}
+/** Create a board, optionally seeded with the given columns. */
+function createBoard(name, columns = []) {
+    const now = Date.now();
+    return { id: makeId('board'), name, columns, createdAt: now, updatedAt: now };
+}
+/** Build a fresh application state with one sample board. */
+function createDefaultData() {
+    const board = createBoard('My Board', [
+        createColumn('To Do'),
+        createColumn('In Progress'),
+        createColumn('Done'),
+    ]);
+    return {
+        version: SCHEMA_VERSION,
+        boards: [board],
+        activeBoardId: board.id,
+        settings: { lang: 'ko', zoom: 1 },
+    };
+}
+/** Mark a board as modified now. */
+function touch(board) {
+    board.updatedAt = Date.now();
+}
+function findColumn(board, columnId) {
+    return board.columns.find((c) => c.id === columnId);
+}
+/** Append a new column and return it. */
+function addColumn(board, title) {
+    const column = createColumn(title);
+    board.columns.push(column);
+    touch(board);
+    return column;
+}
+function renameColumn(board, columnId, title) {
+    const column = findColumn(board, columnId);
+    if (!column)
+        return false;
+    column.title = title;
+    touch(board);
+    return true;
+}
+function removeColumn(board, columnId) {
+    const index = board.columns.findIndex((c) => c.id === columnId);
+    if (index < 0)
+        return false;
+    board.columns.splice(index, 1);
+    touch(board);
+    return true;
+}
+/** Move a column from one position to another (clamped to valid range). */
+function moveColumn(board, fromIndex, toIndex) {
+    const len = board.columns.length;
+    if (fromIndex < 0 || fromIndex >= len)
+        return false;
+    const target = Math.max(0, Math.min(toIndex, len - 1));
+    if (target === fromIndex)
+        return false;
+    const [moved] = board.columns.splice(fromIndex, 1);
+    board.columns.splice(target, 0, moved);
+    touch(board);
+    return true;
+}
+/** Add a card to a column and return it, or null if the column is missing. */
+function addCard(board, columnId, text) {
+    const column = findColumn(board, columnId);
+    if (!column)
+        return null;
+    const card = createCard(text);
+    column.cards.push(card);
+    touch(board);
+    return card;
+}
+function updateCard(board, columnId, cardId, patch) {
+    const column = findColumn(board, columnId);
+    if (!column)
+        return false;
+    const card = column.cards.find((c) => c.id === cardId);
+    if (!card)
+        return false;
+    if (patch.text !== undefined)
+        card.text = patch.text;
+    if (patch.color !== undefined)
+        card.color = patch.color;
+    touch(board);
+    return true;
+}
+function removeCard(board, columnId, cardId) {
+    const column = findColumn(board, columnId);
+    if (!column)
+        return false;
+    const index = column.cards.findIndex((c) => c.id === cardId);
+    if (index < 0)
+        return false;
+    column.cards.splice(index, 1);
+    touch(board);
+    return true;
+}
+/**
+ * Move a card to another column (or within the same column) at the given index.
+ * `toIndex` is clamped into the destination column's valid range.
+ */
+function moveCard(board, fromColumnId, cardId, toColumnId, toIndex) {
+    const fromColumn = findColumn(board, fromColumnId);
+    const toColumn = findColumn(board, toColumnId);
+    if (!fromColumn || !toColumn)
+        return false;
+    const cardIndex = fromColumn.cards.findIndex((c) => c.id === cardId);
+    if (cardIndex < 0)
+        return false;
+    const [card] = fromColumn.cards.splice(cardIndex, 1);
+    const clamped = Math.max(0, Math.min(toIndex, toColumn.cards.length));
+    toColumn.cards.splice(clamped, 0, card);
+    touch(board);
+    return true;
+}
+function getActiveBoard(data) {
+    return data.boards.find((b) => b.id === data.activeBoardId);
+}
+
+__exports.createCard = createCard;
+__exports.createColumn = createColumn;
+__exports.createBoard = createBoard;
+__exports.createDefaultData = createDefaultData;
+__exports.touch = touch;
+__exports.findColumn = findColumn;
+__exports.addColumn = addColumn;
+__exports.renameColumn = renameColumn;
+__exports.removeColumn = removeColumn;
+__exports.moveColumn = moveColumn;
+__exports.addCard = addCard;
+__exports.updateCard = updateCard;
+__exports.removeCard = removeCard;
+__exports.moveCard = moveCard;
+__exports.getActiveBoard = getActiveBoard;
+
+};
+__modules["normalize"] = function(__exports, __require){
+// Defensive normalization of arbitrary/untrusted data into a valid AppData.
+// The app must keep working even if the stored DB is corrupted or an imported
+// JSON file is malformed, so every field is validated and repaired here.
+const { SCHEMA_VERSION } = __require("types");
+const { createBoard, createColumn, createDefaultData } = __require("model");
+const { makeId } = __require("id");
+function asString(value, fallback) {
+    return typeof value === 'string' ? value : fallback;
+}
+function asNumber(value, fallback) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+function normalizeCard(raw) {
+    const obj = (raw ?? {});
+    return {
+        id: asString(obj.id, makeId('card')),
+        text: asString(obj.text, ''),
+        color: asString(obj.color, ''),
+        createdAt: asNumber(obj.createdAt, Date.now()),
+    };
+}
+function normalizeColumn(raw) {
+    const obj = (raw ?? {});
+    const cards = Array.isArray(obj.cards) ? obj.cards.map(normalizeCard) : [];
+    const column = createColumn(asString(obj.title, ''));
+    column.id = asString(obj.id, column.id);
+    column.cards = cards;
+    return column;
+}
+function normalizeBoard(raw) {
+    const obj = (raw ?? {});
+    const columns = Array.isArray(obj.columns) ? obj.columns.map(normalizeColumn) : [];
+    const board = createBoard(asString(obj.name, 'Board'), columns);
+    board.id = asString(obj.id, board.id);
+    board.createdAt = asNumber(obj.createdAt, board.createdAt);
+    board.updatedAt = asNumber(obj.updatedAt, board.updatedAt);
+    return board;
+}
+function normalizeLang(value) {
+    return value === 'en' ? 'en' : 'ko';
+}
+/**
+ * Coerce any value into a valid {@link AppData}. Never throws. If nothing
+ * usable is present, a fresh default state is returned.
+ */
+function normalizeAppData(raw) {
+    if (!raw || typeof raw !== 'object')
+        return createDefaultData();
+    const obj = raw;
+    const boards = Array.isArray(obj.boards) ? obj.boards.map(normalizeBoard) : [];
+    if (boards.length === 0)
+        return createDefaultData();
+    let activeBoardId = typeof obj.activeBoardId === 'string' ? obj.activeBoardId : null;
+    if (!boards.some((b) => b.id === activeBoardId)) {
+        activeBoardId = boards[0].id;
+    }
+    const settings = (obj.settings ?? {});
+    const zoom = asNumber(settings.zoom, 1);
+    return {
+        version: SCHEMA_VERSION,
+        boards,
+        activeBoardId,
+        settings: {
+            lang: normalizeLang(settings.lang),
+            zoom: Math.max(0.4, Math.min(zoom, 2.5)),
+        },
+    };
+}
+
+__exports.normalizeAppData = normalizeAppData;
+
+};
+__modules["png"] = function(__exports, __require){
+// Export the current board to a PNG using the Canvas API only (no html2canvas
+// or any other external library). The board's structured data lets us draw it
+// deterministically at high resolution, which also looks crisp on foldable
+// large-screen devices.
+const M = {
+    pad: 24,
+    colWidth: 260,
+    colGap: 16,
+    headerH: 40,
+    cardMinH: 40,
+    cardGap: 10,
+    cardPad: 12,
+    titleH: 48,
+    lineH: 20,
+    font: '14px sans-serif',
+    headerFont: 'bold 15px sans-serif',
+    titleFont: 'bold 22px sans-serif',
+    radius: 8,
+};
+function roundRect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+}
+/** Split text into lines that fit within maxWidth for the current ctx font. */
+function wrapText(ctx, text, maxWidth) {
+    const lines = [];
+    for (const rawLine of text.split('\n')) {
+        let line = '';
+        for (const ch of rawLine) {
+            if (ctx.measureText(line + ch).width > maxWidth && line !== '') {
+                lines.push(line);
+                line = ch;
+            }
+            else {
+                line += ch;
+            }
+        }
+        lines.push(line);
+    }
+    return lines.length > 0 ? lines : [''];
+}
+/** Measure the rendered height of a card given its text. */
+function cardHeight(ctx, text) {
+    ctx.font = M.font;
+    const lines = wrapText(ctx, text, M.colWidth - M.cardPad * 2);
+    return Math.max(M.cardMinH, M.cardPad * 2 + lines.length * M.lineH);
+}
+/**
+ * Render the board to a canvas and return it. Uses a devicePixelRatio scale so
+ * the image is sharp on high-density and foldable displays.
+ */
+function renderBoardToCanvas(board, scale = 2) {
+    const probe = document.createElement('canvas').getContext('2d');
+    // First pass: compute the total height needed.
+    let maxColHeight = 0;
+    for (const column of board.columns) {
+        let h = M.headerH + M.cardGap;
+        for (const card of column.cards) {
+            h += cardHeight(probe, card.text) + M.cardGap;
+        }
+        maxColHeight = Math.max(maxColHeight, h);
+    }
+    const colCount = Math.max(board.columns.length, 1);
+    const width = M.pad * 2 + colCount * M.colWidth + (colCount - 1) * M.colGap;
+    const height = M.pad * 2 + M.titleH + maxColHeight + M.pad;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(width * scale);
+    canvas.height = Math.ceil(height * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+    // Background.
+    ctx.fillStyle = '#0d6efd';
+    ctx.fillRect(0, 0, width, height);
+    // Board title.
+    ctx.fillStyle = '#ffffff';
+    ctx.font = M.titleFont;
+    ctx.textBaseline = 'top';
+    ctx.fillText(board.name, M.pad, M.pad);
+    // Columns.
+    const top = M.pad + M.titleH;
+    board.columns.forEach((column, index) => {
+        const x = M.pad + index * (M.colWidth + M.colGap);
+        // Column background.
+        let colH = M.headerH + M.cardGap;
+        for (const card of column.cards)
+            colH += cardHeight(ctx, card.text) + M.cardGap;
+        ctx.fillStyle = '#ebecf0';
+        roundRect(ctx, x, top, M.colWidth, colH, M.radius);
+        ctx.fill();
+        // Column header.
+        ctx.fillStyle = '#172b4d';
+        ctx.font = M.headerFont;
+        ctx.fillText(column.title, x + M.cardPad, top + 12, M.colWidth - M.cardPad * 2);
+        // Cards.
+        let cy = top + M.headerH;
+        for (const card of column.cards) {
+            const ch = cardHeight(ctx, card.text);
+            ctx.fillStyle = '#ffffff';
+            roundRect(ctx, x + M.cardGap, cy, M.colWidth - M.cardGap * 2, ch, M.radius);
+            ctx.fill();
+            if (card.color) {
+                ctx.fillStyle = card.color;
+                roundRect(ctx, x + M.cardGap, cy, 6, ch, 3);
+                ctx.fill();
+            }
+            ctx.fillStyle = '#172b4d';
+            ctx.font = M.font;
+            const lines = wrapText(ctx, card.text, M.colWidth - M.cardGap * 2 - M.cardPad * 2);
+            lines.forEach((line, i) => {
+                ctx.fillText(line, x + M.cardGap + M.cardPad, cy + M.cardPad + i * M.lineH);
+            });
+            cy += ch + M.cardGap;
+        }
+    });
+    return canvas;
+}
+/** Trigger a browser download of the board as a PNG file. */
+function exportBoardPng(board) {
+    const canvas = renderBoardToCanvas(board);
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${board.name || 'board'}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+}
+
+__exports.renderBoardToCanvas = renderBoardToCanvas;
+__exports.exportBoardPng = exportBoardPng;
+
+};
+__modules["render"] = function(__exports, __require){
+// Renders the active board into the DOM. The renderer only builds elements and
+// delegates every mutation to the provided handlers, keeping it free of state
+// and storage concerns. Data attributes drive the drag-and-drop controller.
+const { t } = __require("i18n");
+/** Card accent colors cycled by the palette button (empty = no accent). */
+const CARD_COLORS = ['', '#ef5350', '#ffa726', '#ffee58', '#66bb6a', '#42a5f5', '#ab47bc'];
+function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className)
+        node.className = className;
+    if (text !== undefined)
+        node.textContent = text;
+    return node;
+}
+/** Replace a text element with a textarea for inline editing. */
+function startInlineEdit(host, initial, onSave) {
+    const textarea = el('textarea', 'inline-edit');
+    textarea.value = initial;
+    host.replaceWith(textarea);
+    textarea.focus();
+    textarea.select();
+    let done = false;
+    const finish = (commit) => {
+        if (done)
+            return;
+        done = true;
+        if (commit)
+            onSave(textarea.value.trim());
+        else
+            onSave(initial); // re-render restores original
+    };
+    textarea.addEventListener('blur', () => finish(true));
+    textarea.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            finish(true);
+        }
+        else if (e.key === 'Escape') {
+            e.preventDefault();
+            finish(false);
+        }
+    });
+}
+function renderCard(card, column, handlers) {
+    const node = el('div', 'card');
+    node.dataset.cardId = card.id;
+    node.dataset.colId = column.id;
+    if (card.color) {
+        const stripe = el('span', 'card-stripe');
+        stripe.style.background = card.color;
+        node.appendChild(stripe);
+    }
+    const text = el('div', 'card-text', card.text || ' ');
+    text.addEventListener('click', () => {
+        startInlineEdit(text, card.text, (value) => handlers.editCard(column.id, card.id, value));
+    });
+    node.appendChild(text);
+    const actions = el('div', 'card-actions');
+    const colorBtn = el('button', 'icon-btn', '🎨');
+    colorBtn.title = t('color');
+    colorBtn.addEventListener('click', () => handlers.cycleCardColor(column.id, card.id));
+    const delBtn = el('button', 'icon-btn', '🗑️');
+    delBtn.title = t('delete');
+    delBtn.addEventListener('click', () => handlers.deleteCard(column.id, card.id));
+    actions.append(colorBtn, delBtn);
+    node.appendChild(actions);
+    return node;
+}
+function renderColumn(column, index, handlers) {
+    const node = el('div', 'column');
+    node.dataset.colId = column.id;
+    node.dataset.colIndex = String(index);
+    const header = el('div', 'column-header');
+    header.dataset.colHandle = '';
+    const title = el('div', 'column-title', column.title || ' ');
+    title.addEventListener('click', () => {
+        startInlineEdit(title, column.title, (value) => handlers.renameColumn(column.id, value));
+    });
+    const delBtn = el('button', 'icon-btn', '🗑️');
+    delBtn.title = t('delete');
+    delBtn.addEventListener('click', () => handlers.deleteColumn(column.id));
+    header.append(title, delBtn);
+    const list = el('div', 'cards-list');
+    list.dataset.cards = '';
+    if (column.cards.length === 0) {
+        list.appendChild(el('div', 'empty-hint', t('emptyColumn')));
+    }
+    for (const card of column.cards) {
+        list.appendChild(renderCard(card, column, handlers));
+    }
+    const footer = el('div', 'column-footer');
+    const addBtn = el('button', 'add-card-btn', '➕');
+    addBtn.title = t('addCard');
+    addBtn.addEventListener('click', () => handlers.addCard(column.id));
+    footer.appendChild(addBtn);
+    node.append(header, list, footer);
+    return node;
+}
+/** Render the whole board into `container`, clearing previous content. */
+function renderBoard(container, board, handlers) {
+    container.replaceChildren();
+    board.columns.forEach((column, index) => {
+        container.appendChild(renderColumn(column, index, handlers));
+    });
+    const addColumn = el('button', 'add-column', '➕');
+    addColumn.title = t('addColumn');
+    addColumn.dataset.addColumn = '';
+    addColumn.addEventListener('click', () => handlers.addColumn());
+    container.appendChild(addColumn);
+}
+
+__exports.renderBoard = renderBoard;
+__exports.CARD_COLORS = CARD_COLORS;
+
+};
+__modules["store"] = function(__exports, __require){
+// Persistence layer. Primary storage is IndexedDB; if it is unavailable or
+// throws (private mode, corruption, quota), we transparently fall back to
+// localStorage and finally to an in-memory object so the app never breaks.
+//
+// Each backend stores a small envelope { savedAt, data }. localStorage is
+// written synchronously *before* the async IndexedDB write so that a flush on
+// page unload still persists, and on load we pick whichever backend has the
+// most recent savedAt to avoid returning stale data after a quick exit.
+const { normalizeAppData } = __require("normalize");
+const DB_NAME = 'kanban-db';
+const DB_VERSION = 1;
+const STORE_NAME = 'app';
+const DATA_KEY = 'data';
+const LS_KEY = 'kanban-fallback';
+let memoryCache = null;
+function openDb() {
+    return new Promise((resolve, reject) => {
+        if (typeof indexedDB === 'undefined') {
+            reject(new Error('IndexedDB unavailable'));
+            return;
+        }
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME);
+            }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error ?? new Error('open failed'));
+    });
+}
+function idbGet(db) {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).get(DATA_KEY);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+function idbPut(db, env) {
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(env, DATA_KEY);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+/** Extract a savedAt timestamp from an arbitrary stored value (0 if unknown). */
+function savedAtOf(value) {
+    if (value && typeof value === 'object' && typeof value.savedAt === 'number') {
+        return value.savedAt;
+    }
+    return 0;
+}
+/** Pull the inner data from an envelope, tolerating legacy bare-AppData values. */
+function dataOf(value) {
+    if (value && typeof value === 'object' && 'data' in value) {
+        return value.data;
+    }
+    return value;
+}
+/** Load and normalize the persisted state. Always resolves to valid data. */
+async function loadData() {
+    let idbValue;
+    try {
+        const db = await openDb();
+        idbValue = await idbGet(db);
+        db.close();
+    }
+    catch {
+        idbValue = undefined;
+    }
+    let lsValue;
+    try {
+        const text = localStorage.getItem(LS_KEY);
+        lsValue = text ? JSON.parse(text) : undefined;
+    }
+    catch {
+        lsValue = undefined;
+    }
+    // Choose whichever backend holds the most recent save.
+    let chosen = undefined;
+    if (idbValue !== undefined && lsValue !== undefined) {
+        chosen = savedAtOf(lsValue) > savedAtOf(idbValue) ? lsValue : idbValue;
+    }
+    else {
+        chosen = idbValue !== undefined ? idbValue : lsValue;
+    }
+    const data = normalizeAppData(dataOf(chosen));
+    memoryCache = data;
+    return data;
+}
+/** Persist the state. Best-effort across all backends; never throws. */
+async function saveData(data) {
+    memoryCache = data;
+    const env = { savedAt: Date.now(), data };
+    // localStorage first: synchronous, so it survives an imminent page unload.
+    try {
+        localStorage.setItem(LS_KEY, JSON.stringify(env));
+    }
+    catch {
+        // ignore quota/availability errors
+    }
+    // IndexedDB: the durable primary store.
+    try {
+        const db = await openDb();
+        await idbPut(db, env);
+        db.close();
+    }
+    catch {
+        // ignore; localStorage/memory still hold the latest state
+    }
+}
+/** Return the last in-memory snapshot, if any. */
+function getCached() {
+    return memoryCache;
+}
+
+__exports.loadData = loadData;
+__exports.saveData = saveData;
+__exports.getCached = getCached;
+
+};
+__modules["types"] = function(__exports, __require){
+// Core data model for the Kanban board application.
+// All persisted data is plain JSON so it is easy to edit, extend and migrate.
+/** Current schema version of {@link AppData}. */
+const SCHEMA_VERSION = 1;
+
+__exports.SCHEMA_VERSION = SCHEMA_VERSION;
+
+};
+__modules["zoom"] = function(__exports, __require){
+// Zoom controller: supports two-finger pinch zoom, Ctrl/Cmd + mouse wheel, and
+// explicit zoom buttons. The scale is applied as a CSS transform on a target
+// element. No external library is used.
+const MIN_ZOOM = 0.4;
+const MAX_ZOOM = 2.5;
+const STEP = 0.1;
+class ZoomController {
+    constructor(target, surface, onChange) {
+        this.scale = 1;
+        // Active pointers for pinch detection.
+        this.pointers = new Map();
+        this.pinchStartDistance = 0;
+        this.pinchStartScale = 1;
+        this.target = target;
+        this.surface = surface;
+        this.onChange = onChange;
+        this.attach();
+    }
+    /** True while a two-finger pinch is in progress (so drag-and-drop can yield). */
+    isPinching() {
+        return this.pointers.size >= 2;
+    }
+    getScale() {
+        return this.scale;
+    }
+    setScale(value) {
+        this.scale = Math.max(MIN_ZOOM, Math.min(value, MAX_ZOOM));
+        this.target.style.transform = `scale(${this.scale})`;
+        this.target.style.transformOrigin = 'top left';
+        this.onChange(this.scale);
+    }
+    zoomIn() {
+        this.setScale(this.scale + STEP);
+    }
+    zoomOut() {
+        this.setScale(this.scale - STEP);
+    }
+    reset() {
+        this.setScale(1);
+    }
+    attach() {
+        this.surface.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
+        this.surface.addEventListener('pointerdown', (e) => this.onPointerDown(e));
+        this.surface.addEventListener('pointermove', (e) => this.onPointerMove(e));
+        this.surface.addEventListener('pointerup', (e) => this.onPointerUp(e));
+        this.surface.addEventListener('pointercancel', (e) => this.onPointerUp(e));
+    }
+    onWheel(e) {
+        if (!e.ctrlKey && !e.metaKey)
+            return;
+        e.preventDefault();
+        this.setScale(this.scale - Math.sign(e.deltaY) * STEP);
+    }
+    onPointerDown(e) {
+        if (e.pointerType !== 'touch')
+            return;
+        this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (this.pointers.size === 2) {
+            this.pinchStartDistance = this.currentDistance();
+            this.pinchStartScale = this.scale;
+        }
+    }
+    onPointerMove(e) {
+        if (e.pointerType !== 'touch')
+            return;
+        if (!this.pointers.has(e.pointerId))
+            return;
+        this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (this.pointers.size === 2 && this.pinchStartDistance > 0) {
+            e.preventDefault();
+            const ratio = this.currentDistance() / this.pinchStartDistance;
+            this.setScale(this.pinchStartScale * ratio);
+        }
+    }
+    onPointerUp(e) {
+        this.pointers.delete(e.pointerId);
+        if (this.pointers.size < 2)
+            this.pinchStartDistance = 0;
+    }
+    currentDistance() {
+        const pts = Array.from(this.pointers.values());
+        const dx = pts[0].x - pts[1].x;
+        const dy = pts[0].y - pts[1].y;
+        return Math.hypot(dx, dy);
+    }
+}
+
+__exports.ZoomController = ZoomController;
+
+};
+
+__require('main');
+})();
+</script>
+</body>
+</html>
