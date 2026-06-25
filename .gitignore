@@ -1,0 +1,12 @@
+# IDE
+.idea/
+.vscode/
+
+# Build output
+release/
+dist/
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
