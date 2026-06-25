@@ -94,11 +94,6 @@ function main() {
 
   fs.mkdirSync(outDir, { recursive: true });
   fs.writeFileSync(path.join(outDir, 'index.html'), out, 'utf8');
-  // Ship the history page too so the release is self-documenting.
-  const historySrc = path.join(root, 'history.html');
-  if (fs.existsSync(historySrc)) {
-    fs.copyFileSync(historySrc, path.join(outDir, 'history.html'));
-  }
   const bytes = Buffer.byteLength(out, 'utf8');
   console.log(`release/index.html written (${bytes} bytes, ${files()} modules inlined)`);
 }
