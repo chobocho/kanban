@@ -10,6 +10,7 @@ import { DragController } from './dnd.js';
 import { ZoomController } from './zoom.js';
 import { downloadJson, readJsonFile } from './jsonio.js';
 import { exportBoardPng } from './png.js';
+import { customAlert, customConfirm, customPrompt } from './modal.js';
 export class KanbanApp {
     constructor(doc) {
         this.doc = doc;
@@ -112,9 +113,11 @@ export class KanbanApp {
                 if (board && renameColumn(board, colId, title))
                     this.commit();
             },
-            deleteColumn: (colId) => {
+            deleteColumn: async (colId) => {
                 const board = this.active();
-                if (board && this.doc.defaultView?.confirm(t('deleteColumnConfirm'))) {
+                if (!board)
+                    return;
+                if (await customConfirm(t('deleteColumnConfirm'))) {
                     if (removeColumn(board, colId))
                         this.commit();
                 }
@@ -153,16 +156,16 @@ export class KanbanApp {
                 this.commit();
             }
             catch {
-                this.doc.defaultView?.alert(t('importError'));
+                void customAlert(t('importError'));
             }
             finally {
                 importInput.value = '';
             }
         });
     }
-    newBoard() {
-        const name = this.doc.defaultView?.prompt(t('boardNamePrompt'), t('newBoard'));
-        if (name === null || name === undefined)
+    async newBoard() {
+        const name = await customPrompt(t('boardNamePrompt'), t('newBoard'));
+        if (name === null)
             return;
         const board = createBoard(name || t('newBoard'), [
             createColumn('To Do'),
@@ -173,21 +176,21 @@ export class KanbanApp {
         this.data.activeBoardId = board.id;
         this.commit();
     }
-    renameBoard() {
+    async renameBoard() {
         const board = this.active();
         if (!board)
             return;
-        const name = this.doc.defaultView?.prompt(t('boardNamePrompt'), board.name);
-        if (name === null || name === undefined)
+        const name = await customPrompt(t('boardNamePrompt'), board.name);
+        if (name === null)
             return;
         board.name = name || board.name;
         this.commit();
     }
-    deleteBoard() {
+    async deleteBoard() {
         const board = this.active();
         if (!board)
             return;
-        if (!this.doc.defaultView?.confirm(t('deleteBoardConfirm')))
+        if (!(await customConfirm(t('deleteBoardConfirm'))))
             return;
         this.data.boards = this.data.boards.filter((b) => b.id !== board.id);
         if (this.data.boards.length === 0) {

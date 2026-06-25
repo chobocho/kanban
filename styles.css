@@ -275,6 +275,96 @@ select.control {
   flex: 0 0 auto;
 }
 
+/* Custom modal dialogs (replace native alert/confirm/prompt) ----------- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(9, 30, 66, 0.5);
+  padding: 16px;
+  animation: modal-fade 0.12s ease-out;
+}
+
+.modal-dialog {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  width: min(420px, 100%);
+  padding: 20px;
+  animation: modal-pop 0.12s ease-out;
+}
+
+.modal-message {
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.modal-input {
+  width: 100%;
+  margin-top: 14px;
+  font: inherit;
+  font-size: 15px;
+  padding: 9px 10px;
+  border: 2px solid #c1c7d0;
+  border-radius: 6px;
+}
+
+.modal-input:focus {
+  outline: none;
+  border-color: var(--bg);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.modal-btn {
+  font: inherit;
+  font-size: 14px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 38px;
+}
+
+.modal-cancel {
+  background: #ebecf0;
+  color: var(--text);
+}
+
+.modal-cancel:hover {
+  background: #dfe1e6;
+}
+
+.modal-ok {
+  background: var(--bg);
+  color: #fff;
+}
+
+.modal-ok:hover {
+  background: #0b5ed7;
+}
+
+@keyframes modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-pop {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
 /* High-DPI / foldable large screens: show more columns comfortably. */
 @media (min-width: 1600px) {
   .app-title {

@@ -86,6 +86,28 @@ try {
   const c1 = await page.locator('.column').nth(1).locator('.card').count();
   assert(c0 === 0 && c1 === 1, `drag-and-drop moves card across columns (got ${c0}/${c1})`);
 
+  // Custom modal (replaces native prompt): create a board via the dialog.
+  const boardsBefore = await page.locator('#boardSelect option').count();
+  await page.locator('#newBoardBtn').click();
+  await page.waitForSelector('.modal-dialog', { timeout: 3000 });
+  assert(true, 'custom modal opens for new board (no native prompt)');
+  await page.locator('.modal-input').fill('Project X');
+  await page.locator('.modal-ok').click();
+  await page.waitForTimeout(100);
+  const boardsAfter = await page.locator('#boardSelect option').count();
+  assert(boardsAfter === boardsBefore + 1, `custom prompt creates a board (got ${boardsAfter})`);
+  const activeName = await page.locator('#boardSelect').inputValue();
+  const selectedText = await page.locator(`#boardSelect option[value="${activeName}"]`).textContent();
+  assert(selectedText === 'Project X', `new board uses entered name (got "${selectedText}")`);
+
+  // Cancelling the modal makes no change.
+  await page.locator('#newBoardBtn').click();
+  await page.waitForSelector('.modal-dialog', { timeout: 3000 });
+  await page.locator('.modal-cancel').click();
+  await page.waitForTimeout(100);
+  const boardsCancel = await page.locator('#boardSelect option').count();
+  assert(boardsCancel === boardsAfter, `cancelling the modal makes no change (got ${boardsCancel})`);
+
   assert(errors.length === 0, `no runtime errors (${JSON.stringify(errors)})`);
   console.log('\nsmoke: all checks passed');
 } finally {
