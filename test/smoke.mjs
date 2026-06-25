@@ -40,6 +40,10 @@ try {
   const columns = await page.locator('.column').count();
   assert(columns === 3, `renders 3 default columns (got ${columns})`);
 
+  // With no edits yet, undo and redo are unavailable.
+  assert(await page.locator('#undoBtn').isDisabled(), 'undo disabled before any edit');
+  assert(await page.locator('#redoBtn').isDisabled(), 'redo disabled before any edit');
+
   // Add a card to the first column.
   await page.locator('.column').first().locator('.add-card-btn').click();
   await page.waitForTimeout(100);
@@ -51,6 +55,17 @@ try {
   await page.waitForTimeout(100);
   const cols2 = await page.locator('.column').count();
   assert(cols2 === 4, `add-column adds a list (got ${cols2})`);
+
+  // Undo reverts the column add; redo restores it (state left unchanged after).
+  assert(!(await page.locator('#undoBtn').isDisabled()), 'undo enabled after edits');
+  await page.locator('#undoBtn').click();
+  await page.waitForTimeout(100);
+  const colsUndo = await page.locator('.column').count();
+  assert(colsUndo === 3, `undo reverts add-column (got ${colsUndo})`);
+  await page.locator('#redoBtn').click();
+  await page.waitForTimeout(100);
+  const colsRedo = await page.locator('.column').count();
+  assert(colsRedo === 4, `redo restores add-column (got ${colsRedo})`);
 
   // Language switch to English updates labels (now in tooltips).
   await page.selectOption('#langSelect', 'en');

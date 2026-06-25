@@ -3,7 +3,8 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, touch, } from './model.js';
+import { History } from './history.js';
 import { setLanguage, t } from './i18n.js';
 import { renderBoard, CARD_COLORS } from './render.js';
 import { DragController } from './dnd.js';
@@ -11,13 +12,22 @@ import { ZoomController } from './zoom.js';
 import { downloadJson, readJsonFile } from './jsonio.js';
 import { exportBoardPng } from './png.js';
 import { customAlert, customConfirm, customPrompt } from './modal.js';
+/** Maximum number of undo steps kept per board. */
+const MAX_HISTORY = 8;
 export class KanbanApp {
     constructor(doc) {
         this.doc = doc;
         this.saveTimer = 0;
+        // Undo/redo of the active board's content (columns + cards). `baseline` holds
+        // a clone of the last committed state so a change can be recorded *before* it
+        // is overwritten by the next mutation.
+        this.history = new History(MAX_HISTORY);
+        this.baseline = [];
         this.columnsEl = this.byId('columns');
         this.boardSelect = this.byId('boardSelect');
         this.langSelect = this.byId('langSelect');
+        this.undoBtn = this.byId('undoBtn');
+        this.redoBtn = this.byId('redoBtn');
     }
     byId(id) {
         const node = this.doc.getElementById(id);
@@ -50,6 +60,7 @@ export class KanbanApp {
             isBlocked: () => this.zoom.isPinching(),
         });
         this.wireToolbar();
+        this.resetHistory();
         // Flush any pending debounced save before the page is hidden/closed so that
         // work always resumes exactly where the user left off.
         const view = this.doc.defaultView;
@@ -58,7 +69,27 @@ export class KanbanApp {
             if (this.doc.visibilityState === 'hidden')
                 this.flush();
         });
+        // Ctrl/Cmd+Z to undo, Ctrl/Cmd+Shift+Z or Ctrl+Y to redo.
+        this.doc.addEventListener('keydown', (e) => this.onKeyDown(e));
         this.render();
+    }
+    onKeyDown(e) {
+        if (!(e.ctrlKey || e.metaKey))
+            return;
+        // Leave native text editing (inline card/list edit, modal inputs) alone.
+        const target = e.target;
+        const tag = target?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable)
+            return;
+        const key = e.key.toLowerCase();
+        if (key === 'z' && !e.shiftKey) {
+            e.preventDefault();
+            this.undo();
+        }
+        else if ((key === 'z' && e.shiftKey) || key === 'y') {
+            e.preventDefault();
+            this.redo();
+        }
     }
     /** Immediately persist, cancelling any pending debounced save. */
     flush() {
@@ -130,11 +161,13 @@ export class KanbanApp {
         this.byId('deleteBoardBtn').addEventListener('click', () => this.deleteBoard());
         this.boardSelect.addEventListener('change', () => {
             this.data.activeBoardId = this.boardSelect.value;
-            this.commit();
+            this.commitReset();
         });
         this.langSelect.addEventListener('change', () => {
             this.setLang(this.langSelect.value);
         });
+        this.undoBtn.addEventListener('click', () => this.undo());
+        this.redoBtn.addEventListener('click', () => this.redo());
         this.byId('zoomInBtn').addEventListener('click', () => this.zoom.zoomIn());
         this.byId('zoomOutBtn').addEventListener('click', () => this.zoom.zoomOut());
         this.byId('zoomResetBtn').addEventListener('click', () => this.zoom.reset());
@@ -153,7 +186,7 @@ export class KanbanApp {
                 this.data = await readJsonFile(file);
                 setLanguage(this.data.settings.lang);
                 this.zoom.setScale(this.data.settings.zoom);
-                this.commit();
+                this.commitReset();
             }
             catch {
                 void customAlert(t('importError'));
@@ -174,7 +207,7 @@ export class KanbanApp {
         ]);
         this.data.boards.push(board);
         this.data.activeBoardId = board.id;
-        this.commit();
+        this.commitReset();
     }
     async renameBoard() {
         const board = this.active();
@@ -184,7 +217,8 @@ export class KanbanApp {
         if (name === null)
             return;
         board.name = name || board.name;
-        this.commit();
+        // Board name is outside undo scope (cards/lists), so keep the history.
+        this.refresh();
     }
     async deleteBoard() {
         const board = this.active();
@@ -202,16 +236,76 @@ export class KanbanApp {
             this.data.boards.push(fresh);
         }
         this.data.activeBoardId = this.data.boards[0].id;
-        this.commit();
+        this.commitReset();
     }
     setLang(lang) {
         this.data.settings.lang = lang;
         setLanguage(lang);
         this.doc.documentElement.lang = lang;
-        this.commit();
+        // Language is a setting, not board content, so the history is preserved.
+        this.refresh();
     }
-    /** Apply state changes: persist and re-render. */
+    /** Clone any JSON-serializable value (board snapshots are plain JSON). */
+    clone(value) {
+        return JSON.parse(JSON.stringify(value));
+    }
+    /** Forget undo/redo history and re-baseline on the active board. */
+    resetHistory() {
+        this.history.clear();
+        const board = this.active();
+        this.baseline = board ? this.clone(board.columns) : [];
+        this.updateHistoryButtons();
+    }
+    updateHistoryButtons() {
+        this.undoBtn.disabled = !this.history.canUndo();
+        this.redoBtn.disabled = !this.history.canRedo();
+    }
+    /** Revert the active board's content to the previous state. */
+    undo() {
+        const board = this.active();
+        if (!board)
+            return;
+        const previous = this.history.undo(this.clone(board.columns));
+        if (!previous)
+            return;
+        board.columns = this.clone(previous);
+        this.baseline = this.clone(previous);
+        touch(board);
+        this.persist();
+        this.render();
+    }
+    /** Re-apply the most recently undone change. */
+    redo() {
+        const board = this.active();
+        if (!board)
+            return;
+        const next = this.history.redo(this.clone(board.columns));
+        if (!next)
+            return;
+        board.columns = this.clone(next);
+        this.baseline = this.clone(next);
+        touch(board);
+        this.persist();
+        this.render();
+    }
+    /** Apply a board-content change: record an undo step, persist and re-render. */
     commit() {
+        const board = this.active();
+        if (board) {
+            this.history.record(this.baseline);
+            this.baseline = this.clone(board.columns);
+        }
+        this.persist();
+        this.render();
+    }
+    /** Persist and re-render without touching the undo history. */
+    refresh() {
+        this.persist();
+        this.render();
+    }
+    /** Persist, re-render and reset the undo history (board switched/replaced). */
+    commitReset() {
+        this.resetHistory();
         this.persist();
         this.render();
     }
@@ -232,6 +326,7 @@ export class KanbanApp {
             renderBoard(this.columnsEl, board, this.handlers);
         this.refreshBoardSelect();
         this.refreshLabels();
+        this.updateHistoryButtons();
     }
     refreshBoardSelect() {
         this.boardSelect.replaceChildren();
