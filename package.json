@@ -6,8 +6,12 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
-    "test": "tsc && node test/run.js",
+    "test": "tsc && node js/test/run.js",
+    "smoke": "tsc && node test/smoke.mjs",
     "serve": "python -m http.server 8001"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "playwright": "^1.61.1"
+  }
 }

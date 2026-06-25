@@ -1,6 +1,11 @@
 // Persistence layer. Primary storage is IndexedDB; if it is unavailable or
 // throws (private mode, corruption, quota), we transparently fall back to
 // localStorage and finally to an in-memory object so the app never breaks.
+//
+// Each backend stores a small envelope { savedAt, data }. localStorage is
+// written synchronously *before* the async IndexedDB write so that a flush on
+// page unload still persists, and on load we pick whichever backend has the
+// most recent savedAt to avoid returning stale data after a quick exit.
 import { normalizeAppData } from './normalize.js';
 const DB_NAME = 'kanban-db';
 const DB_VERSION = 1;
@@ -33,67 +38,78 @@ function idbGet(db) {
         req.onerror = () => reject(req.error);
     });
 }
-function idbPut(db, data) {
+function idbPut(db, env) {
     return new Promise((resolve, reject) => {
         const tx = db.transaction(STORE_NAME, 'readwrite');
-        tx.objectStore(STORE_NAME).put(data, DATA_KEY);
+        tx.objectStore(STORE_NAME).put(env, DATA_KEY);
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
     });
 }
+/** Extract a savedAt timestamp from an arbitrary stored value (0 if unknown). */
+function savedAtOf(value) {
+    if (value && typeof value === 'object' && typeof value.savedAt === 'number') {
+        return value.savedAt;
+    }
+    return 0;
+}
+/** Pull the inner data from an envelope, tolerating legacy bare-AppData values. */
+function dataOf(value) {
+    if (value && typeof value === 'object' && 'data' in value) {
+        return value.data;
+    }
+    return value;
+}
 /** Load and normalize the persisted state. Always resolves to valid data. */
 export async function loadData() {
-    // Try IndexedDB first.
+    let idbValue;
     try {
         const db = await openDb();
-        const raw = await idbGet(db);
+        idbValue = await idbGet(db);
         db.close();
-        if (raw !== undefined && raw !== null) {
-            const data = normalizeAppData(raw);
-            memoryCache = data;
-            return data;
-        }
     }
     catch {
-        // fall through to localStorage
+        idbValue = undefined;
     }
-    // Try localStorage.
+    let lsValue;
     try {
         const text = localStorage.getItem(LS_KEY);
-        if (text) {
-            const data = normalizeAppData(JSON.parse(text));
-            memoryCache = data;
-            return data;
-        }
+        lsValue = text ? JSON.parse(text) : undefined;
     }
     catch {
-        // fall through to default
+        lsValue = undefined;
     }
-    const fresh = normalizeAppData(null);
-    memoryCache = fresh;
-    return fresh;
+    // Choose whichever backend holds the most recent save.
+    let chosen = undefined;
+    if (idbValue !== undefined && lsValue !== undefined) {
+        chosen = savedAtOf(lsValue) > savedAtOf(idbValue) ? lsValue : idbValue;
+    }
+    else {
+        chosen = idbValue !== undefined ? idbValue : lsValue;
+    }
+    const data = normalizeAppData(dataOf(chosen));
+    memoryCache = data;
+    return data;
 }
 /** Persist the state. Best-effort across all backends; never throws. */
 export async function saveData(data) {
     memoryCache = data;
-    let savedToIdb = false;
+    const env = { savedAt: Date.now(), data };
+    // localStorage first: synchronous, so it survives an imminent page unload.
+    try {
+        localStorage.setItem(LS_KEY, JSON.stringify(env));
+    }
+    catch {
+        // ignore quota/availability errors
+    }
+    // IndexedDB: the durable primary store.
     try {
         const db = await openDb();
-        await idbPut(db, data);
+        await idbPut(db, env);
         db.close();
-        savedToIdb = true;
     }
     catch {
-        savedToIdb = false;
-    }
-    // Mirror to localStorage as a backup (or primary if IndexedDB failed).
-    try {
-        localStorage.setItem(LS_KEY, JSON.stringify(data));
-    }
-    catch {
-        if (!savedToIdb) {
-            // Both backends failed; memoryCache still holds the latest state.
-        }
+        // ignore; localStorage/memory still hold the latest state
     }
 }
 /** Return the last in-memory snapshot, if any. */

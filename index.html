@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <title>칸반 보드</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="toolbar">
+    <h1 class="app-title" data-i18n="appTitle">칸반 보드</h1>
+
+    <div class="toolbar-group">
+      <label class="visually-hidden" for="boardSelect" data-i18n="boards">보드</label>
+      <select id="boardSelect" class="control" title="boards"></select>
+      <button id="newBoardBtn" class="control" data-i18n="newBoard" data-i18n-title="newBoard">새 보드</button>
+      <button id="renameBoardBtn" class="control" data-i18n="rename" data-i18n-title="rename">이름 변경</button>
+      <button id="deleteBoardBtn" class="control" data-i18n="delete" data-i18n-title="delete">삭제</button>
+    </div>
+
+    <div class="toolbar-group">
+      <button id="zoomOutBtn" class="control" data-i18n-title="zoomOut" title="zoom out">−</button>
+      <button id="zoomResetBtn" class="control" data-i18n-title="zoomReset" title="reset">100%</button>
+      <button id="zoomInBtn" class="control" data-i18n-title="zoomIn" title="zoom in">+</button>
+    </div>
+
+    <div class="toolbar-group">
+      <button id="exportJsonBtn" class="control" data-i18n="exportJson">JSON 내보내기</button>
+      <label class="control file-label" for="importJsonInput" data-i18n="importJson">JSON 가져오기</label>
+      <input id="importJsonInput" type="file" accept="application/json,.json" hidden />
+      <button id="exportPngBtn" class="control" data-i18n="exportPng">PNG 저장</button>
+    </div>
+
+    <div class="toolbar-group">
+      <label class="visually-hidden" for="langSelect" data-i18n="language">언어</label>
+      <select id="langSelect" class="control" title="language">
+        <option value="ko">한국어</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+  </header>
+
+  <main id="boardSurface" class="board-surface">
+    <div id="boardScale" class="board-scale">
+      <div id="columns" class="columns"></div>
+    </div>
+  </main>
+
+  <script type="module" src="./js/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,283 @@
+/* Kanban Board styles. Uses only browser-default fonts and no external assets,
+   so the app runs fully offline. Layout is responsive and touch-friendly, and
+   scales cleanly on foldable large screens. */
+
+:root {
+  --bg: #0d6efd;
+  --toolbar-bg: #0b5ed7;
+  --column-bg: #ebecf0;
+  --card-bg: #ffffff;
+  --text: #172b4d;
+  --muted: #5e6c84;
+  --radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Malgun Gothic", sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  /* Prevent the browser's own pinch-zoom so the app can handle it. */
+  touch-action: manipulation;
+  overscroll-behavior: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Toolbar -------------------------------------------------------------- */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  background: var(--toolbar-bg);
+  color: #fff;
+}
+
+.app-title {
+  font-size: 18px;
+  margin: 0 8px 0 0;
+  white-space: nowrap;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.control {
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.control:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+select.control {
+  background: #fff;
+  color: var(--text);
+  max-width: 180px;
+}
+
+.file-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* Board surface -------------------------------------------------------- */
+.board-surface {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.board-scale {
+  transform-origin: top left;
+  width: max-content;
+}
+
+.columns {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-height: 200px;
+}
+
+/* Column --------------------------------------------------------------- */
+.column {
+  width: 272px;
+  flex: 0 0 auto;
+  background: var(--column-bg);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 120px);
+}
+
+.column-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  font-weight: 700;
+  cursor: grab;
+  gap: 6px;
+}
+
+.column-title {
+  flex: 1;
+  word-break: break-word;
+}
+
+.cards-list {
+  padding: 4px 8px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 12px;
+}
+
+.column-footer {
+  padding: 8px;
+}
+
+.add-card-btn {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.add-card-btn:hover {
+  background: rgba(9, 30, 66, 0.08);
+}
+
+/* Card ----------------------------------------------------------------- */
+.card {
+  position: relative;
+  background: var(--card-bg);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 0 rgba(9, 30, 66, 0.25);
+  cursor: grab;
+  overflow: hidden;
+}
+
+.card-stripe {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+}
+
+.card-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 18px;
+  padding-left: 4px;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.card:hover .card-actions {
+  opacity: 1;
+}
+
+.icon-btn {
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  color: var(--muted);
+}
+
+.icon-btn:hover {
+  background: rgba(9, 30, 66, 0.12);
+}
+
+.empty-hint {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 6px 4px;
+}
+
+.inline-edit {
+  width: 100%;
+  font: inherit;
+  border: 2px solid var(--bg);
+  border-radius: 4px;
+  padding: 6px;
+  resize: vertical;
+  min-height: 38px;
+}
+
+.add-column {
+  flex: 0 0 auto;
+  width: 272px;
+  font: inherit;
+  padding: 12px;
+  border: none;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.3);
+  color: #fff;
+  cursor: pointer;
+  text-align: left;
+}
+
+.add-column:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+/* Drag and drop -------------------------------------------------------- */
+.drag-clone {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0.9;
+  transform: rotate(2deg);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+.card-placeholder,
+.column-placeholder {
+  border: 2px dashed rgba(9, 30, 66, 0.35);
+  border-radius: 6px;
+  background: rgba(9, 30, 66, 0.06);
+  margin-bottom: 8px;
+}
+
+.column-placeholder {
+  flex: 0 0 auto;
+}
+
+/* High-DPI / foldable large screens: show more columns comfortably. */
+@media (min-width: 1600px) {
+  .app-title {
+    font-size: 20px;
+  }
+}
