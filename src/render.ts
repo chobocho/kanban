@@ -78,9 +78,9 @@ function renderCard(card: Card, column: Column, handlers: RenderHandlers): HTMLE
 
   const actions = el('div', 'card-actions');
   const colorBtn = el('button', 'icon-btn', '🎨');
-  colorBtn.title = 'color';
+  colorBtn.title = t('color');
   colorBtn.addEventListener('click', () => handlers.cycleCardColor(column.id, card.id));
-  const delBtn = el('button', 'icon-btn', '✕');
+  const delBtn = el('button', 'icon-btn', '🗑️');
   delBtn.title = t('delete');
   delBtn.addEventListener('click', () => handlers.deleteCard(column.id, card.id));
   actions.append(colorBtn, delBtn);
@@ -103,7 +103,7 @@ function renderColumn(
   title.addEventListener('click', () => {
     startInlineEdit(title, column.title, (value) => handlers.renameColumn(column.id, value));
   });
-  const delBtn = el('button', 'icon-btn', '✕');
+  const delBtn = el('button', 'icon-btn', '🗑️');
   delBtn.title = t('delete');
   delBtn.addEventListener('click', () => handlers.deleteColumn(column.id));
   header.append(title, delBtn);
@@ -118,7 +118,8 @@ function renderColumn(
   }
 
   const footer = el('div', 'column-footer');
-  const addBtn = el('button', 'add-card-btn', t('addCard'));
+  const addBtn = el('button', 'add-card-btn', '➕');
+  addBtn.title = t('addCard');
   addBtn.addEventListener('click', () => handlers.addCard(column.id));
   footer.appendChild(addBtn);
 
@@ -137,7 +138,8 @@ export function renderBoard(
     container.appendChild(renderColumn(column, index, handlers));
   });
 
-  const addColumn = el('button', 'add-column', t('addColumn'));
+  const addColumn = el('button', 'add-column', '➕');
+  addColumn.title = t('addColumn');
   addColumn.dataset.addColumn = '';
   addColumn.addEventListener('click', () => handlers.addColumn());
   container.appendChild(addColumn);

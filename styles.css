@@ -78,6 +78,16 @@ select.control {
   max-width: 180px;
 }
 
+/* Emoji icon buttons: square, centered, slightly larger glyph. */
+.icon-control {
+  font-size: 16px;
+  line-height: 1;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .file-label {
   display: inline-flex;
   align-items: center;
@@ -150,8 +160,9 @@ select.control {
 
 .add-card-btn {
   width: 100%;
-  text-align: left;
+  text-align: center;
   font: inherit;
+  font-size: 16px;
   padding: 8px;
   border: none;
   background: transparent;
@@ -240,13 +251,14 @@ select.control {
   flex: 0 0 auto;
   width: 272px;
   font: inherit;
+  font-size: 16px;
   padding: 12px;
   border: none;
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.3);
   color: #fff;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
 }
 
 .add-column:hover {

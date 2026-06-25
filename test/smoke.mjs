@@ -52,11 +52,15 @@ try {
   const cols2 = await page.locator('.column').count();
   assert(cols2 === 4, `add-column adds a list (got ${cols2})`);
 
-  // Language switch to English updates labels.
+  // Language switch to English updates labels (now in tooltips).
   await page.selectOption('#langSelect', 'en');
   await page.waitForTimeout(100);
   const addColText = await page.locator('[data-add-column]').textContent();
-  assert(addColText.includes('Add list'), `language switch updates labels (got "${addColText}")`);
+  assert(addColText.trim() === '➕', `add-column shows an emoji icon (got "${addColText}")`);
+  const addColTitle = await page.locator('[data-add-column]').getAttribute('title');
+  assert(addColTitle.includes('Add list'), `language switch updates tooltip (got "${addColTitle}")`);
+  const newBoardTitle = await page.locator('#newBoardBtn').getAttribute('title');
+  assert(newBoardTitle === 'New board', `toolbar tooltip localized (got "${newBoardTitle}")`);
 
   // Zoom button changes the scale transform.
   await page.locator('#zoomInBtn').click();
