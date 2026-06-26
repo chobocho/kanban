@@ -156,10 +156,10 @@ function renderCard(card, column, labels, handlers) {
     const colorBtn = el('button', 'icon-btn', '🎨');
     colorBtn.title = t('color');
     colorBtn.addEventListener('click', () => handlers.cycleCardColor(column.id, card.id));
-    const delBtn = el('button', 'icon-btn', '🗑️');
-    delBtn.title = t('delete');
-    delBtn.addEventListener('click', () => handlers.deleteCard(column.id, card.id));
-    actions.append(openBtn, colorBtn, delBtn);
+    const archiveBtn = el('button', 'icon-btn', '🗄️');
+    archiveBtn.title = t('archive');
+    archiveBtn.addEventListener('click', () => handlers.archiveCard(column.id, card.id));
+    actions.append(openBtn, colorBtn, archiveBtn);
     node.appendChild(actions);
     return node;
 }

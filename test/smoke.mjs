@@ -159,6 +159,26 @@ try {
   const restored = await page.locator('.card').count();
   assert(restored === 1, `clearing the filter restores cards (got ${restored})`);
 
+  // Archive: the card leaves the board, shows up in the archive, and restores.
+  const cardToArchive = page.locator('.column').nth(1).locator('.card').first();
+  await cardToArchive.hover();
+  await cardToArchive.locator('.icon-btn[title="Archive"]').click();
+  await page.waitForTimeout(100);
+  const afterArchive = await page.locator('.card').count();
+  assert(afterArchive === 0, `archiving removes the card from the board (got ${afterArchive})`);
+
+  await page.locator('#archiveBtn').click();
+  await page.waitForSelector('.card-archive', { timeout: 3000 });
+  const archivedRows = await page.locator('.archive-row').count();
+  assert(archivedRows === 1, `archived card appears in the archive (got ${archivedRows})`);
+  await page.locator('.archive-restore').first().click();
+  await page.waitForTimeout(100);
+  assert((await page.locator('.archive-empty').count()) === 1, 'archive is empty after restore');
+  await page.locator('.card-archive .modal-ok').click();
+  await page.waitForTimeout(100);
+  const afterRestore = await page.locator('.card').count();
+  assert(afterRestore === 1, `restoring brings the card back (got ${afterRestore})`);
+
   // Custom modal (replaces native prompt): create a board via the dialog.
   const boardsBefore = await page.locator('#boardSelect option').count();
   await page.locator('#newBoardBtn').click();

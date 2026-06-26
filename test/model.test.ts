@@ -18,6 +18,9 @@ import {
   updateLabel,
   removeLabel,
   toggleCardLabel,
+  archiveCard,
+  restoreCard,
+  deleteArchivedCard,
 } from '../src/model.js';
 
 test('createDefaultData has one board with three columns', () => {
@@ -178,6 +181,47 @@ test('addLabel appends a board label', () => {
   const label = addLabel(board, 'Urgent', '#000000');
   assertEqual(board.labels.length, before + 1, 'label appended');
   assertEqual(board.labels[board.labels.length - 1].id, label.id, 'returns new label');
+});
+
+test('archiveCard moves a card into the board archive', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  assert(archiveCard(board, colId, card.id), 'archive ok');
+  assertEqual(board.columns[0].cards.length, 0, 'removed from column');
+  assertEqual(board.archived.length, 1, 'added to archive');
+  assertEqual(board.archived[0].card.id, card.id, 'same card archived');
+  assert(!archiveCard(board, colId, 'missing'), 'unknown card rejected');
+});
+
+test('restoreCard returns a card to its origin column', () => {
+  const board = createBoard('b', [createColumn('A'), createColumn('B')]);
+  const colId = board.columns[1].id;
+  const card = addCard(board, colId, 'a')!;
+  archiveCard(board, colId, card.id);
+  assert(restoreCard(board, card.id), 'restore ok');
+  assertEqual(board.archived.length, 0, 'removed from archive');
+  assertEqual(board.columns[1].cards[0].id, card.id, 'back in origin column');
+});
+
+test('restoreCard falls back to the first column when origin is gone', () => {
+  const board = createBoard('b', [createColumn('A'), createColumn('B')]);
+  const colId = board.columns[1].id;
+  const card = addCard(board, colId, 'a')!;
+  archiveCard(board, colId, card.id);
+  removeColumn(board, colId); // delete the origin column
+  assert(restoreCard(board, card.id), 'restore ok');
+  assertEqual(board.columns[0].cards[0].id, card.id, 'restored into first column');
+});
+
+test('deleteArchivedCard permanently removes an archived card', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  archiveCard(board, colId, card.id);
+  assert(deleteArchivedCard(board, card.id), 'delete ok');
+  assertEqual(board.archived.length, 0, 'archive empty');
+  assert(!restoreCard(board, card.id), 'cannot restore a purged card');
 });
 
 test('getActiveBoard returns the active board', () => {

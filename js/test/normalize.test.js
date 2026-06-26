@@ -27,6 +27,27 @@ test('partial board is repaired with defaults', () => {
     assert(data.boards[0].labels.length > 0, 'labels seeded for legacy board');
     assertEqual(data.boards[0].columns[0].cards[0].dueAt, null, 'dueAt defaulted to null');
     assertEqual(data.boards[0].columns[0].cards[0].dueDone, false, 'dueDone defaulted');
+    assert(Array.isArray(data.boards[0].archived), 'archived defaulted to array');
+    assertEqual(data.boards[0].archived.length, 0, 'archived empty by default');
+});
+test('valid archived cards are kept and junk entries dropped', () => {
+    const data = normalizeAppData({
+        boards: [
+            {
+                id: 'b1',
+                name: 'A',
+                columns: [{ id: 'c1', title: 'C', cards: [] }],
+                archived: [
+                    { card: { id: 'k1', text: 'kept' }, columnId: 'c1', archivedAt: 5 },
+                    { columnId: 'c1' }, // no card -> dropped
+                    'garbage',
+                ],
+            },
+        ],
+    });
+    assertEqual(data.boards[0].archived.length, 1, 'only the valid entry kept');
+    assertEqual(data.boards[0].archived[0].card.text, 'kept', 'archived card text kept');
+    assertEqual(data.boards[0].archived[0].columnId, 'c1', 'origin column kept');
 });
 test('a valid stored due date is preserved', () => {
     const data = normalizeAppData({

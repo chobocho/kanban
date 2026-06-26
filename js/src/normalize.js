@@ -1,7 +1,7 @@
 // Defensive normalization of arbitrary/untrusted data into a valid AppData.
 // The app must keep working even if the stored DB is corrupted or an imported
 // JSON file is malformed, so every field is validated and repaired here.
-import { SCHEMA_VERSION } from './types.js';
+import { SCHEMA_VERSION, } from './types.js';
 import { createBoard, createColumn, createDefaultData, defaultLabels } from './model.js';
 import { makeId } from './id.js';
 function asString(value, fallback) {
@@ -34,6 +34,18 @@ function normalizeCard(raw) {
         createdAt: asNumber(obj.createdAt, Date.now()),
     };
 }
+function normalizeArchived(raw) {
+    if (!raw || typeof raw !== 'object')
+        return null;
+    const obj = raw;
+    if (!obj.card || typeof obj.card !== 'object')
+        return null; // junk entry, skip
+    return {
+        card: normalizeCard(obj.card),
+        columnId: asString(obj.columnId, ''),
+        archivedAt: asNumber(obj.archivedAt, Date.now()),
+    };
+}
 function normalizeColumn(raw) {
     const obj = (raw ?? {});
     const cards = Array.isArray(obj.cards) ? obj.cards.map(normalizeCard) : [];
@@ -52,13 +64,19 @@ function normalizeBoard(raw) {
     // Keep stored labels, or seed defaults for boards saved before labels existed.
     const labels = Array.isArray(obj.labels) ? obj.labels.map(normalizeLabel) : [];
     board.labels = labels.length > 0 ? labels : defaultLabels();
-    // Drop any card label references that no longer point at a real label.
+    board.archived = Array.isArray(obj.archived)
+        ? obj.archived.map(normalizeArchived).filter((a) => a !== null)
+        : [];
+    // Drop any card label references that no longer point at a real label,
+    // covering both live cards and archived ones.
     const known = new Set(board.labels.map((l) => l.id));
-    for (const column of board.columns) {
-        for (const card of column.cards) {
-            card.labelIds = card.labelIds.filter((id) => known.has(id));
-        }
-    }
+    const clean = (card) => {
+        card.labelIds = card.labelIds.filter((id) => known.has(id));
+    };
+    for (const column of board.columns)
+        column.cards.forEach(clean);
+    for (const entry of board.archived)
+        clean(entry.card);
     return board;
 }
 function normalizeLang(value) {

@@ -9,7 +9,7 @@ import { FilterState, cardMatchesFilter, isFilterActive } from './filter.js';
 export interface RenderHandlers {
   addCard(colId: string): void;
   editCard(colId: string, cardId: string, text: string): void;
-  deleteCard(colId: string, cardId: string): void;
+  archiveCard(colId: string, cardId: string): void;
   cycleCardColor(colId: string, cardId: string): void;
   openCard(colId: string, cardId: string): void;
   addColumn(): void;
@@ -191,10 +191,10 @@ function renderCard(
   const colorBtn = el('button', 'icon-btn', '🎨');
   colorBtn.title = t('color');
   colorBtn.addEventListener('click', () => handlers.cycleCardColor(column.id, card.id));
-  const delBtn = el('button', 'icon-btn', '🗑️');
-  delBtn.title = t('delete');
-  delBtn.addEventListener('click', () => handlers.deleteCard(column.id, card.id));
-  actions.append(openBtn, colorBtn, delBtn);
+  const archiveBtn = el('button', 'icon-btn', '🗄️');
+  archiveBtn.title = t('archive');
+  archiveBtn.addEventListener('click', () => handlers.archiveCard(column.id, card.id));
+  actions.append(openBtn, colorBtn, archiveBtn);
   node.appendChild(actions);
   return node;
 }

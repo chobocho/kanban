@@ -2,7 +2,16 @@
 // The app must keep working even if the stored DB is corrupted or an imported
 // JSON file is malformed, so every field is validated and repaired here.
 
-import { AppData, Board, Card, Column, Label, Language, SCHEMA_VERSION } from './types.js';
+import {
+  AppData,
+  ArchivedCard,
+  Board,
+  Card,
+  Column,
+  Label,
+  Language,
+  SCHEMA_VERSION,
+} from './types.js';
 import { createBoard, createColumn, createDefaultData, defaultLabels } from './model.js';
 import { makeId } from './id.js';
 
@@ -41,6 +50,17 @@ function normalizeCard(raw: unknown): Card {
   };
 }
 
+function normalizeArchived(raw: unknown): ArchivedCard | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  if (!obj.card || typeof obj.card !== 'object') return null; // junk entry, skip
+  return {
+    card: normalizeCard(obj.card),
+    columnId: asString(obj.columnId, ''),
+    archivedAt: asNumber(obj.archivedAt, Date.now()),
+  };
+}
+
 function normalizeColumn(raw: unknown): Column {
   const obj = (raw ?? {}) as Record<string, unknown>;
   const cards = Array.isArray(obj.cards) ? obj.cards.map(normalizeCard) : [];
@@ -62,13 +82,18 @@ function normalizeBoard(raw: unknown): Board {
   const labels = Array.isArray(obj.labels) ? obj.labels.map(normalizeLabel) : [];
   board.labels = labels.length > 0 ? labels : defaultLabels();
 
-  // Drop any card label references that no longer point at a real label.
+  board.archived = Array.isArray(obj.archived)
+    ? obj.archived.map(normalizeArchived).filter((a): a is ArchivedCard => a !== null)
+    : [];
+
+  // Drop any card label references that no longer point at a real label,
+  // covering both live cards and archived ones.
   const known = new Set(board.labels.map((l) => l.id));
-  for (const column of board.columns) {
-    for (const card of column.cards) {
-      card.labelIds = card.labelIds.filter((id) => known.has(id));
-    }
-  }
+  const clean = (card: Card): void => {
+    card.labelIds = card.labelIds.filter((id) => known.has(id));
+  };
+  for (const column of board.columns) column.cards.forEach(clean);
+  for (const entry of board.archived) clean(entry.card);
   return board;
 }
 

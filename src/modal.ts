@@ -146,7 +146,8 @@ export interface CardDetailPatch {
 /** Callbacks invoked by the card detail modal. */
 export interface CardDetailCallbacks {
   onSave(patch: CardDetailPatch): void;
-  onDelete(): void;
+  /** Archive the card (reversible from the archive view). */
+  onArchive(): void;
   /** Assign/unassign a label on the card. */
   onToggleLabel(labelId: string): void;
   /** Rename a board label (applies everywhere it is used). */
@@ -341,16 +342,12 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     const actions = document.createElement('div');
     actions.className = 'modal-actions';
 
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'modal-btn card-detail-delete';
-    deleteBtn.textContent = `🗑️ ${t('delete')}`;
-    deleteBtn.addEventListener('click', () => {
-      void customConfirm(t('deleteCardConfirm')).then((ok) => {
-        if (ok) {
-          cb.onDelete();
-          close();
-        }
-      });
+    const archiveBtn = document.createElement('button');
+    archiveBtn.className = 'modal-btn card-detail-delete';
+    archiveBtn.textContent = `🗄️ ${t('archive')}`;
+    archiveBtn.addEventListener('click', () => {
+      cb.onArchive(); // reversible, so no confirmation needed
+      close();
     });
 
     const cancelBtn = document.createElement('button');
@@ -363,7 +360,7 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     okBtn.textContent = t('save');
     okBtn.addEventListener('click', () => save());
 
-    actions.append(deleteBtn, cancelBtn, okBtn);
+    actions.append(archiveBtn, cancelBtn, okBtn);
     dialog.appendChild(actions);
 
     overlay.addEventListener('pointerdown', (e) => {
@@ -373,5 +370,131 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
 
     document.body.appendChild(overlay);
     title.focus();
+  });
+}
+
+/** One archived card as shown in the archive view. */
+export interface ArchiveEntry {
+  cardId: string;
+  text: string;
+  /** Title of the origin column (may be empty if it was deleted). */
+  columnTitle: string;
+}
+
+/** Callbacks for the archive view. `list` is re-read after every action. */
+export interface ArchiveCallbacks {
+  list(): ArchiveEntry[];
+  onRestore(cardId: string): void;
+  onDeleteForever(cardId: string): void;
+}
+
+/**
+ * Show the board's archive: a list of archived cards, each restorable or
+ * permanently deletable (with confirmation). Resolves when the view closes.
+ */
+export function openArchive(cb: ArchiveCallbacks): Promise<void> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+
+    const dialog = document.createElement('div');
+    dialog.className = 'modal-dialog card-archive';
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    overlay.appendChild(dialog);
+
+    const heading = document.createElement('div');
+    heading.className = 'card-detail-label';
+    heading.textContent = t('archiveView');
+    dialog.appendChild(heading);
+
+    const listEl = document.createElement('div');
+    listEl.className = 'archive-list';
+    dialog.appendChild(listEl);
+
+    const renderList = (): void => {
+      listEl.replaceChildren();
+      const entries = cb.list();
+      if (entries.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'archive-empty';
+        empty.textContent = t('archiveEmpty');
+        listEl.appendChild(empty);
+        return;
+      }
+      for (const entry of entries) {
+        const row = document.createElement('div');
+        row.className = 'archive-row';
+
+        const info = document.createElement('div');
+        info.className = 'archive-info';
+        const text = document.createElement('div');
+        text.className = 'archive-text';
+        text.textContent = entry.text || ' ';
+        info.appendChild(text);
+        if (entry.columnTitle) {
+          const origin = document.createElement('div');
+          origin.className = 'archive-origin';
+          origin.textContent = entry.columnTitle;
+          info.appendChild(origin);
+        }
+
+        const restore = document.createElement('button');
+        restore.className = 'archive-btn archive-restore';
+        restore.textContent = t('restore');
+        restore.addEventListener('click', () => {
+          cb.onRestore(entry.cardId);
+          renderList();
+        });
+
+        const del = document.createElement('button');
+        del.className = 'archive-btn archive-delete';
+        del.textContent = t('deleteForever');
+        del.addEventListener('click', () => {
+          void customConfirm(t('deleteForeverConfirm')).then((ok) => {
+            if (ok) {
+              cb.onDeleteForever(entry.cardId);
+              renderList();
+            }
+          });
+        });
+
+        row.append(info, restore, del);
+        listEl.appendChild(row);
+      }
+    };
+    renderList();
+
+    let settled = false;
+    const close = (): void => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener('keydown', onKey, true);
+      overlay.remove();
+      resolve();
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        close();
+      }
+    };
+
+    const actions = document.createElement('div');
+    actions.className = 'modal-actions';
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'modal-btn modal-ok';
+    closeBtn.textContent = t('close');
+    closeBtn.addEventListener('click', () => close());
+    actions.appendChild(closeBtn);
+    dialog.appendChild(actions);
+
+    overlay.addEventListener('pointerdown', (e) => {
+      if (e.target === overlay) close();
+    });
+    document.addEventListener('keydown', onKey, true);
+
+    document.body.appendChild(overlay);
+    closeBtn.focus();
   });
 }

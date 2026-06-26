@@ -615,6 +615,77 @@ select.control {
   background: #ffd6cc;
 }
 
+/* --- Archive view --- */
+.card-archive {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.archive-empty {
+  color: var(--muted);
+  font-size: 14px;
+  padding: 12px 4px;
+  text-align: center;
+}
+
+.archive-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #dfe1e6;
+  border-radius: 6px;
+}
+
+.archive-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.archive-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.archive-origin {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.archive-btn {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.archive-restore {
+  background: var(--bg);
+  color: #fff;
+}
+
+.archive-delete {
+  background: #ffebe6;
+  color: #bf2600;
+}
+
+.archive-delete:hover {
+  background: #ffd6cc;
+}
+
 /* Labels assigned to a card, shown as chips above the card text. */
 .card-labels {
   display: flex;

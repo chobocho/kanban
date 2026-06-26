@@ -15,10 +15,12 @@ import {
   moveColumn,
   addCard,
   updateCard,
-  removeCard,
   moveCard,
   updateLabel,
   toggleCardLabel,
+  archiveCard,
+  restoreCard,
+  deleteArchivedCard,
   touch,
 } from './model.js';
 import { History } from './history.js';
@@ -29,7 +31,7 @@ import { DragController } from './dnd.js';
 import { ZoomController } from './zoom.js';
 import { downloadJson, readJsonFile } from './jsonio.js';
 import { exportBoardPng } from './png.js';
-import { customAlert, customConfirm, customPrompt, openCardDetail } from './modal.js';
+import { customAlert, customConfirm, customPrompt, openCardDetail, openArchive } from './modal.js';
 
 /** Maximum number of undo steps kept per board. */
 const MAX_HISTORY = 8;
@@ -161,12 +163,9 @@ export class KanbanApp {
         const board = this.active();
         if (board && updateCard(board, colId, cardId, { text })) this.commit();
       },
-      deleteCard: async (colId, cardId) => {
+      archiveCard: (colId, cardId) => {
         const board = this.active();
-        if (!board) return;
-        if (await customConfirm(t('deleteCardConfirm'))) {
-          if (removeCard(board, colId, cardId)) this.commit();
-        }
+        if (board && archiveCard(board, colId, cardId)) this.commitArchive();
       },
       cycleCardColor: (colId, cardId) => {
         const board = this.active();
@@ -199,8 +198,8 @@ export class KanbanApp {
             onSave: (patch) => {
               if (updateCard(board, colId, cardId, patch)) this.commit();
             },
-            onDelete: () => {
-              if (removeCard(board, colId, cardId)) this.commit();
+            onArchive: () => {
+              if (archiveCard(board, colId, cardId)) this.commitArchive();
             },
             onToggleLabel: (labelId) => {
               if (toggleCardLabel(board, colId, cardId, labelId)) this.commit();
@@ -236,6 +235,7 @@ export class KanbanApp {
     this.byId('newBoardBtn').addEventListener('click', () => this.newBoard());
     this.byId('renameBoardBtn').addEventListener('click', () => this.renameBoard());
     this.byId('deleteBoardBtn').addEventListener('click', () => this.deleteBoard());
+    this.byId('archiveBtn').addEventListener('click', () => this.openArchiveView());
     this.boardSelect.addEventListener('change', () => {
       this.data.activeBoardId = this.boardSelect.value;
       this.commitReset();
@@ -392,6 +392,41 @@ export class KanbanApp {
   private refresh(): void {
     this.persist();
     this.render();
+  }
+
+  /**
+   * Apply an archive/restore/purge change. These move cards between the board
+   * and the board-level archive, which the undo history (columns only) does not
+   * track, so the history is reset to keep undo from producing duplicates.
+   */
+  private commitArchive(): void {
+    this.resetHistory();
+    this.persist();
+    this.render();
+  }
+
+  /** Open the archive view, wiring restore/permanent-delete back to the model. */
+  private openArchiveView(): void {
+    if (!this.active()) return;
+    void openArchive({
+      list: () => {
+        const board = this.active();
+        if (!board) return [];
+        return board.archived.map((entry) => ({
+          cardId: entry.card.id,
+          text: entry.card.text,
+          columnTitle: board.columns.find((c) => c.id === entry.columnId)?.title ?? '',
+        }));
+      },
+      onRestore: (cardId) => {
+        const board = this.active();
+        if (board && restoreCard(board, cardId)) this.commitArchive();
+      },
+      onDeleteForever: (cardId) => {
+        const board = this.active();
+        if (board && deleteArchivedCard(board, cardId)) this.commitArchive();
+      },
+    });
   }
 
   /** Persist, re-render and reset the undo history (board switched/replaced). */

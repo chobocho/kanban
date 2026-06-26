@@ -622,6 +622,77 @@ select.control {
   background: #ffd6cc;
 }
 
+/* --- Archive view --- */
+.card-archive {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.archive-empty {
+  color: var(--muted);
+  font-size: 14px;
+  padding: 12px 4px;
+  text-align: center;
+}
+
+.archive-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #dfe1e6;
+  border-radius: 6px;
+}
+
+.archive-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.archive-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.archive-origin {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.archive-btn {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.archive-restore {
+  background: var(--bg);
+  color: #fff;
+}
+
+.archive-delete {
+  background: #ffebe6;
+  color: #bf2600;
+}
+
+.archive-delete:hover {
+  background: #ffd6cc;
+}
+
 /* Labels assigned to a card, shown as chips above the card text. */
 .card-labels {
   display: flex;
@@ -808,6 +879,7 @@ select.control {
       <button id="newBoardBtn" class="control icon-control" data-i18n-title="newBoard">🆕</button>
       <button id="renameBoardBtn" class="control icon-control" data-i18n-title="rename">✏️</button>
       <button id="deleteBoardBtn" class="control icon-control" data-i18n-title="delete">🗑️</button>
+      <button id="archiveBtn" class="control icon-control" data-i18n-title="archiveView">🗄️</button>
     </div>
 
     <div class="toolbar-group">
@@ -866,7 +938,7 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, updateLabel, toggleCardLabel, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, touch } = __require("model");
 const { History } = __require("history");
 const { setLanguage, t } = __require("i18n");
 const { emptyFilter, isFilterActive } = __require("filter");
@@ -875,7 +947,7 @@ const { DragController } = __require("dnd");
 const { ZoomController } = __require("zoom");
 const { downloadJson, readJsonFile } = __require("jsonio");
 const { exportBoardPng } = __require("png");
-const { customAlert, customConfirm, customPrompt, openCardDetail } = __require("modal");
+const { customAlert, customConfirm, customPrompt, openCardDetail, openArchive } = __require("modal");
 /** Maximum number of undo steps kept per board. */
 const MAX_HISTORY = 8;
 class KanbanApp {
@@ -987,14 +1059,10 @@ class KanbanApp {
                 if (board && updateCard(board, colId, cardId, { text }))
                     this.commit();
             },
-            deleteCard: async (colId, cardId) => {
+            archiveCard: (colId, cardId) => {
                 const board = this.active();
-                if (!board)
-                    return;
-                if (await customConfirm(t('deleteCardConfirm'))) {
-                    if (removeCard(board, colId, cardId))
-                        this.commit();
-                }
+                if (board && archiveCard(board, colId, cardId))
+                    this.commitArchive();
             },
             cycleCardColor: (colId, cardId) => {
                 const board = this.active();
@@ -1031,9 +1099,9 @@ class KanbanApp {
                         if (updateCard(board, colId, cardId, patch))
                             this.commit();
                     },
-                    onDelete: () => {
-                        if (removeCard(board, colId, cardId))
-                            this.commit();
+                    onArchive: () => {
+                        if (archiveCard(board, colId, cardId))
+                            this.commitArchive();
                     },
                     onToggleLabel: (labelId) => {
                         if (toggleCardLabel(board, colId, cardId, labelId))
@@ -1072,6 +1140,7 @@ class KanbanApp {
         this.byId('newBoardBtn').addEventListener('click', () => this.newBoard());
         this.byId('renameBoardBtn').addEventListener('click', () => this.renameBoard());
         this.byId('deleteBoardBtn').addEventListener('click', () => this.deleteBoard());
+        this.byId('archiveBtn').addEventListener('click', () => this.openArchiveView());
         this.boardSelect.addEventListener('change', () => {
             this.data.activeBoardId = this.boardSelect.value;
             this.commitReset();
@@ -1225,6 +1294,43 @@ class KanbanApp {
     refresh() {
         this.persist();
         this.render();
+    }
+    /**
+     * Apply an archive/restore/purge change. These move cards between the board
+     * and the board-level archive, which the undo history (columns only) does not
+     * track, so the history is reset to keep undo from producing duplicates.
+     */
+    commitArchive() {
+        this.resetHistory();
+        this.persist();
+        this.render();
+    }
+    /** Open the archive view, wiring restore/permanent-delete back to the model. */
+    openArchiveView() {
+        if (!this.active())
+            return;
+        void openArchive({
+            list: () => {
+                const board = this.active();
+                if (!board)
+                    return [];
+                return board.archived.map((entry) => ({
+                    cardId: entry.card.id,
+                    text: entry.card.text,
+                    columnTitle: board.columns.find((c) => c.id === entry.columnId)?.title ?? '',
+                }));
+            },
+            onRestore: (cardId) => {
+                const board = this.active();
+                if (board && restoreCard(board, cardId))
+                    this.commitArchive();
+            },
+            onDeleteForever: (cardId) => {
+                const board = this.active();
+                if (board && deleteArchivedCard(board, cardId))
+                    this.commitArchive();
+            },
+        });
     }
     /** Persist, re-render and reset the undo history (board switched/replaced). */
     commitReset() {
@@ -1735,7 +1841,13 @@ const translations = {
         dueNone: '마감일 없음',
         noMatchingCards: '일치하는 카드 없음',
         created: '생성',
-        deleteCardConfirm: '이 카드를 삭제할까요?',
+        archive: '보관',
+        archiveView: '보관함',
+        archiveEmpty: '보관함이 비어 있습니다',
+        restore: '복원',
+        deleteForever: '영구 삭제',
+        deleteForeverConfirm: '이 카드를 영구히 삭제할까요? 되돌릴 수 없습니다.',
+        close: '닫기',
         deleteColumnConfirm: '이 리스트를 삭제할까요?',
         deleteBoardConfirm: '이 보드를 삭제할까요?',
         renameColumn: '리스트 이름',
@@ -1786,7 +1898,13 @@ const translations = {
         dueNone: 'No due date',
         noMatchingCards: 'No matching cards',
         created: 'Created',
-        deleteCardConfirm: 'Delete this card?',
+        archive: 'Archive',
+        archiveView: 'Archive',
+        archiveEmpty: 'The archive is empty',
+        restore: 'Restore',
+        deleteForever: 'Delete forever',
+        deleteForeverConfirm: 'Permanently delete this card? This cannot be undone.',
+        close: 'Close',
         deleteColumnConfirm: 'Delete this list?',
         deleteBoardConfirm: 'Delete this board?',
         renameColumn: 'List title',
@@ -2173,16 +2291,12 @@ function openCardDetail(init, cb) {
         };
         const actions = document.createElement('div');
         actions.className = 'modal-actions';
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'modal-btn card-detail-delete';
-        deleteBtn.textContent = `🗑️ ${t('delete')}`;
-        deleteBtn.addEventListener('click', () => {
-            void customConfirm(t('deleteCardConfirm')).then((ok) => {
-                if (ok) {
-                    cb.onDelete();
-                    close();
-                }
-            });
+        const archiveBtn = document.createElement('button');
+        archiveBtn.className = 'modal-btn card-detail-delete';
+        archiveBtn.textContent = `🗄️ ${t('archive')}`;
+        archiveBtn.addEventListener('click', () => {
+            cb.onArchive(); // reversible, so no confirmation needed
+            close();
         });
         const cancelBtn = document.createElement('button');
         cancelBtn.className = 'modal-btn modal-cancel';
@@ -2192,7 +2306,7 @@ function openCardDetail(init, cb) {
         okBtn.className = 'modal-btn modal-ok';
         okBtn.textContent = t('save');
         okBtn.addEventListener('click', () => save());
-        actions.append(deleteBtn, cancelBtn, okBtn);
+        actions.append(archiveBtn, cancelBtn, okBtn);
         dialog.appendChild(actions);
         overlay.addEventListener('pointerdown', (e) => {
             if (e.target === overlay)
@@ -2203,11 +2317,112 @@ function openCardDetail(init, cb) {
         title.focus();
     });
 }
+/**
+ * Show the board's archive: a list of archived cards, each restorable or
+ * permanently deletable (with confirmation). Resolves when the view closes.
+ */
+function openArchive(cb) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        const dialog = document.createElement('div');
+        dialog.className = 'modal-dialog card-archive';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        overlay.appendChild(dialog);
+        const heading = document.createElement('div');
+        heading.className = 'card-detail-label';
+        heading.textContent = t('archiveView');
+        dialog.appendChild(heading);
+        const listEl = document.createElement('div');
+        listEl.className = 'archive-list';
+        dialog.appendChild(listEl);
+        const renderList = () => {
+            listEl.replaceChildren();
+            const entries = cb.list();
+            if (entries.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'archive-empty';
+                empty.textContent = t('archiveEmpty');
+                listEl.appendChild(empty);
+                return;
+            }
+            for (const entry of entries) {
+                const row = document.createElement('div');
+                row.className = 'archive-row';
+                const info = document.createElement('div');
+                info.className = 'archive-info';
+                const text = document.createElement('div');
+                text.className = 'archive-text';
+                text.textContent = entry.text || ' ';
+                info.appendChild(text);
+                if (entry.columnTitle) {
+                    const origin = document.createElement('div');
+                    origin.className = 'archive-origin';
+                    origin.textContent = entry.columnTitle;
+                    info.appendChild(origin);
+                }
+                const restore = document.createElement('button');
+                restore.className = 'archive-btn archive-restore';
+                restore.textContent = t('restore');
+                restore.addEventListener('click', () => {
+                    cb.onRestore(entry.cardId);
+                    renderList();
+                });
+                const del = document.createElement('button');
+                del.className = 'archive-btn archive-delete';
+                del.textContent = t('deleteForever');
+                del.addEventListener('click', () => {
+                    void customConfirm(t('deleteForeverConfirm')).then((ok) => {
+                        if (ok) {
+                            cb.onDeleteForever(entry.cardId);
+                            renderList();
+                        }
+                    });
+                });
+                row.append(info, restore, del);
+                listEl.appendChild(row);
+            }
+        };
+        renderList();
+        let settled = false;
+        const close = () => {
+            if (settled)
+                return;
+            settled = true;
+            document.removeEventListener('keydown', onKey, true);
+            overlay.remove();
+            resolve();
+        };
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                close();
+            }
+        };
+        const actions = document.createElement('div');
+        actions.className = 'modal-actions';
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'modal-btn modal-ok';
+        closeBtn.textContent = t('close');
+        closeBtn.addEventListener('click', () => close());
+        actions.appendChild(closeBtn);
+        dialog.appendChild(actions);
+        overlay.addEventListener('pointerdown', (e) => {
+            if (e.target === overlay)
+                close();
+        });
+        document.addEventListener('keydown', onKey, true);
+        document.body.appendChild(overlay);
+        closeBtn.focus();
+    });
+}
 
 __exports.customAlert = customAlert;
 __exports.customConfirm = customConfirm;
 __exports.customPrompt = customPrompt;
 __exports.openCardDetail = openCardDetail;
+__exports.openArchive = openArchive;
 
 };
 __modules["model"] = function(__exports, __require){
@@ -2251,6 +2466,7 @@ function createBoard(name, columns = []) {
         name,
         columns,
         labels: defaultLabels(),
+        archived: [],
         createdAt: now,
         updatedAt: now,
     };
@@ -2353,6 +2569,47 @@ function removeCard(board, columnId, cardId) {
     touch(board);
     return true;
 }
+/**
+ * Move a card out of its column into the board archive. The origin column id is
+ * kept so the card can later be restored to where it came from.
+ */
+function archiveCard(board, columnId, cardId) {
+    const column = findColumn(board, columnId);
+    if (!column)
+        return false;
+    const index = column.cards.findIndex((c) => c.id === cardId);
+    if (index < 0)
+        return false;
+    const [card] = column.cards.splice(index, 1);
+    board.archived.unshift({ card, columnId, archivedAt: Date.now() });
+    touch(board);
+    return true;
+}
+/**
+ * Restore an archived card to its origin column, or to the first column if the
+ * origin no longer exists. Returns false if nothing could receive the card.
+ */
+function restoreCard(board, cardId) {
+    const index = board.archived.findIndex((a) => a.card.id === cardId);
+    if (index < 0)
+        return false;
+    const target = findColumn(board, board.archived[index].columnId) ?? board.columns[0];
+    if (!target)
+        return false; // no column to restore into; leave it archived
+    const [entry] = board.archived.splice(index, 1);
+    target.cards.push(entry.card);
+    touch(board);
+    return true;
+}
+/** Permanently remove an archived card. This cannot be undone. */
+function deleteArchivedCard(board, cardId) {
+    const index = board.archived.findIndex((a) => a.card.id === cardId);
+    if (index < 0)
+        return false;
+    board.archived.splice(index, 1);
+    touch(board);
+    return true;
+}
 /** Append a new label to the board's shared label set and return it. */
 function addLabel(board, name, color) {
     const label = createLabel(name, color);
@@ -2441,6 +2698,9 @@ __exports.moveColumn = moveColumn;
 __exports.addCard = addCard;
 __exports.updateCard = updateCard;
 __exports.removeCard = removeCard;
+__exports.archiveCard = archiveCard;
+__exports.restoreCard = restoreCard;
+__exports.deleteArchivedCard = deleteArchivedCard;
 __exports.addLabel = addLabel;
 __exports.updateLabel = updateLabel;
 __exports.removeLabel = removeLabel;
@@ -2487,6 +2747,18 @@ function normalizeCard(raw) {
         createdAt: asNumber(obj.createdAt, Date.now()),
     };
 }
+function normalizeArchived(raw) {
+    if (!raw || typeof raw !== 'object')
+        return null;
+    const obj = raw;
+    if (!obj.card || typeof obj.card !== 'object')
+        return null; // junk entry, skip
+    return {
+        card: normalizeCard(obj.card),
+        columnId: asString(obj.columnId, ''),
+        archivedAt: asNumber(obj.archivedAt, Date.now()),
+    };
+}
 function normalizeColumn(raw) {
     const obj = (raw ?? {});
     const cards = Array.isArray(obj.cards) ? obj.cards.map(normalizeCard) : [];
@@ -2505,13 +2777,19 @@ function normalizeBoard(raw) {
     // Keep stored labels, or seed defaults for boards saved before labels existed.
     const labels = Array.isArray(obj.labels) ? obj.labels.map(normalizeLabel) : [];
     board.labels = labels.length > 0 ? labels : defaultLabels();
-    // Drop any card label references that no longer point at a real label.
+    board.archived = Array.isArray(obj.archived)
+        ? obj.archived.map(normalizeArchived).filter((a) => a !== null)
+        : [];
+    // Drop any card label references that no longer point at a real label,
+    // covering both live cards and archived ones.
     const known = new Set(board.labels.map((l) => l.id));
-    for (const column of board.columns) {
-        for (const card of column.cards) {
-            card.labelIds = card.labelIds.filter((id) => known.has(id));
-        }
-    }
+    const clean = (card) => {
+        card.labelIds = card.labelIds.filter((id) => known.has(id));
+    };
+    for (const column of board.columns)
+        column.cards.forEach(clean);
+    for (const entry of board.archived)
+        clean(entry.card);
     return board;
 }
 function normalizeLang(value) {
@@ -2846,10 +3124,10 @@ function renderCard(card, column, labels, handlers) {
     const colorBtn = el('button', 'icon-btn', '🎨');
     colorBtn.title = t('color');
     colorBtn.addEventListener('click', () => handlers.cycleCardColor(column.id, card.id));
-    const delBtn = el('button', 'icon-btn', '🗑️');
-    delBtn.title = t('delete');
-    delBtn.addEventListener('click', () => handlers.deleteCard(column.id, card.id));
-    actions.append(openBtn, colorBtn, delBtn);
+    const archiveBtn = el('button', 'icon-btn', '🗄️');
+    archiveBtn.title = t('archive');
+    archiveBtn.addEventListener('click', () => handlers.archiveCard(column.id, card.id));
+    actions.append(openBtn, colorBtn, archiveBtn);
     node.appendChild(actions);
     return node;
 }

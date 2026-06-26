@@ -34,6 +34,14 @@ export interface Column {
   cards: Card[];
 }
 
+/** A card removed from the board but kept for later restore or permanent delete. */
+export interface ArchivedCard {
+  card: Card;
+  /** Id of the column the card was archived from (the restore target). */
+  columnId: string;
+  archivedAt: number;
+}
+
 /** A board (workspace) containing ordered columns and a shared label set. */
 export interface Board {
   id: string;
@@ -41,6 +49,8 @@ export interface Board {
   columns: Column[];
   /** Labels defined on this board and shared by all its cards. */
   labels: Label[];
+  /** Archived cards (newest first), restorable from the archive view. */
+  archived: ArchivedCard[];
   createdAt: number;
   updatedAt: number;
 }

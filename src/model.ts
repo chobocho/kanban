@@ -45,6 +45,7 @@ export function createBoard(name: string, columns: Column[] = []): Board {
     name,
     columns,
     labels: defaultLabels(),
+    archived: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -145,6 +146,45 @@ export function removeCard(board: Board, columnId: string, cardId: string): bool
   const index = column.cards.findIndex((c) => c.id === cardId);
   if (index < 0) return false;
   column.cards.splice(index, 1);
+  touch(board);
+  return true;
+}
+
+/**
+ * Move a card out of its column into the board archive. The origin column id is
+ * kept so the card can later be restored to where it came from.
+ */
+export function archiveCard(board: Board, columnId: string, cardId: string): boolean {
+  const column = findColumn(board, columnId);
+  if (!column) return false;
+  const index = column.cards.findIndex((c) => c.id === cardId);
+  if (index < 0) return false;
+  const [card] = column.cards.splice(index, 1);
+  board.archived.unshift({ card, columnId, archivedAt: Date.now() });
+  touch(board);
+  return true;
+}
+
+/**
+ * Restore an archived card to its origin column, or to the first column if the
+ * origin no longer exists. Returns false if nothing could receive the card.
+ */
+export function restoreCard(board: Board, cardId: string): boolean {
+  const index = board.archived.findIndex((a) => a.card.id === cardId);
+  if (index < 0) return false;
+  const target = findColumn(board, board.archived[index].columnId) ?? board.columns[0];
+  if (!target) return false; // no column to restore into; leave it archived
+  const [entry] = board.archived.splice(index, 1);
+  target.cards.push(entry.card);
+  touch(board);
+  return true;
+}
+
+/** Permanently remove an archived card. This cannot be undone. */
+export function deleteArchivedCard(board: Board, cardId: string): boolean {
+  const index = board.archived.findIndex((a) => a.card.id === cardId);
+  if (index < 0) return false;
+  board.archived.splice(index, 1);
   touch(board);
   return true;
 }
