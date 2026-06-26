@@ -23,6 +23,7 @@ import {
 } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t } from './i18n.js';
+import { FilterState, DueFilter, emptyFilter, isFilterActive } from './filter.js';
 import { renderBoard, RenderHandlers, CARD_COLORS } from './render.js';
 import { DragController } from './dnd.js';
 import { ZoomController } from './zoom.js';
@@ -44,11 +45,18 @@ export class KanbanApp {
   private readonly history = new History<Column[]>(MAX_HISTORY);
   private baseline: Column[] = [];
 
+  /** Current search/label/due filter (in-memory, not persisted). */
+  private filter: FilterState = emptyFilter();
+
   private readonly columnsEl: HTMLElement;
   private readonly boardSelect: HTMLSelectElement;
   private readonly langSelect: HTMLSelectElement;
   private readonly undoBtn: HTMLButtonElement;
   private readonly redoBtn: HTMLButtonElement;
+  private readonly filterInput: HTMLInputElement;
+  private readonly filterBtn: HTMLButtonElement;
+  private readonly filterClearBtn: HTMLButtonElement;
+  private readonly filterPanel: HTMLElement;
 
   constructor(private readonly doc: Document) {
     this.columnsEl = this.byId('columns');
@@ -56,6 +64,10 @@ export class KanbanApp {
     this.langSelect = this.byId('langSelect') as HTMLSelectElement;
     this.undoBtn = this.byId('undoBtn') as HTMLButtonElement;
     this.redoBtn = this.byId('redoBtn') as HTMLButtonElement;
+    this.filterInput = this.byId('filterInput') as HTMLInputElement;
+    this.filterBtn = this.byId('filterBtn') as HTMLButtonElement;
+    this.filterClearBtn = this.byId('filterClearBtn') as HTMLButtonElement;
+    this.filterPanel = this.byId('filterPanel');
   }
 
   private byId(id: string): HTMLElement {
@@ -86,7 +98,9 @@ export class KanbanApp {
         const board = this.active();
         if (board && moveColumn(board, from, to)) this.commit();
       },
-      isBlocked: () => this.zoom.isPinching(),
+      // Reordering while filtered would map visible positions onto the full
+      // list incorrectly, so drag is suspended whenever a filter is active.
+      isBlocked: () => this.zoom.isPinching() || isFilterActive(this.filter),
     });
 
     this.wireToolbar();
@@ -234,6 +248,16 @@ export class KanbanApp {
     this.undoBtn.addEventListener('click', () => this.undo());
     this.redoBtn.addEventListener('click', () => this.redo());
 
+    this.filterInput.addEventListener('input', () => {
+      this.filter.query = this.filterInput.value;
+      this.render();
+    });
+    this.filterBtn.addEventListener('click', () => {
+      this.filterPanel.hidden = !this.filterPanel.hidden;
+      if (!this.filterPanel.hidden) this.refreshFilterPanel();
+    });
+    this.filterClearBtn.addEventListener('click', () => this.clearFilter());
+
     this.byId('zoomInBtn').addEventListener('click', () => this.zoom.zoomIn());
     this.byId('zoomOutBtn').addEventListener('click', () => this.zoom.zoomOut());
     this.byId('zoomResetBtn').addEventListener('click', () => this.zoom.reset());
@@ -372,6 +396,10 @@ export class KanbanApp {
 
   /** Persist, re-render and reset the undo history (board switched/replaced). */
   private commitReset(): void {
+    // A filter's label ids belong to the previous board, so start clean.
+    this.filter = emptyFilter();
+    this.filterInput.value = '';
+    this.filterPanel.hidden = true;
     this.resetHistory();
     this.persist();
     this.render();
@@ -389,10 +417,95 @@ export class KanbanApp {
 
   private render(): void {
     const board = this.active();
-    if (board) renderBoard(this.columnsEl, board, this.handlers);
+    if (board) renderBoard(this.columnsEl, board, this.filter, this.handlers);
     this.refreshBoardSelect();
     this.refreshLabels();
+    this.refreshFilterUi();
     this.updateHistoryButtons();
+  }
+
+  /** Reset every filter part and re-render. */
+  private clearFilter(): void {
+    this.filter = emptyFilter();
+    this.filterInput.value = '';
+    this.filterPanel.hidden = true;
+    this.render();
+  }
+
+  /** Sync the filter input, clear button and active indicator with state. */
+  private refreshFilterUi(): void {
+    const active = isFilterActive(this.filter);
+    this.filterClearBtn.hidden = !active;
+    this.filterBtn.classList.toggle('is-active', active);
+    if (this.filterInput.value !== this.filter.query) {
+      this.filterInput.value = this.filter.query;
+    }
+    if (!this.filterPanel.hidden) this.refreshFilterPanel();
+  }
+
+  /** Rebuild the filter popover (label chips + due-date selector). */
+  private refreshFilterPanel(): void {
+    const board = this.active();
+    if (!board) return;
+    this.filterPanel.replaceChildren();
+
+    const labelTitle = this.doc.createElement('div');
+    labelTitle.className = 'filter-panel-title';
+    labelTitle.textContent = t('labels');
+    this.filterPanel.appendChild(labelTitle);
+
+    const chips = this.doc.createElement('div');
+    chips.className = 'filter-label-chips';
+    for (const label of board.labels) {
+      const chip = this.doc.createElement('button');
+      chip.className = 'filter-label-chip';
+      chip.style.background = label.color;
+      const on = this.filter.labelIds.includes(label.id);
+      if (on) chip.classList.add('is-on');
+      chip.textContent = (on ? '✓ ' : '') + (label.name || '');
+      chip.addEventListener('click', () => {
+        const at = this.filter.labelIds.indexOf(label.id);
+        if (at >= 0) this.filter.labelIds.splice(at, 1);
+        else this.filter.labelIds.push(label.id);
+        this.render();
+      });
+      chips.appendChild(chip);
+    }
+    this.filterPanel.appendChild(chips);
+
+    const dueTitle = this.doc.createElement('div');
+    dueTitle.className = 'filter-panel-title';
+    dueTitle.textContent = t('dueFilter');
+    this.filterPanel.appendChild(dueTitle);
+
+    const dueSelect = this.doc.createElement('select');
+    dueSelect.className = 'control filter-due-select';
+    const dueOptions: Array<[DueFilter, string]> = [
+      ['all', t('dueAll')],
+      ['has', t('dueHas')],
+      ['overdue', t('dueOverdue')],
+      ['soon', t('dueSoon')],
+      ['done', t('dueComplete')],
+      ['none', t('dueNone')],
+    ];
+    for (const [value, label] of dueOptions) {
+      const option = this.doc.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      dueSelect.appendChild(option);
+    }
+    dueSelect.value = this.filter.due;
+    dueSelect.addEventListener('change', () => {
+      this.filter.due = dueSelect.value as DueFilter;
+      this.render();
+    });
+    this.filterPanel.appendChild(dueSelect);
+
+    const clear = this.doc.createElement('button');
+    clear.className = 'filter-panel-clear';
+    clear.textContent = t('clearFilter');
+    clear.addEventListener('click', () => this.clearFilter());
+    this.filterPanel.appendChild(clear);
   }
 
   private refreshBoardSelect(): void {
@@ -416,6 +529,10 @@ export class KanbanApp {
     this.doc.querySelectorAll<HTMLElement>('[data-i18n-title]').forEach((node) => {
       const key = node.dataset.i18nTitle;
       if (key) node.title = t(key);
+    });
+    this.doc.querySelectorAll<HTMLInputElement>('[data-i18n-placeholder]').forEach((node) => {
+      const key = node.dataset.i18nPlaceholder;
+      if (key) node.placeholder = t(key);
     });
     this.doc.title = t('appTitle');
   }

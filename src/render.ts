@@ -4,6 +4,7 @@
 
 import { Board, Card, Column, Label } from './types.js';
 import { getLanguage, t } from './i18n.js';
+import { FilterState, cardMatchesFilter, isFilterActive } from './filter.js';
 
 export interface RenderHandlers {
   addCard(colId: string): void;
@@ -202,11 +203,18 @@ function renderColumn(
   column: Column,
   index: number,
   labels: Map<string, Label>,
+  filter: FilterState,
+  now: number,
   handlers: RenderHandlers,
 ): HTMLElement {
   const node = el('div', 'column');
   node.dataset.colId = column.id;
   node.dataset.colIndex = String(index);
+
+  const filtering = isFilterActive(filter);
+  const visibleCards = filtering
+    ? column.cards.filter((card) => cardMatchesFilter(card, filter, now))
+    : column.cards;
 
   const header = el('div', 'column-header');
   header.dataset.colHandle = '';
@@ -217,14 +225,20 @@ function renderColumn(
   const delBtn = el('button', 'icon-btn', '🗑️');
   delBtn.title = t('delete');
   delBtn.addEventListener('click', () => handlers.deleteColumn(column.id));
-  header.append(title, delBtn);
+  header.append(title);
+  // While filtering, show how many of the column's cards match.
+  if (filtering) {
+    header.append(el('span', 'column-count', `${visibleCards.length}/${column.cards.length}`));
+  }
+  header.append(delBtn);
 
   const list = el('div', 'cards-list');
   list.dataset.cards = '';
-  if (column.cards.length === 0) {
-    list.appendChild(el('div', 'empty-hint', t('emptyColumn')));
+  if (visibleCards.length === 0) {
+    const hint = filtering ? t('noMatchingCards') : t('emptyColumn');
+    list.appendChild(el('div', 'empty-hint', hint));
   }
-  for (const card of column.cards) {
+  for (const card of visibleCards) {
     list.appendChild(renderCard(card, column, labels, handlers));
   }
 
@@ -242,12 +256,14 @@ function renderColumn(
 export function renderBoard(
   container: HTMLElement,
   board: Board,
+  filter: FilterState,
   handlers: RenderHandlers,
 ): void {
   container.replaceChildren();
   const labels = new Map(board.labels.map((label) => [label.id, label]));
+  const now = Date.now();
   board.columns.forEach((column, index) => {
-    container.appendChild(renderColumn(column, index, labels, handlers));
+    container.appendChild(renderColumn(column, index, labels, filter, now, handlers));
   });
 
   const addColumn = el('button', 'add-column', '➕');

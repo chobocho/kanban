@@ -2,6 +2,7 @@
 // delegates every mutation to the provided handlers, keeping it free of state
 // and storage concerns. Data attributes drive the drag-and-drop controller.
 import { getLanguage, t } from './i18n.js';
+import { cardMatchesFilter, isFilterActive } from './filter.js';
 /** Card accent colors cycled by the palette button (empty = no accent). */
 export const CARD_COLORS = ['', '#ef5350', '#ffa726', '#ffee58', '#66bb6a', '#42a5f5', '#ab47bc'];
 /** A due date is "soon" when it falls within this window from now (24h). */
@@ -162,10 +163,14 @@ function renderCard(card, column, labels, handlers) {
     node.appendChild(actions);
     return node;
 }
-function renderColumn(column, index, labels, handlers) {
+function renderColumn(column, index, labels, filter, now, handlers) {
     const node = el('div', 'column');
     node.dataset.colId = column.id;
     node.dataset.colIndex = String(index);
+    const filtering = isFilterActive(filter);
+    const visibleCards = filtering
+        ? column.cards.filter((card) => cardMatchesFilter(card, filter, now))
+        : column.cards;
     const header = el('div', 'column-header');
     header.dataset.colHandle = '';
     const title = el('div', 'column-title', column.title || ' ');
@@ -175,13 +180,19 @@ function renderColumn(column, index, labels, handlers) {
     const delBtn = el('button', 'icon-btn', '🗑️');
     delBtn.title = t('delete');
     delBtn.addEventListener('click', () => handlers.deleteColumn(column.id));
-    header.append(title, delBtn);
+    header.append(title);
+    // While filtering, show how many of the column's cards match.
+    if (filtering) {
+        header.append(el('span', 'column-count', `${visibleCards.length}/${column.cards.length}`));
+    }
+    header.append(delBtn);
     const list = el('div', 'cards-list');
     list.dataset.cards = '';
-    if (column.cards.length === 0) {
-        list.appendChild(el('div', 'empty-hint', t('emptyColumn')));
+    if (visibleCards.length === 0) {
+        const hint = filtering ? t('noMatchingCards') : t('emptyColumn');
+        list.appendChild(el('div', 'empty-hint', hint));
     }
-    for (const card of column.cards) {
+    for (const card of visibleCards) {
         list.appendChild(renderCard(card, column, labels, handlers));
     }
     const footer = el('div', 'column-footer');
@@ -193,11 +204,12 @@ function renderColumn(column, index, labels, handlers) {
     return node;
 }
 /** Render the whole board into `container`, clearing previous content. */
-export function renderBoard(container, board, handlers) {
+export function renderBoard(container, board, filter, handlers) {
     container.replaceChildren();
     const labels = new Map(board.labels.map((label) => [label.id, label]));
+    const now = Date.now();
     board.columns.forEach((column, index) => {
-        container.appendChild(renderColumn(column, index, labels, handlers));
+        container.appendChild(renderColumn(column, index, labels, filter, now, handlers));
     });
     const addColumn = el('button', 'add-column', '➕');
     addColumn.title = t('addColumn');

@@ -144,6 +144,21 @@ try {
   await page.locator('.card-detail .modal-cancel').click();
   await page.waitForTimeout(100);
 
+  // Search/filter: a matching keyword keeps the card; a non-match hides it.
+  await page.locator('#filterInput').fill('detailed');
+  await page.waitForTimeout(100);
+  const matchVisible = await page.locator('.card').count();
+  assert(matchVisible === 1, `keyword keeps the matching card (got ${matchVisible})`);
+  assert(!(await page.locator('#filterClearBtn').isHidden()), 'clear-filter button shows when filtering');
+  await page.locator('#filterInput').fill('zzz-no-such-card');
+  await page.waitForTimeout(100);
+  const noneVisible = await page.locator('.card').count();
+  assert(noneVisible === 0, `non-matching keyword hides all cards (got ${noneVisible})`);
+  await page.locator('#filterClearBtn').click();
+  await page.waitForTimeout(100);
+  const restored = await page.locator('.card').count();
+  assert(restored === 1, `clearing the filter restores cards (got ${restored})`);
+
   // Custom modal (replaces native prompt): create a board via the dialog.
   const boardsBefore = await page.locator('#boardSelect option').count();
   await page.locator('#newBoardBtn').click();
