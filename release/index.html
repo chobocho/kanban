@@ -434,6 +434,104 @@ select.control {
   background: #0b5ed7;
 }
 
+/* --- Card detail modal (back of the card) --- */
+.card-detail {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.card-detail-label {
+  margin-top: 14px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.card-detail-label:first-child {
+  margin-top: 0;
+}
+
+.card-detail-title {
+  margin-top: 0;
+}
+
+.card-detail-desc {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 120px;
+  resize: vertical;
+  padding: 9px 10px;
+  border: 2px solid #c1c7d0;
+  border-radius: 6px;
+}
+
+.card-detail-desc:focus {
+  outline: none;
+  border-color: var(--bg);
+}
+
+.card-detail-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.card-detail-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 2px solid #c1c7d0;
+  cursor: pointer;
+  padding: 0;
+}
+
+.card-detail-swatch.is-none {
+  /* The "no accent" swatch shows a diagonal slash over white. */
+  background:
+    linear-gradient(to top right, transparent 45%, #eb5a46 45%, #eb5a46 55%, transparent 55%),
+    #fff;
+}
+
+.card-detail-swatch.is-selected {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.card-detail-meta {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.card-detail .card-detail-delete {
+  /* Push the delete button to the far left, away from cancel/save. */
+  margin-right: auto;
+  background: #ffebe6;
+  color: #bf2600;
+}
+
+.card-detail .card-detail-delete:hover {
+  background: #ffd6cc;
+}
+
+/* Description badge on the card face. */
+.card-badges {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.card-badge {
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.7;
+}
+
 @keyframes modal-fade {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -521,7 +619,7 @@ const { DragController } = __require("dnd");
 const { ZoomController } = __require("zoom");
 const { downloadJson, readJsonFile } = __require("jsonio");
 const { exportBoardPng } = __require("png");
-const { customAlert, customConfirm, customPrompt } = __require("modal");
+const { customAlert, customConfirm, customPrompt, openCardDetail } = __require("modal");
 /** Maximum number of undo steps kept per board. */
 const MAX_HISTORY = 8;
 class KanbanApp {
@@ -645,6 +743,31 @@ class KanbanApp {
                 const next = CARD_COLORS[(CARD_COLORS.indexOf(card.color) + 1) % CARD_COLORS.length];
                 if (updateCard(board, colId, cardId, { color: next }))
                     this.commit();
+            },
+            openCard: (colId, cardId) => {
+                const board = this.active();
+                if (!board)
+                    return;
+                const column = board.columns.find((c) => c.id === colId);
+                const card = column?.cards.find((c) => c.id === cardId);
+                if (!card)
+                    return;
+                void openCardDetail({
+                    text: card.text,
+                    description: card.description,
+                    color: card.color,
+                    createdAt: card.createdAt,
+                    colors: CARD_COLORS,
+                }, {
+                    onSave: (patch) => {
+                        if (updateCard(board, colId, cardId, patch))
+                            this.commit();
+                    },
+                    onDelete: () => {
+                        if (removeCard(board, colId, cardId))
+                            this.commit();
+                    },
+                });
             },
             addColumn: () => {
                 const board = this.active();
@@ -1165,6 +1288,11 @@ const translations = {
         newColumnTitle: '새 리스트',
         newCardText: '새 카드',
         color: '색상 변경',
+        openCard: '카드 상세 열기',
+        cardTitleLabel: '제목',
+        description: '설명',
+        descriptionPlaceholder: '상세 설명을 입력하세요…',
+        created: '생성',
         deleteCardConfirm: '이 카드를 삭제할까요?',
         deleteColumnConfirm: '이 리스트를 삭제할까요?',
         deleteBoardConfirm: '이 보드를 삭제할까요?',
@@ -1196,6 +1324,11 @@ const translations = {
         newColumnTitle: 'New list',
         newCardText: 'New card',
         color: 'Change color',
+        openCard: 'Open card details',
+        cardTitleLabel: 'Title',
+        description: 'Description',
+        descriptionPlaceholder: 'Add a more detailed description…',
+        created: 'Created',
         deleteCardConfirm: 'Delete this card?',
         deleteColumnConfirm: 'Delete this list?',
         deleteBoardConfirm: 'Delete this board?',
@@ -1320,7 +1453,7 @@ __modules["modal"] = function(__exports, __require){
 // Custom modal dialogs that replace the browser's native alert/confirm/prompt.
 // They are promise-based, keyboard-accessible (Enter/Escape), close on backdrop
 // click, and use only the DOM (no external library).
-const { t } = __require("i18n");
+const { getLanguage, t } = __require("i18n");
 function openModal(opts) {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
@@ -1411,10 +1544,128 @@ function customConfirm(message) {
 function customPrompt(message, defaultValue = '') {
     return openModal({ kind: 'prompt', message, defaultValue }).then((r) => typeof r === 'string' ? r : null);
 }
+/** Format a timestamp using the active language's locale. */
+function formatDate(ts) {
+    const locale = getLanguage() === 'en' ? 'en-US' : 'ko-KR';
+    return new Date(ts).toLocaleString(locale);
+}
+/**
+ * Open the "back of the card": an editable title + free-form description, an
+ * accent color picker and a delete action. Resolves when the dialog closes.
+ */
+function openCardDetail(init, cb) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        const dialog = document.createElement('div');
+        dialog.className = 'modal-dialog card-detail';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        overlay.appendChild(dialog);
+        const addLabel = (text) => {
+            const label = document.createElement('div');
+            label.className = 'card-detail-label';
+            label.textContent = text;
+            dialog.appendChild(label);
+        };
+        addLabel(t('cardTitleLabel'));
+        const title = document.createElement('input');
+        title.className = 'modal-input card-detail-title';
+        title.type = 'text';
+        title.value = init.text;
+        dialog.appendChild(title);
+        addLabel(t('description'));
+        const desc = document.createElement('textarea');
+        desc.className = 'card-detail-desc';
+        desc.value = init.description;
+        desc.placeholder = t('descriptionPlaceholder');
+        dialog.appendChild(desc);
+        addLabel(t('color'));
+        let selectedColor = init.color;
+        const swatches = document.createElement('div');
+        swatches.className = 'card-detail-colors';
+        for (const color of init.colors) {
+            const swatch = document.createElement('button');
+            swatch.className = 'card-detail-swatch';
+            swatch.style.background = color || 'transparent';
+            if (!color)
+                swatch.classList.add('is-none'); // shows a "no color" hint
+            if (color === selectedColor)
+                swatch.classList.add('is-selected');
+            swatch.addEventListener('click', () => {
+                selectedColor = color;
+                swatches
+                    .querySelectorAll('.card-detail-swatch')
+                    .forEach((s) => s.classList.remove('is-selected'));
+                swatch.classList.add('is-selected');
+            });
+            swatches.appendChild(swatch);
+        }
+        dialog.appendChild(swatches);
+        const meta = document.createElement('div');
+        meta.className = 'card-detail-meta';
+        meta.textContent = `${t('created')}: ${formatDate(init.createdAt)}`;
+        dialog.appendChild(meta);
+        let settled = false;
+        const close = () => {
+            if (settled)
+                return;
+            settled = true;
+            document.removeEventListener('keydown', onKey, true);
+            overlay.remove();
+            resolve();
+        };
+        const save = () => {
+            cb.onSave({
+                text: title.value.trim(),
+                description: desc.value.trim(),
+                color: selectedColor,
+            });
+            close();
+        };
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                close();
+            }
+        };
+        const actions = document.createElement('div');
+        actions.className = 'modal-actions';
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'modal-btn card-detail-delete';
+        deleteBtn.textContent = `🗑️ ${t('delete')}`;
+        deleteBtn.addEventListener('click', () => {
+            void customConfirm(t('deleteCardConfirm')).then((ok) => {
+                if (ok) {
+                    cb.onDelete();
+                    close();
+                }
+            });
+        });
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'modal-btn modal-cancel';
+        cancelBtn.textContent = t('cancel');
+        cancelBtn.addEventListener('click', () => close());
+        const okBtn = document.createElement('button');
+        okBtn.className = 'modal-btn modal-ok';
+        okBtn.textContent = t('save');
+        okBtn.addEventListener('click', () => save());
+        actions.append(deleteBtn, cancelBtn, okBtn);
+        dialog.appendChild(actions);
+        overlay.addEventListener('pointerdown', (e) => {
+            if (e.target === overlay)
+                close();
+        });
+        document.addEventListener('keydown', onKey, true);
+        document.body.appendChild(overlay);
+        title.focus();
+    });
+}
 
 __exports.customAlert = customAlert;
 __exports.customConfirm = customConfirm;
 __exports.customPrompt = customPrompt;
+__exports.openCardDetail = openCardDetail;
 
 };
 __modules["model"] = function(__exports, __require){
@@ -1425,7 +1676,7 @@ const { SCHEMA_VERSION } = __require("types");
 const { makeId } = __require("id");
 /** Create an empty card with the given text. */
 function createCard(text) {
-    return { id: makeId('card'), text, color: '', createdAt: Date.now() };
+    return { id: makeId('card'), text, description: '', color: '', createdAt: Date.now() };
 }
 /** Create an empty column with the given title. */
 function createColumn(title) {
@@ -1512,6 +1763,8 @@ function updateCard(board, columnId, cardId, patch) {
         return false;
     if (patch.text !== undefined)
         card.text = patch.text;
+    if (patch.description !== undefined)
+        card.description = patch.description;
     if (patch.color !== undefined)
         card.color = patch.color;
     touch(board);
@@ -1585,6 +1838,7 @@ function normalizeCard(raw) {
     return {
         id: asString(obj.id, makeId('card')),
         text: asString(obj.text, ''),
+        description: asString(obj.description, ''),
         color: asString(obj.color, ''),
         createdAt: asNumber(obj.createdAt, Date.now()),
     };
@@ -1795,7 +2049,7 @@ function el(tag, className, text) {
     return node;
 }
 /** Maximum visible height of an inline editor, in text lines. */
-const INLINE_EDIT_MAX_LINES = 20;
+const INLINE_EDIT_MAX_LINES = 10;
 /** Resize a textarea to fit its content, capped at `maxLines` lines. */
 function autoGrow(textarea, maxLines) {
     const style = getComputedStyle(textarea);
@@ -1879,14 +2133,25 @@ function renderCard(card, column, handlers) {
         startInlineEdit(text, card.text, (value) => handlers.editCard(column.id, card.id, value));
     });
     node.appendChild(text);
+    // Badge hinting that the card carries a description (Trello-style).
+    if (card.description.trim()) {
+        const badge = el('div', 'card-badges');
+        const note = el('span', 'card-badge', '📝');
+        note.title = t('description');
+        badge.appendChild(note);
+        node.appendChild(badge);
+    }
     const actions = el('div', 'card-actions');
+    const openBtn = el('button', 'icon-btn', '🔍');
+    openBtn.title = t('openCard');
+    openBtn.addEventListener('click', () => handlers.openCard(column.id, card.id));
     const colorBtn = el('button', 'icon-btn', '🎨');
     colorBtn.title = t('color');
     colorBtn.addEventListener('click', () => handlers.cycleCardColor(column.id, card.id));
     const delBtn = el('button', 'icon-btn', '🗑️');
     delBtn.title = t('delete');
     delBtn.addEventListener('click', () => handlers.deleteCard(column.id, card.id));
-    actions.append(colorBtn, delBtn);
+    actions.append(openBtn, colorBtn, delBtn);
     node.appendChild(actions);
     return node;
 }

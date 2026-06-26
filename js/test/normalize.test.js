@@ -22,6 +22,7 @@ test('partial board is repaired with defaults', () => {
     assertEqual(data.boards[0].columns[0].cards[0].text, 'hi', 'card text kept');
     assert(typeof data.boards[0].id === 'string', 'id generated');
     assert(typeof data.boards[0].columns[0].cards[0].color === 'string', 'color defaulted');
+    assertEqual(data.boards[0].columns[0].cards[0].description, '', 'description defaulted');
 });
 test('invalid activeBoardId falls back to first board', () => {
     const data = normalizeAppData({

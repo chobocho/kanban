@@ -5,6 +5,8 @@
 export interface Card {
   id: string;
   text: string;
+  /** Free-form details shown on the card's back (detail modal). */
+  description: string;
   /** Optional accent color (hex). Empty means default. */
   color: string;
   createdAt: number;

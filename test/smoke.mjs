@@ -105,6 +105,26 @@ try {
   const c1 = await page.locator('.column').nth(1).locator('.card').count();
   assert(c0 === 0 && c1 === 1, `drag-and-drop moves card across columns (got ${c0}/${c1})`);
 
+  // Card detail modal: open a card, add a description, save, and verify the
+  // badge appears and the text round-trips on reopen.
+  const detailCard = page.locator('.column').nth(1).locator('.card').first();
+  await detailCard.hover();
+  await detailCard.locator('.icon-btn[title="Open card details"]').click();
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  await page.locator('.card-detail-desc').fill('detailed notes');
+  await page.locator('.card-detail .modal-ok').click();
+  await page.waitForTimeout(100);
+  const badges = await page.locator('.column').nth(1).locator('.card-badge').count();
+  assert(badges === 1, `saving a description shows a card badge (got ${badges})`);
+
+  await detailCard.hover();
+  await detailCard.locator('.icon-btn[title="Open card details"]').click();
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  const descVal = await page.locator('.card-detail-desc').inputValue();
+  assert(descVal === 'detailed notes', `description round-trips on reopen (got "${descVal}")`);
+  await page.locator('.card-detail .modal-cancel').click();
+  await page.waitForTimeout(100);
+
   // Custom modal (replaces native prompt): create a board via the dialog.
   const boardsBefore = await page.locator('#boardSelect option').count();
   await page.locator('#newBoardBtn').click();

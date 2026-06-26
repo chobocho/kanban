@@ -11,7 +11,7 @@ import { DragController } from './dnd.js';
 import { ZoomController } from './zoom.js';
 import { downloadJson, readJsonFile } from './jsonio.js';
 import { exportBoardPng } from './png.js';
-import { customAlert, customConfirm, customPrompt } from './modal.js';
+import { customAlert, customConfirm, customPrompt, openCardDetail } from './modal.js';
 /** Maximum number of undo steps kept per board. */
 const MAX_HISTORY = 8;
 export class KanbanApp {
@@ -135,6 +135,31 @@ export class KanbanApp {
                 const next = CARD_COLORS[(CARD_COLORS.indexOf(card.color) + 1) % CARD_COLORS.length];
                 if (updateCard(board, colId, cardId, { color: next }))
                     this.commit();
+            },
+            openCard: (colId, cardId) => {
+                const board = this.active();
+                if (!board)
+                    return;
+                const column = board.columns.find((c) => c.id === colId);
+                const card = column?.cards.find((c) => c.id === cardId);
+                if (!card)
+                    return;
+                void openCardDetail({
+                    text: card.text,
+                    description: card.description,
+                    color: card.color,
+                    createdAt: card.createdAt,
+                    colors: CARD_COLORS,
+                }, {
+                    onSave: (patch) => {
+                        if (updateCard(board, colId, cardId, patch))
+                            this.commit();
+                    },
+                    onDelete: () => {
+                        if (removeCard(board, colId, cardId))
+                            this.commit();
+                    },
+                });
             },
             addColumn: () => {
                 const board = this.active();

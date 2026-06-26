@@ -7,7 +7,7 @@ import { makeId } from './id.js';
 
 /** Create an empty card with the given text. */
 export function createCard(text: string): Card {
-  return { id: makeId('card'), text, color: '', createdAt: Date.now() };
+  return { id: makeId('card'), text, description: '', color: '', createdAt: Date.now() };
 }
 
 /** Create an empty column with the given title. */
@@ -95,13 +95,14 @@ export function updateCard(
   board: Board,
   columnId: string,
   cardId: string,
-  patch: Partial<Pick<Card, 'text' | 'color'>>,
+  patch: Partial<Pick<Card, 'text' | 'description' | 'color'>>,
 ): boolean {
   const column = findColumn(board, columnId);
   if (!column) return false;
   const card = column.cards.find((c) => c.id === cardId);
   if (!card) return false;
   if (patch.text !== undefined) card.text = patch.text;
+  if (patch.description !== undefined) card.description = patch.description;
   if (patch.color !== undefined) card.color = patch.color;
   touch(board);
   return true;

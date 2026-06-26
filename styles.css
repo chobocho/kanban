@@ -427,6 +427,104 @@ select.control {
   background: #0b5ed7;
 }
 
+/* --- Card detail modal (back of the card) --- */
+.card-detail {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
+.card-detail-label {
+  margin-top: 14px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.card-detail-label:first-child {
+  margin-top: 0;
+}
+
+.card-detail-title {
+  margin-top: 0;
+}
+
+.card-detail-desc {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  min-height: 120px;
+  resize: vertical;
+  padding: 9px 10px;
+  border: 2px solid #c1c7d0;
+  border-radius: 6px;
+}
+
+.card-detail-desc:focus {
+  outline: none;
+  border-color: var(--bg);
+}
+
+.card-detail-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.card-detail-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 2px solid #c1c7d0;
+  cursor: pointer;
+  padding: 0;
+}
+
+.card-detail-swatch.is-none {
+  /* The "no accent" swatch shows a diagonal slash over white. */
+  background:
+    linear-gradient(to top right, transparent 45%, #eb5a46 45%, #eb5a46 55%, transparent 55%),
+    #fff;
+}
+
+.card-detail-swatch.is-selected {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+.card-detail-meta {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.card-detail .card-detail-delete {
+  /* Push the delete button to the far left, away from cancel/save. */
+  margin-right: auto;
+  background: #ffebe6;
+  color: #bf2600;
+}
+
+.card-detail .card-detail-delete:hover {
+  background: #ffd6cc;
+}
+
+/* Description badge on the card face. */
+.card-badges {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.card-badge {
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.7;
+}
+
 @keyframes modal-fade {
   from { opacity: 0; }
   to { opacity: 1; }

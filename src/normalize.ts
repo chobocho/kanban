@@ -19,6 +19,7 @@ function normalizeCard(raw: unknown): Card {
   return {
     id: asString(obj.id, makeId('card')),
     text: asString(obj.text, ''),
+    description: asString(obj.description, ''),
     color: asString(obj.color, ''),
     createdAt: asNumber(obj.createdAt, Date.now()),
   };

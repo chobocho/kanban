@@ -13,7 +13,7 @@ function el(tag, className, text) {
     return node;
 }
 /** Maximum visible height of an inline editor, in text lines. */
-const INLINE_EDIT_MAX_LINES = 20;
+const INLINE_EDIT_MAX_LINES = 10;
 /** Resize a textarea to fit its content, capped at `maxLines` lines. */
 function autoGrow(textarea, maxLines) {
     const style = getComputedStyle(textarea);
@@ -97,14 +97,25 @@ function renderCard(card, column, handlers) {
         startInlineEdit(text, card.text, (value) => handlers.editCard(column.id, card.id, value));
     });
     node.appendChild(text);
+    // Badge hinting that the card carries a description (Trello-style).
+    if (card.description.trim()) {
+        const badge = el('div', 'card-badges');
+        const note = el('span', 'card-badge', '📝');
+        note.title = t('description');
+        badge.appendChild(note);
+        node.appendChild(badge);
+    }
     const actions = el('div', 'card-actions');
+    const openBtn = el('button', 'icon-btn', '🔍');
+    openBtn.title = t('openCard');
+    openBtn.addEventListener('click', () => handlers.openCard(column.id, card.id));
     const colorBtn = el('button', 'icon-btn', '🎨');
     colorBtn.title = t('color');
     colorBtn.addEventListener('click', () => handlers.cycleCardColor(column.id, card.id));
     const delBtn = el('button', 'icon-btn', '🗑️');
     delBtn.title = t('delete');
     delBtn.addEventListener('click', () => handlers.deleteCard(column.id, card.id));
-    actions.append(colorBtn, delBtn);
+    actions.append(openBtn, colorBtn, delBtn);
     node.appendChild(actions);
     return node;
 }

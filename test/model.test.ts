@@ -72,6 +72,16 @@ test('updateCard patches text and color', () => {
   assertEqual(board.columns[0].cards[0].color, '#f00', 'color patched');
 });
 
+test('updateCard patches description independently', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  assertEqual(card.description, '', 'new card has empty description');
+  assert(updateCard(board, colId, card.id, { description: 'details' }), 'update ok');
+  assertEqual(board.columns[0].cards[0].description, 'details', 'description patched');
+  assertEqual(board.columns[0].cards[0].text, 'a', 'text untouched');
+});
+
 test('removeCard deletes a card', () => {
   const board = createBoard('b', [createColumn('A')]);
   const colId = board.columns[0].id;

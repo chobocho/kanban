@@ -5,7 +5,7 @@ import { SCHEMA_VERSION } from './types.js';
 import { makeId } from './id.js';
 /** Create an empty card with the given text. */
 export function createCard(text) {
-    return { id: makeId('card'), text, color: '', createdAt: Date.now() };
+    return { id: makeId('card'), text, description: '', color: '', createdAt: Date.now() };
 }
 /** Create an empty column with the given title. */
 export function createColumn(title) {
@@ -92,6 +92,8 @@ export function updateCard(board, columnId, cardId, patch) {
         return false;
     if (patch.text !== undefined)
         card.text = patch.text;
+    if (patch.description !== undefined)
+        card.description = patch.description;
     if (patch.color !== undefined)
         card.color = patch.color;
     touch(board);
