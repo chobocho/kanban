@@ -2,8 +2,19 @@
 // touch (Pointer Events). A floating clone follows the pointer and a live
 // placeholder shows the drop position, giving a Trello-like feel. The board is
 // re-rendered by the app after each drop, so transient DOM edits here are safe.
+//
+// Touch needs special care: the board and each card list are scrollable, so the
+// browser would otherwise treat a finger drag as a scroll (and fire
+// pointercancel, aborting the drag). To keep both gestures usable, touch drags
+// begin on a short press-and-hold; a quick swipe still scrolls. Once a touch
+// drag is active a non-passive touchmove handler suppresses native scrolling,
+// which a pointermove preventDefault alone cannot do.
 
 const DRAG_THRESHOLD = 6;
+// Press-and-hold duration before a touch drag begins.
+const TOUCH_HOLD_MS = 200;
+// If the finger travels more than this before the hold fires, it is a scroll.
+const TOUCH_SCROLL_CANCEL = 10;
 
 export interface DndCallbacks {
   moveCard(fromColId: string, cardId: string, toColId: string, toIndex: number): void;
@@ -19,10 +30,15 @@ export class DragController {
   private readonly cb: DndCallbacks;
 
   private pointerId: number | null = null;
+  private pointerType = '';
   private mode: Mode | null = null;
   private dragging = false;
   private startX = 0;
   private startY = 0;
+  private lastX = 0;
+  private lastY = 0;
+  // setTimeout handle for the touch press-and-hold (0 when inactive).
+  private holdTimer = 0;
 
   private sourceEl: HTMLElement | null = null;
   private clone: HTMLElement | null = null;
@@ -40,10 +56,19 @@ export class DragController {
     root.addEventListener('pointermove', (e) => this.onMove(e));
     root.addEventListener('pointerup', (e) => this.onUp(e));
     root.addEventListener('pointercancel', () => this.cancel());
+    // While a touch drag is active, stop the browser from scrolling the board
+    // or a card list. Must be non-passive so preventDefault takes effect.
+    root.addEventListener('touchmove', (e) => this.onTouchMove(e), { passive: false });
   }
 
   private onDown(e: PointerEvent): void {
-    if (this.pointerId !== null || e.button !== 0) return;
+    // A second pointer (e.g. the start of a pinch) appears: abandon any drag or
+    // pending hold so the zoom controller can take over cleanly.
+    if (this.pointerId !== null) {
+      this.cancel();
+      return;
+    }
+    if (e.button !== 0) return;
     const target = e.target as HTMLElement;
     // Ignore interactive controls so editing/buttons still work.
     if (target.closest('button, textarea, input, select, [contenteditable="true"]')) return;
@@ -68,39 +93,74 @@ export class DragController {
     }
 
     this.pointerId = e.pointerId;
+    this.pointerType = e.pointerType;
     this.startX = e.clientX;
     this.startY = e.clientY;
+    this.lastX = e.clientX;
+    this.lastY = e.clientY;
+
+    // Touch: wait for a short hold so quick swipes can still scroll. Mouse/pen
+    // start dragging as soon as the pointer moves past the small threshold.
+    if (e.pointerType === 'touch') {
+      this.holdTimer = setTimeout(() => this.onHold(), TOUCH_HOLD_MS);
+    }
+  }
+
+  /** The touch press-and-hold elapsed: promote the candidate to a drag. */
+  private onHold(): void {
+    this.holdTimer = 0;
+    if (this.pointerId === null || this.dragging || !this.sourceEl) return;
+    if (this.cb.isBlocked()) {
+      this.reset();
+      return;
+    }
+    this.begin(this.pointerId, this.lastX, this.lastY);
+    this.positionClone(this.lastX, this.lastY);
+    if (this.mode === 'card') this.updateCardPlaceholder(this.lastX, this.lastY);
+    else this.updateColumnPlaceholder(this.lastX, this.lastY);
   }
 
   private onMove(e: PointerEvent): void {
     if (this.pointerId !== e.pointerId || !this.sourceEl) return;
+    this.lastX = e.clientX;
+    this.lastY = e.clientY;
 
     if (!this.dragging) {
       const moved = Math.hypot(e.clientX - this.startX, e.clientY - this.startY);
+      if (this.pointerType === 'touch') {
+        // Movement before the hold fires means the user is scrolling, not
+        // dragging: drop the candidate and let the browser scroll.
+        if (moved > TOUCH_SCROLL_CANCEL) this.reset();
+        return;
+      }
       if (moved < DRAG_THRESHOLD) return;
       if (this.cb.isBlocked()) {
         this.reset();
         return;
       }
-      this.begin(e);
+      this.begin(e.pointerId, e.clientX, e.clientY);
     }
 
     if (!this.dragging || !this.clone) return;
     e.preventDefault();
-    this.clone.style.left = `${e.clientX - this.offsetX}px`;
-    this.clone.style.top = `${e.clientY - this.offsetY}px`;
-    if (this.mode === 'card') this.updateCardPlaceholder(e);
-    else this.updateColumnPlaceholder(e);
+    this.positionClone(e.clientX, e.clientY);
+    if (this.mode === 'card') this.updateCardPlaceholder(e.clientX, e.clientY);
+    else this.updateColumnPlaceholder(e.clientX, e.clientY);
   }
 
-  private begin(e: PointerEvent): void {
+  /** Suppress native scrolling while a touch drag is in progress. */
+  private onTouchMove(e: TouchEvent): void {
+    if (this.dragging) e.preventDefault();
+  }
+
+  private begin(pointerId: number, x: number, y: number): void {
     if (!this.sourceEl) return;
     this.dragging = true;
-    this.root.setPointerCapture(e.pointerId);
+    this.root.setPointerCapture(pointerId);
 
     const rect = this.sourceEl.getBoundingClientRect();
-    this.offsetX = e.clientX - rect.left;
-    this.offsetY = e.clientY - rect.top;
+    this.offsetX = x - rect.left;
+    this.offsetY = y - rect.top;
 
     // Floating clone follows the pointer; pointer-events none so it does not
     // interfere with elementFromPoint hit testing.
@@ -124,8 +184,14 @@ export class DragController {
     this.sourceEl.after(placeholder);
   }
 
-  private updateCardPlaceholder(e: PointerEvent): void {
-    const list = this.listAtPoint(e.clientX, e.clientY);
+  private positionClone(x: number, y: number): void {
+    if (!this.clone) return;
+    this.clone.style.left = `${x - this.offsetX}px`;
+    this.clone.style.top = `${y - this.offsetY}px`;
+  }
+
+  private updateCardPlaceholder(x: number, y: number): void {
+    const list = this.listAtPoint(x, y);
     if (!list || !this.placeholder) return;
     const cards = Array.from(
       list.querySelectorAll<HTMLElement>('[data-card-id]'),
@@ -134,7 +200,7 @@ export class DragController {
     let inserted = false;
     for (const card of cards) {
       const box = card.getBoundingClientRect();
-      if (e.clientY < box.top + box.height / 2) {
+      if (y < box.top + box.height / 2) {
         list.insertBefore(this.placeholder, card);
         inserted = true;
         break;
@@ -143,7 +209,7 @@ export class DragController {
     if (!inserted) list.appendChild(this.placeholder);
   }
 
-  private updateColumnPlaceholder(e: PointerEvent): void {
+  private updateColumnPlaceholder(x: number, _y: number): void {
     if (!this.placeholder) return;
     const columns = Array.from(
       this.root.querySelectorAll<HTMLElement>('[data-col-id]'),
@@ -152,7 +218,7 @@ export class DragController {
     let inserted = false;
     for (const col of columns) {
       const box = col.getBoundingClientRect();
-      if (e.clientX < box.left + box.width / 2) {
+      if (x < box.left + box.width / 2) {
         col.before(this.placeholder);
         inserted = true;
         break;
@@ -218,7 +284,12 @@ export class DragController {
   }
 
   private reset(): void {
+    if (this.holdTimer) {
+      clearTimeout(this.holdTimer);
+      this.holdTimer = 0;
+    }
     this.pointerId = null;
+    this.pointerType = '';
     this.mode = null;
     this.dragging = false;
     this.sourceEl = null;

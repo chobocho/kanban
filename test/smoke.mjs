@@ -245,6 +245,51 @@ try {
   assert(boardsCancel === boardsAfter, `cancelling the modal makes no change (got ${boardsCancel})`);
 
   assert(errors.length === 0, `no runtime errors (${JSON.stringify(errors)})`);
+
+  // --- Touch drag-and-drop (foldable / phone) ---------------------------------
+  // Cards and lists are scrollable, so a touch drag must begin on a press-and-
+  // hold (a quick swipe scrolls instead). Verify both with real touch events.
+  const tctx = await browser.newContext({ viewport: { width: 884, height: 1104 }, hasTouch: true, isMobile: true });
+  const tpage = await tctx.newPage();
+  const terrors = [];
+  tpage.on('pageerror', (e) => terrors.push(e.message));
+  tpage.on('console', (m) => { if (m.type() === 'error') terrors.push(m.text()); });
+  // A fresh context has isolated storage, so the default 3-column board loads.
+  await tpage.goto(base + '/index.html');
+  await tpage.waitForSelector('.column', { timeout: 5000 });
+  await tpage.locator('.column').first().locator('.add-card-btn').click();
+  await tpage.waitForTimeout(150);
+
+  const tcard = tpage.locator('.column').nth(0).locator('.card').first();
+  const ttarget = tpage.locator('.column').nth(1);
+  const tcb = await tcard.boundingBox();
+  const ttb = await ttarget.boundingBox();
+  const cdp = await tctx.newCDPSession(tpage);
+  const tp = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
+  const cx = tcb.x + tcb.width / 2, cy = tcb.y + tcb.height / 2;
+  const ex = ttb.x + ttb.width / 2, ey = ttb.y + 60;
+
+  // Press-and-hold, then drag into the second column.
+  await tp('touchStart', cx, cy);
+  await tpage.waitForTimeout(260);
+  for (let i = 1; i <= 12; i++) { await tp('touchMove', cx + (ex - cx) * i / 12, cy + (ey - cy) * i / 12); await tpage.waitForTimeout(16); }
+  await tp('touchEnd', ex, ey);
+  await tpage.waitForTimeout(250);
+  const tc0 = await tpage.locator('.column').nth(0).locator('.card').count();
+  const tc1 = await tpage.locator('.column').nth(1).locator('.card').count();
+  assert(tc0 === 0 && tc1 === 1, `touch hold-then-drag moves card across columns (got ${tc0}/${tc1})`);
+
+  // A quick swipe on the card must NOT move it (it is a scroll gesture).
+  const sb = await tpage.locator('.column').nth(1).locator('.card').first().boundingBox();
+  const sx = sb.x + sb.width / 2, sy = sb.y + sb.height / 2;
+  await tp('touchStart', sx, sy);
+  for (let i = 1; i <= 8; i++) { await tp('touchMove', sx, sy - 12 * i); await tpage.waitForTimeout(8); }
+  await tp('touchEnd', sx, sy - 96);
+  await tpage.waitForTimeout(200);
+  const sc1 = await tpage.locator('.column').nth(1).locator('.card').count();
+  assert(sc1 === 1, `quick swipe scrolls instead of dragging (card stays, got ${sc1})`);
+  assert(terrors.length === 0, `no runtime errors during touch (${JSON.stringify(terrors)})`);
+
   console.log('\nsmoke: all checks passed');
 } finally {
   await browser.close();
