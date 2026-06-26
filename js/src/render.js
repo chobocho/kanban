@@ -44,7 +44,10 @@ function startInlineEdit(host, initial, onSave) {
     wrap.append(textarea, actions);
     host.replaceWith(wrap);
     textarea.focus();
-    textarea.select();
+    // Place the caret at the end instead of selecting all text, so focusing the
+    // editor does not highlight the whole memo as a block.
+    const end = textarea.value.length;
+    textarea.setSelectionRange(end, end);
     autoGrow(textarea, INLINE_EDIT_MAX_LINES);
     // Grow/shrink as the user types (covers typing, pasting and newlines).
     textarea.addEventListener('input', () => autoGrow(textarea, INLINE_EDIT_MAX_LINES));
