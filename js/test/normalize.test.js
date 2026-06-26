@@ -23,6 +23,24 @@ test('partial board is repaired with defaults', () => {
     assert(typeof data.boards[0].id === 'string', 'id generated');
     assert(typeof data.boards[0].columns[0].cards[0].color === 'string', 'color defaulted');
     assertEqual(data.boards[0].columns[0].cards[0].description, '', 'description defaulted');
+    assertEqual(data.boards[0].columns[0].cards[0].labelIds.length, 0, 'labelIds defaulted');
+    assert(data.boards[0].labels.length > 0, 'labels seeded for legacy board');
+});
+test('stored labels are kept and dangling card references are dropped', () => {
+    const data = normalizeAppData({
+        boards: [
+            {
+                id: 'b1',
+                name: 'A',
+                labels: [{ id: 'L1', name: 'Bug', color: '#f00' }],
+                columns: [{ title: 'C', cards: [{ text: 'x', labelIds: ['L1', 'ghost'] }] }],
+            },
+        ],
+    });
+    assertEqual(data.boards[0].labels.length, 1, 'one stored label kept');
+    assertEqual(data.boards[0].labels[0].name, 'Bug', 'label name kept');
+    const labelIds = data.boards[0].columns[0].cards[0].labelIds;
+    assertEqual(labelIds.join(''), 'L1', 'valid ref kept, dangling ref dropped');
 });
 test('invalid activeBoardId falls back to first board', () => {
     const data = normalizeAppData({

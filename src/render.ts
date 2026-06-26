@@ -2,7 +2,7 @@
 // delegates every mutation to the provided handlers, keeping it free of state
 // and storage concerns. Data attributes drive the drag-and-drop controller.
 
-import { Board, Card, Column } from './types.js';
+import { Board, Card, Column, Label } from './types.js';
 import { t } from './i18n.js';
 
 export interface RenderHandlers {
@@ -111,7 +111,12 @@ function startInlineEdit(
   okBtn.addEventListener('click', () => finish(true));
 }
 
-function renderCard(card: Card, column: Column, handlers: RenderHandlers): HTMLElement {
+function renderCard(
+  card: Card,
+  column: Column,
+  labels: Map<string, Label>,
+  handlers: RenderHandlers,
+): HTMLElement {
   const node = el('div', 'card');
   node.dataset.cardId = card.id;
   node.dataset.colId = column.id;
@@ -119,6 +124,19 @@ function renderCard(card: Card, column: Column, handlers: RenderHandlers): HTMLE
     const stripe = el('span', 'card-stripe');
     stripe.style.background = card.color;
     node.appendChild(stripe);
+  }
+
+  // Assigned labels render as colored chips above the card text.
+  const cardLabels = card.labelIds.map((id) => labels.get(id)).filter((l): l is Label => !!l);
+  if (cardLabels.length > 0) {
+    const labelRow = el('div', 'card-labels');
+    for (const label of cardLabels) {
+      const chip = el('span', 'card-label', label.name || '');
+      chip.style.background = label.color;
+      if (label.name) chip.title = label.name;
+      labelRow.appendChild(chip);
+    }
+    node.appendChild(labelRow);
   }
 
   const text = el('div', 'card-text', card.text || ' ');
@@ -154,6 +172,7 @@ function renderCard(card: Card, column: Column, handlers: RenderHandlers): HTMLE
 function renderColumn(
   column: Column,
   index: number,
+  labels: Map<string, Label>,
   handlers: RenderHandlers,
 ): HTMLElement {
   const node = el('div', 'column');
@@ -177,7 +196,7 @@ function renderColumn(
     list.appendChild(el('div', 'empty-hint', t('emptyColumn')));
   }
   for (const card of column.cards) {
-    list.appendChild(renderCard(card, column, handlers));
+    list.appendChild(renderCard(card, column, labels, handlers));
   }
 
   const footer = el('div', 'column-footer');
@@ -197,8 +216,9 @@ export function renderBoard(
   handlers: RenderHandlers,
 ): void {
   container.replaceChildren();
+  const labels = new Map(board.labels.map((label) => [label.id, label]));
   board.columns.forEach((column, index) => {
-    container.appendChild(renderColumn(column, index, handlers));
+    container.appendChild(renderColumn(column, index, labels, handlers));
   });
 
   const addColumn = el('button', 'add-column', '➕');

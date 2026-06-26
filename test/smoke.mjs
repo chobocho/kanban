@@ -122,8 +122,14 @@ try {
   await page.waitForSelector('.card-detail', { timeout: 3000 });
   const descVal = await page.locator('.card-detail-desc').inputValue();
   assert(descVal === 'detailed notes', `description round-trips on reopen (got "${descVal}")`);
+
+  // Assign the first label from the detail modal; it applies immediately.
+  await page.locator('.card-detail-label-chip').first().click();
+  await page.waitForTimeout(100);
   await page.locator('.card-detail .modal-cancel').click();
   await page.waitForTimeout(100);
+  const labelChips = await page.locator('.column').nth(1).locator('.card-label').count();
+  assert(labelChips === 1, `assigning a label shows a chip on the card (got ${labelChips})`);
 
   // Custom modal (replaces native prompt): create a board via the dialog.
   const boardsBefore = await page.locator('#boardSelect option').count();

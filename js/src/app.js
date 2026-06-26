@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, updateLabel, toggleCardLabel, touch, } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t } from './i18n.js';
 import { renderBoard, CARD_COLORS } from './render.js';
@@ -150,6 +150,8 @@ export class KanbanApp {
                     color: card.color,
                     createdAt: card.createdAt,
                     colors: CARD_COLORS,
+                    labels: board.labels,
+                    assignedLabelIds: card.labelIds.slice(),
                 }, {
                     onSave: (patch) => {
                         if (updateCard(board, colId, cardId, patch))
@@ -157,6 +159,14 @@ export class KanbanApp {
                     },
                     onDelete: () => {
                         if (removeCard(board, colId, cardId))
+                            this.commit();
+                    },
+                    onToggleLabel: (labelId) => {
+                        if (toggleCardLabel(board, colId, cardId, labelId))
+                            this.commit();
+                    },
+                    onRenameLabel: (labelId, name) => {
+                        if (updateLabel(board, labelId, { name }))
                             this.commit();
                     },
                 });

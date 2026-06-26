@@ -83,7 +83,7 @@ function startInlineEdit(host, initial, onSave) {
     cancelBtn.addEventListener('click', () => finish(false));
     okBtn.addEventListener('click', () => finish(true));
 }
-function renderCard(card, column, handlers) {
+function renderCard(card, column, labels, handlers) {
     const node = el('div', 'card');
     node.dataset.cardId = card.id;
     node.dataset.colId = column.id;
@@ -91,6 +91,19 @@ function renderCard(card, column, handlers) {
         const stripe = el('span', 'card-stripe');
         stripe.style.background = card.color;
         node.appendChild(stripe);
+    }
+    // Assigned labels render as colored chips above the card text.
+    const cardLabels = card.labelIds.map((id) => labels.get(id)).filter((l) => !!l);
+    if (cardLabels.length > 0) {
+        const labelRow = el('div', 'card-labels');
+        for (const label of cardLabels) {
+            const chip = el('span', 'card-label', label.name || '');
+            chip.style.background = label.color;
+            if (label.name)
+                chip.title = label.name;
+            labelRow.appendChild(chip);
+        }
+        node.appendChild(labelRow);
     }
     const text = el('div', 'card-text', card.text || ' ');
     text.addEventListener('click', () => {
@@ -119,7 +132,7 @@ function renderCard(card, column, handlers) {
     node.appendChild(actions);
     return node;
 }
-function renderColumn(column, index, handlers) {
+function renderColumn(column, index, labels, handlers) {
     const node = el('div', 'column');
     node.dataset.colId = column.id;
     node.dataset.colIndex = String(index);
@@ -139,7 +152,7 @@ function renderColumn(column, index, handlers) {
         list.appendChild(el('div', 'empty-hint', t('emptyColumn')));
     }
     for (const card of column.cards) {
-        list.appendChild(renderCard(card, column, handlers));
+        list.appendChild(renderCard(card, column, labels, handlers));
     }
     const footer = el('div', 'column-footer');
     const addBtn = el('button', 'add-card-btn', '➕');
@@ -152,8 +165,9 @@ function renderColumn(column, index, handlers) {
 /** Render the whole board into `container`, clearing previous content. */
 export function renderBoard(container, board, handlers) {
     container.replaceChildren();
+    const labels = new Map(board.labels.map((label) => [label.id, label]));
     board.columns.forEach((column, index) => {
-        container.appendChild(renderColumn(column, index, handlers));
+        container.appendChild(renderColumn(column, index, labels, handlers));
     });
     const addColumn = el('button', 'add-column', '➕');
     addColumn.title = t('addColumn');

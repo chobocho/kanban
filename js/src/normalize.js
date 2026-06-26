@@ -2,7 +2,7 @@
 // The app must keep working even if the stored DB is corrupted or an imported
 // JSON file is malformed, so every field is validated and repaired here.
 import { SCHEMA_VERSION } from './types.js';
-import { createBoard, createColumn, createDefaultData } from './model.js';
+import { createBoard, createColumn, createDefaultData, defaultLabels } from './model.js';
 import { makeId } from './id.js';
 function asString(value, fallback) {
     return typeof value === 'string' ? value : fallback;
@@ -10,12 +10,24 @@ function asString(value, fallback) {
 function asNumber(value, fallback) {
     return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
+function normalizeLabel(raw) {
+    const obj = (raw ?? {});
+    return {
+        id: asString(obj.id, makeId('label')),
+        name: asString(obj.name, ''),
+        color: asString(obj.color, ''),
+    };
+}
 function normalizeCard(raw) {
     const obj = (raw ?? {});
+    const labelIds = Array.isArray(obj.labelIds)
+        ? obj.labelIds.filter((id) => typeof id === 'string')
+        : [];
     return {
         id: asString(obj.id, makeId('card')),
         text: asString(obj.text, ''),
         description: asString(obj.description, ''),
+        labelIds,
         color: asString(obj.color, ''),
         createdAt: asNumber(obj.createdAt, Date.now()),
     };
@@ -35,6 +47,16 @@ function normalizeBoard(raw) {
     board.id = asString(obj.id, board.id);
     board.createdAt = asNumber(obj.createdAt, board.createdAt);
     board.updatedAt = asNumber(obj.updatedAt, board.updatedAt);
+    // Keep stored labels, or seed defaults for boards saved before labels existed.
+    const labels = Array.isArray(obj.labels) ? obj.labels.map(normalizeLabel) : [];
+    board.labels = labels.length > 0 ? labels : defaultLabels();
+    // Drop any card label references that no longer point at a real label.
+    const known = new Set(board.labels.map((l) => l.id));
+    for (const column of board.columns) {
+        for (const card of column.cards) {
+            card.labelIds = card.labelIds.filter((id) => known.has(id));
+        }
+    }
     return board;
 }
 function normalizeLang(value) {

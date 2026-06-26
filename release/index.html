@@ -519,6 +519,76 @@ select.control {
   background: #ffd6cc;
 }
 
+/* Labels assigned to a card, shown as chips above the card text. */
+.card-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.card-label {
+  min-width: 36px;
+  max-width: 100%;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 16px;
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Label rows inside the card detail modal. */
+.card-detail-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card-detail-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-detail-label-chip {
+  flex: 1 1 auto;
+  min-height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.card-detail-label-chip.is-on {
+  opacity: 1;
+  box-shadow: inset 0 0 0 2px var(--text);
+}
+
+.card-detail-label-edit {
+  flex: 0 0 auto;
+  min-width: 36px;
+  min-height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: #ebecf0;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.card-detail-label-edit:hover {
+  background: #dfe1e6;
+}
+
 /* Description badge on the card face. */
 .card-badges {
   display: flex;
@@ -611,7 +681,7 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, updateLabel, toggleCardLabel, touch } = __require("model");
 const { History } = __require("history");
 const { setLanguage, t } = __require("i18n");
 const { renderBoard, CARD_COLORS } = __require("render");
@@ -758,6 +828,8 @@ class KanbanApp {
                     color: card.color,
                     createdAt: card.createdAt,
                     colors: CARD_COLORS,
+                    labels: board.labels,
+                    assignedLabelIds: card.labelIds.slice(),
                 }, {
                     onSave: (patch) => {
                         if (updateCard(board, colId, cardId, patch))
@@ -765,6 +837,14 @@ class KanbanApp {
                     },
                     onDelete: () => {
                         if (removeCard(board, colId, cardId))
+                            this.commit();
+                    },
+                    onToggleLabel: (labelId) => {
+                        if (toggleCardLabel(board, colId, cardId, labelId))
+                            this.commit();
+                    },
+                    onRenameLabel: (labelId, name) => {
+                        if (updateLabel(board, labelId, { name }))
                             this.commit();
                     },
                 });
@@ -1292,6 +1372,8 @@ const translations = {
         cardTitleLabel: '제목',
         description: '설명',
         descriptionPlaceholder: '상세 설명을 입력하세요…',
+        labels: '라벨',
+        labelNamePrompt: '라벨 이름을 입력하세요',
         created: '생성',
         deleteCardConfirm: '이 카드를 삭제할까요?',
         deleteColumnConfirm: '이 리스트를 삭제할까요?',
@@ -1328,6 +1410,8 @@ const translations = {
         cardTitleLabel: 'Title',
         description: 'Description',
         descriptionPlaceholder: 'Add a more detailed description…',
+        labels: 'Labels',
+        labelNamePrompt: 'Enter a label name',
         created: 'Created',
         deleteCardConfirm: 'Delete this card?',
         deleteColumnConfirm: 'Delete this list?',
@@ -1574,6 +1658,49 @@ function openCardDetail(init, cb) {
         title.type = 'text';
         title.value = init.text;
         dialog.appendChild(title);
+        // --- Labels: toggle assignment by clicking a chip, rename via ✏️. ---
+        addLabel(t('labels'));
+        const labelList = document.createElement('div');
+        labelList.className = 'card-detail-labels';
+        dialog.appendChild(labelList);
+        const assigned = new Set(init.assignedLabelIds);
+        const renderLabels = () => {
+            labelList.replaceChildren();
+            for (const label of init.labels) {
+                const row = document.createElement('div');
+                row.className = 'card-detail-label-row';
+                const chip = document.createElement('button');
+                chip.className = 'card-detail-label-chip';
+                chip.style.background = label.color;
+                const on = assigned.has(label.id);
+                if (on)
+                    chip.classList.add('is-on');
+                chip.textContent = (on ? '✓ ' : '') + (label.name || '');
+                chip.addEventListener('click', () => {
+                    if (assigned.has(label.id))
+                        assigned.delete(label.id);
+                    else
+                        assigned.add(label.id);
+                    cb.onToggleLabel(label.id);
+                    renderLabels();
+                });
+                const rename = document.createElement('button');
+                rename.className = 'card-detail-label-edit';
+                rename.textContent = '✏️';
+                rename.title = t('rename');
+                rename.addEventListener('click', () => {
+                    void customPrompt(t('labelNamePrompt'), label.name).then((name) => {
+                        if (name === null)
+                            return;
+                        cb.onRenameLabel(label.id, name); // mutates the shared label object
+                        renderLabels();
+                    });
+                });
+                row.append(chip, rename);
+                labelList.appendChild(row);
+            }
+        };
+        renderLabels();
         addLabel(t('description'));
         const desc = document.createElement('textarea');
         desc.className = 'card-detail-desc';
@@ -1674,9 +1801,26 @@ __modules["model"] = function(__exports, __require){
 // tested in isolation (see test/model.test.ts).
 const { SCHEMA_VERSION } = __require("types");
 const { makeId } = __require("id");
+/** Default label palette seeded on every new board (Trello-like colors). */
+const LABEL_COLORS = ['#61bd4f', '#f2d600', '#ff9f1a', '#eb5a46', '#c377e0', '#0079bf'];
+/** Create a label with the given name and color. */
+function createLabel(name, color) {
+    return { id: makeId('label'), name, color };
+}
+/** Build the default, unnamed color labels for a fresh board. */
+function defaultLabels() {
+    return LABEL_COLORS.map((color) => createLabel('', color));
+}
 /** Create an empty card with the given text. */
 function createCard(text) {
-    return { id: makeId('card'), text, description: '', color: '', createdAt: Date.now() };
+    return {
+        id: makeId('card'),
+        text,
+        description: '',
+        labelIds: [],
+        color: '',
+        createdAt: Date.now(),
+    };
 }
 /** Create an empty column with the given title. */
 function createColumn(title) {
@@ -1685,7 +1829,14 @@ function createColumn(title) {
 /** Create a board, optionally seeded with the given columns. */
 function createBoard(name, columns = []) {
     const now = Date.now();
-    return { id: makeId('board'), name, columns, createdAt: now, updatedAt: now };
+    return {
+        id: makeId('board'),
+        name,
+        columns,
+        labels: defaultLabels(),
+        createdAt: now,
+        updatedAt: now,
+    };
 }
 /** Build a fresh application state with one sample board. */
 function createDefaultData() {
@@ -1781,6 +1932,57 @@ function removeCard(board, columnId, cardId) {
     touch(board);
     return true;
 }
+/** Append a new label to the board's shared label set and return it. */
+function addLabel(board, name, color) {
+    const label = createLabel(name, color);
+    board.labels.push(label);
+    touch(board);
+    return label;
+}
+/** Patch a board label's name and/or color. */
+function updateLabel(board, labelId, patch) {
+    const label = board.labels.find((l) => l.id === labelId);
+    if (!label)
+        return false;
+    if (patch.name !== undefined)
+        label.name = patch.name;
+    if (patch.color !== undefined)
+        label.color = patch.color;
+    touch(board);
+    return true;
+}
+/** Delete a board label and strip it from every card that referenced it. */
+function removeLabel(board, labelId) {
+    const index = board.labels.findIndex((l) => l.id === labelId);
+    if (index < 0)
+        return false;
+    board.labels.splice(index, 1);
+    for (const column of board.columns) {
+        for (const card of column.cards) {
+            const at = card.labelIds.indexOf(labelId);
+            if (at >= 0)
+                card.labelIds.splice(at, 1);
+        }
+    }
+    touch(board);
+    return true;
+}
+/** Toggle a label on a card: add it if absent, remove it if present. */
+function toggleCardLabel(board, columnId, cardId, labelId) {
+    if (!board.labels.some((l) => l.id === labelId))
+        return false;
+    const column = findColumn(board, columnId);
+    const card = column?.cards.find((c) => c.id === cardId);
+    if (!card)
+        return false;
+    const at = card.labelIds.indexOf(labelId);
+    if (at >= 0)
+        card.labelIds.splice(at, 1);
+    else
+        card.labelIds.push(labelId);
+    touch(board);
+    return true;
+}
 /**
  * Move a card to another column (or within the same column) at the given index.
  * `toIndex` is clamped into the destination column's valid range.
@@ -1803,6 +2005,8 @@ function getActiveBoard(data) {
     return data.boards.find((b) => b.id === data.activeBoardId);
 }
 
+__exports.createLabel = createLabel;
+__exports.defaultLabels = defaultLabels;
 __exports.createCard = createCard;
 __exports.createColumn = createColumn;
 __exports.createBoard = createBoard;
@@ -1816,8 +2020,13 @@ __exports.moveColumn = moveColumn;
 __exports.addCard = addCard;
 __exports.updateCard = updateCard;
 __exports.removeCard = removeCard;
+__exports.addLabel = addLabel;
+__exports.updateLabel = updateLabel;
+__exports.removeLabel = removeLabel;
+__exports.toggleCardLabel = toggleCardLabel;
 __exports.moveCard = moveCard;
 __exports.getActiveBoard = getActiveBoard;
+__exports.LABEL_COLORS = LABEL_COLORS;
 
 };
 __modules["normalize"] = function(__exports, __require){
@@ -1825,7 +2034,7 @@ __modules["normalize"] = function(__exports, __require){
 // The app must keep working even if the stored DB is corrupted or an imported
 // JSON file is malformed, so every field is validated and repaired here.
 const { SCHEMA_VERSION } = __require("types");
-const { createBoard, createColumn, createDefaultData } = __require("model");
+const { createBoard, createColumn, createDefaultData, defaultLabels } = __require("model");
 const { makeId } = __require("id");
 function asString(value, fallback) {
     return typeof value === 'string' ? value : fallback;
@@ -1833,12 +2042,24 @@ function asString(value, fallback) {
 function asNumber(value, fallback) {
     return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
+function normalizeLabel(raw) {
+    const obj = (raw ?? {});
+    return {
+        id: asString(obj.id, makeId('label')),
+        name: asString(obj.name, ''),
+        color: asString(obj.color, ''),
+    };
+}
 function normalizeCard(raw) {
     const obj = (raw ?? {});
+    const labelIds = Array.isArray(obj.labelIds)
+        ? obj.labelIds.filter((id) => typeof id === 'string')
+        : [];
     return {
         id: asString(obj.id, makeId('card')),
         text: asString(obj.text, ''),
         description: asString(obj.description, ''),
+        labelIds,
         color: asString(obj.color, ''),
         createdAt: asNumber(obj.createdAt, Date.now()),
     };
@@ -1858,6 +2079,16 @@ function normalizeBoard(raw) {
     board.id = asString(obj.id, board.id);
     board.createdAt = asNumber(obj.createdAt, board.createdAt);
     board.updatedAt = asNumber(obj.updatedAt, board.updatedAt);
+    // Keep stored labels, or seed defaults for boards saved before labels existed.
+    const labels = Array.isArray(obj.labels) ? obj.labels.map(normalizeLabel) : [];
+    board.labels = labels.length > 0 ? labels : defaultLabels();
+    // Drop any card label references that no longer point at a real label.
+    const known = new Set(board.labels.map((l) => l.id));
+    for (const column of board.columns) {
+        for (const card of column.cards) {
+            card.labelIds = card.labelIds.filter((id) => known.has(id));
+        }
+    }
     return board;
 }
 function normalizeLang(value) {
@@ -2119,7 +2350,7 @@ function startInlineEdit(host, initial, onSave) {
     cancelBtn.addEventListener('click', () => finish(false));
     okBtn.addEventListener('click', () => finish(true));
 }
-function renderCard(card, column, handlers) {
+function renderCard(card, column, labels, handlers) {
     const node = el('div', 'card');
     node.dataset.cardId = card.id;
     node.dataset.colId = column.id;
@@ -2127,6 +2358,19 @@ function renderCard(card, column, handlers) {
         const stripe = el('span', 'card-stripe');
         stripe.style.background = card.color;
         node.appendChild(stripe);
+    }
+    // Assigned labels render as colored chips above the card text.
+    const cardLabels = card.labelIds.map((id) => labels.get(id)).filter((l) => !!l);
+    if (cardLabels.length > 0) {
+        const labelRow = el('div', 'card-labels');
+        for (const label of cardLabels) {
+            const chip = el('span', 'card-label', label.name || '');
+            chip.style.background = label.color;
+            if (label.name)
+                chip.title = label.name;
+            labelRow.appendChild(chip);
+        }
+        node.appendChild(labelRow);
     }
     const text = el('div', 'card-text', card.text || ' ');
     text.addEventListener('click', () => {
@@ -2155,7 +2399,7 @@ function renderCard(card, column, handlers) {
     node.appendChild(actions);
     return node;
 }
-function renderColumn(column, index, handlers) {
+function renderColumn(column, index, labels, handlers) {
     const node = el('div', 'column');
     node.dataset.colId = column.id;
     node.dataset.colIndex = String(index);
@@ -2175,7 +2419,7 @@ function renderColumn(column, index, handlers) {
         list.appendChild(el('div', 'empty-hint', t('emptyColumn')));
     }
     for (const card of column.cards) {
-        list.appendChild(renderCard(card, column, handlers));
+        list.appendChild(renderCard(card, column, labels, handlers));
     }
     const footer = el('div', 'column-footer');
     const addBtn = el('button', 'add-card-btn', '➕');
@@ -2188,8 +2432,9 @@ function renderColumn(column, index, handlers) {
 /** Render the whole board into `container`, clearing previous content. */
 function renderBoard(container, board, handlers) {
     container.replaceChildren();
+    const labels = new Map(board.labels.map((label) => [label.id, label]));
     board.columns.forEach((column, index) => {
-        container.appendChild(renderColumn(column, index, handlers));
+        container.appendChild(renderColumn(column, index, labels, handlers));
     });
     const addColumn = el('button', 'add-column', '➕');
     addColumn.title = t('addColumn');

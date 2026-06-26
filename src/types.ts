@@ -1,12 +1,23 @@
 // Core data model for the Kanban board application.
 // All persisted data is plain JSON so it is easy to edit, extend and migrate.
 
+/** A board-level label that cards can reference by id (Trello-style). */
+export interface Label {
+  id: string;
+  /** Optional display name; an empty name renders as a color-only label. */
+  name: string;
+  /** Label color (hex). */
+  color: string;
+}
+
 /** A single card belonging to a column. */
 export interface Card {
   id: string;
   text: string;
   /** Free-form details shown on the card's back (detail modal). */
   description: string;
+  /** Ids of the board labels applied to this card. */
+  labelIds: string[];
   /** Optional accent color (hex). Empty means default. */
   color: string;
   createdAt: number;
@@ -19,11 +30,13 @@ export interface Column {
   cards: Card[];
 }
 
-/** A board (workspace) containing ordered columns. */
+/** A board (workspace) containing ordered columns and a shared label set. */
 export interface Board {
   id: string;
   name: string;
   columns: Column[];
+  /** Labels defined on this board and shared by all its cards. */
+  labels: Label[];
   createdAt: number;
   updatedAt: number;
 }

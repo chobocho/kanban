@@ -17,6 +17,8 @@ import {
   updateCard,
   removeCard,
   moveCard,
+  updateLabel,
+  toggleCardLabel,
   touch,
 } from './model.js';
 import { History } from './history.js';
@@ -174,6 +176,8 @@ export class KanbanApp {
             color: card.color,
             createdAt: card.createdAt,
             colors: CARD_COLORS,
+            labels: board.labels,
+            assignedLabelIds: card.labelIds.slice(),
           },
           {
             onSave: (patch) => {
@@ -181,6 +185,12 @@ export class KanbanApp {
             },
             onDelete: () => {
               if (removeCard(board, colId, cardId)) this.commit();
+            },
+            onToggleLabel: (labelId) => {
+              if (toggleCardLabel(board, colId, cardId, labelId)) this.commit();
+            },
+            onRenameLabel: (labelId, name) => {
+              if (updateLabel(board, labelId, { name })) this.commit();
             },
           },
         );

@@ -2,12 +2,32 @@
 // are intentionally free of any DOM or storage concerns so they can be unit
 // tested in isolation (see test/model.test.ts).
 
-import { AppData, Board, Card, Column, SCHEMA_VERSION } from './types.js';
+import { AppData, Board, Card, Column, Label, SCHEMA_VERSION } from './types.js';
 import { makeId } from './id.js';
+
+/** Default label palette seeded on every new board (Trello-like colors). */
+export const LABEL_COLORS = ['#61bd4f', '#f2d600', '#ff9f1a', '#eb5a46', '#c377e0', '#0079bf'];
+
+/** Create a label with the given name and color. */
+export function createLabel(name: string, color: string): Label {
+  return { id: makeId('label'), name, color };
+}
+
+/** Build the default, unnamed color labels for a fresh board. */
+export function defaultLabels(): Label[] {
+  return LABEL_COLORS.map((color) => createLabel('', color));
+}
 
 /** Create an empty card with the given text. */
 export function createCard(text: string): Card {
-  return { id: makeId('card'), text, description: '', color: '', createdAt: Date.now() };
+  return {
+    id: makeId('card'),
+    text,
+    description: '',
+    labelIds: [],
+    color: '',
+    createdAt: Date.now(),
+  };
 }
 
 /** Create an empty column with the given title. */
@@ -18,7 +38,14 @@ export function createColumn(title: string): Column {
 /** Create a board, optionally seeded with the given columns. */
 export function createBoard(name: string, columns: Column[] = []): Board {
   const now = Date.now();
-  return { id: makeId('board'), name, columns, createdAt: now, updatedAt: now };
+  return {
+    id: makeId('board'),
+    name,
+    columns,
+    labels: defaultLabels(),
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 /** Build a fresh application state with one sample board. */
@@ -114,6 +141,61 @@ export function removeCard(board: Board, columnId: string, cardId: string): bool
   const index = column.cards.findIndex((c) => c.id === cardId);
   if (index < 0) return false;
   column.cards.splice(index, 1);
+  touch(board);
+  return true;
+}
+
+/** Append a new label to the board's shared label set and return it. */
+export function addLabel(board: Board, name: string, color: string): Label {
+  const label = createLabel(name, color);
+  board.labels.push(label);
+  touch(board);
+  return label;
+}
+
+/** Patch a board label's name and/or color. */
+export function updateLabel(
+  board: Board,
+  labelId: string,
+  patch: Partial<Pick<Label, 'name' | 'color'>>,
+): boolean {
+  const label = board.labels.find((l) => l.id === labelId);
+  if (!label) return false;
+  if (patch.name !== undefined) label.name = patch.name;
+  if (patch.color !== undefined) label.color = patch.color;
+  touch(board);
+  return true;
+}
+
+/** Delete a board label and strip it from every card that referenced it. */
+export function removeLabel(board: Board, labelId: string): boolean {
+  const index = board.labels.findIndex((l) => l.id === labelId);
+  if (index < 0) return false;
+  board.labels.splice(index, 1);
+  for (const column of board.columns) {
+    for (const card of column.cards) {
+      const at = card.labelIds.indexOf(labelId);
+      if (at >= 0) card.labelIds.splice(at, 1);
+    }
+  }
+  touch(board);
+  return true;
+}
+
+/** Toggle a label on a card: add it if absent, remove it if present. */
+export function toggleCardLabel(
+  board: Board,
+  columnId: string,
+  cardId: string,
+  labelId: string,
+): boolean {
+  if (!board.labels.some((l) => l.id === labelId)) return false;
+  const column = findColumn(board, columnId);
+  const card = column?.cards.find((c) => c.id === cardId);
+  if (!card) return false;
+  const at = card.labelIds.indexOf(labelId);
+  if (at >= 0) card.labelIds.splice(at, 1);
+  else card.labelIds.push(labelId);
   touch(board);
   return true;
 }

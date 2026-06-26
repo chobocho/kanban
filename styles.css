@@ -512,6 +512,76 @@ select.control {
   background: #ffd6cc;
 }
 
+/* Labels assigned to a card, shown as chips above the card text. */
+.card-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.card-label {
+  min-width: 36px;
+  max-width: 100%;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 16px;
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Label rows inside the card detail modal. */
+.card-detail-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.card-detail-label-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-detail-label-chip {
+  flex: 1 1 auto;
+  min-height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.card-detail-label-chip.is-on {
+  opacity: 1;
+  box-shadow: inset 0 0 0 2px var(--text);
+}
+
+.card-detail-label-edit {
+  flex: 0 0 auto;
+  min-width: 36px;
+  min-height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: #ebecf0;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.card-detail-label-edit:hover {
+  background: #dfe1e6;
+}
+
 /* Description badge on the card face. */
 .card-badges {
   display: flex;

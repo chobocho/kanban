@@ -14,6 +14,10 @@ import {
   removeCard,
   moveCard,
   getActiveBoard,
+  addLabel,
+  updateLabel,
+  removeLabel,
+  toggleCardLabel,
 } from '../src/model.js';
 
 test('createDefaultData has one board with three columns', () => {
@@ -113,6 +117,54 @@ test('moveCard within the same column reorders', () => {
   // moving c1 to index 1 places it between c2 and c3.
   assert(moveCard(board, a, c1.id, a, 1), 'move c1 between c2 and c3');
   assertEqual(board.columns[0].cards.map((c) => c.text).join(''), 'c2c1c3', 'reordered');
+});
+
+test('new boards and cards start with default labels and no assignments', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  assert(board.labels.length === 6, 'six default labels seeded');
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  assertEqual(card.labelIds.length, 0, 'card starts with no labels');
+});
+
+test('toggleCardLabel adds then removes a label', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  const labelId = board.labels[0].id;
+  assert(toggleCardLabel(board, colId, card.id, labelId), 'toggle on ok');
+  assertEqual(card.labelIds.join(''), labelId, 'label assigned');
+  assert(toggleCardLabel(board, colId, card.id, labelId), 'toggle off ok');
+  assertEqual(card.labelIds.length, 0, 'label removed');
+  assert(!toggleCardLabel(board, colId, card.id, 'nope'), 'unknown label rejected');
+});
+
+test('updateLabel renames a label', () => {
+  const board = createBoard('b');
+  const labelId = board.labels[0].id;
+  assert(updateLabel(board, labelId, { name: 'Bug' }), 'update ok');
+  assertEqual(board.labels[0].name, 'Bug', 'name patched');
+  assert(!updateLabel(board, 'missing', { name: 'x' }), 'unknown label rejected');
+});
+
+test('removeLabel deletes it and strips it from cards', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  const labelId = board.labels[0].id;
+  toggleCardLabel(board, colId, card.id, labelId);
+  const before = board.labels.length;
+  assert(removeLabel(board, labelId), 'remove ok');
+  assertEqual(board.labels.length, before - 1, 'label count drops');
+  assertEqual(card.labelIds.length, 0, 'reference stripped from card');
+});
+
+test('addLabel appends a board label', () => {
+  const board = createBoard('b');
+  const before = board.labels.length;
+  const label = addLabel(board, 'Urgent', '#000000');
+  assertEqual(board.labels.length, before + 1, 'label appended');
+  assertEqual(board.labels[board.labels.length - 1].id, label.id, 'returns new label');
 });
 
 test('getActiveBoard returns the active board', () => {

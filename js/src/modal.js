@@ -122,6 +122,49 @@ export function openCardDetail(init, cb) {
         title.type = 'text';
         title.value = init.text;
         dialog.appendChild(title);
+        // --- Labels: toggle assignment by clicking a chip, rename via ✏️. ---
+        addLabel(t('labels'));
+        const labelList = document.createElement('div');
+        labelList.className = 'card-detail-labels';
+        dialog.appendChild(labelList);
+        const assigned = new Set(init.assignedLabelIds);
+        const renderLabels = () => {
+            labelList.replaceChildren();
+            for (const label of init.labels) {
+                const row = document.createElement('div');
+                row.className = 'card-detail-label-row';
+                const chip = document.createElement('button');
+                chip.className = 'card-detail-label-chip';
+                chip.style.background = label.color;
+                const on = assigned.has(label.id);
+                if (on)
+                    chip.classList.add('is-on');
+                chip.textContent = (on ? '✓ ' : '') + (label.name || '');
+                chip.addEventListener('click', () => {
+                    if (assigned.has(label.id))
+                        assigned.delete(label.id);
+                    else
+                        assigned.add(label.id);
+                    cb.onToggleLabel(label.id);
+                    renderLabels();
+                });
+                const rename = document.createElement('button');
+                rename.className = 'card-detail-label-edit';
+                rename.textContent = '✏️';
+                rename.title = t('rename');
+                rename.addEventListener('click', () => {
+                    void customPrompt(t('labelNamePrompt'), label.name).then((name) => {
+                        if (name === null)
+                            return;
+                        cb.onRenameLabel(label.id, name); // mutates the shared label object
+                        renderLabels();
+                    });
+                });
+                row.append(chip, rename);
+                labelList.appendChild(row);
+            }
+        };
+        renderLabels();
         addLabel(t('description'));
         const desc = document.createElement('textarea');
         desc.className = 'card-detail-desc';
