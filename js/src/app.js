@@ -10,6 +10,7 @@ import { emptyFilter, isFilterActive } from './filter.js';
 import { renderBoard, CARD_COLORS } from './render.js';
 import { DragController } from './dnd.js';
 import { ZoomController } from './zoom.js';
+import { LayoutController } from './layout.js';
 import { downloadJson, readJsonFile } from './jsonio.js';
 import { exportBoardPng } from './png.js';
 import { customAlert, customConfirm, customPrompt, openCardDetail, openArchive } from './modal.js';
@@ -55,6 +56,11 @@ export class KanbanApp {
             this.persist();
         });
         this.zoom.setScale(this.data.settings.zoom);
+        // Keep column heights tied to the real visible area so the board reflows
+        // cleanly when a foldable opens/closes or the device rotates.
+        const view = this.doc.defaultView;
+        if (view)
+            new LayoutController(surface, this.columnsEl, view);
         new DragController(this.columnsEl, {
             moveCard: (from, cardId, to, index) => {
                 const board = this.active();
@@ -74,7 +80,6 @@ export class KanbanApp {
         this.resetHistory();
         // Flush any pending debounced save before the page is hidden/closed so that
         // work always resumes exactly where the user left off.
-        const view = this.doc.defaultView;
         view?.addEventListener('pagehide', () => this.flush());
         this.doc.addEventListener('visibilitychange', () => {
             if (this.doc.visibilityState === 'hidden')

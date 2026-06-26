@@ -15,6 +15,15 @@
 <body>
   <h1>📋 작업 이력 (History)</h1>
 
+  <h2>폴더블(갤럭시 Z 폴드7) 펼침 화면 레이아웃 개선 <time>2026-06-26</time></h2>
+  <ul>
+    <li>컬럼 높이를 결정하던 <code>calc(100vh - 120px)</code>의 <strong>고정 툴바 높이(120px) 가정</strong>을 제거했습니다. 툴바가 줄바꿈되거나 폴더블을 접었다 펴면 컬럼이 화면 밖으로 넘쳐 내부 스크롤이 동작하지 않던 문제를 해결했습니다.</li>
+    <li>새 <code>LayoutController</code>가 <strong>실제 보이는 보드 영역</strong>을 측정해 <code>--column-max-h</code> CSS 변수로 반영합니다. <code>ResizeObserver</code>·<code>resize</code>·<code>orientationchange</code>를 구독하여 <strong>접힘↔펼침 자세 전환·화면 회전</strong> 시에도 컬럼 높이가 정확히 다시 계산됩니다.</li>
+    <li>뷰포트 높이 단위를 <strong>동적 뷰포트 단위(<code>dvh</code>)</strong>로 보강(<code>vh</code> 폴백 유지)하여 모바일/폴더블 브라우저의 주소창 변화에도 안정적으로 동작합니다. (컬럼·메뉴·카드 상세·보관함 모달 적용)</li>
+    <li><code>viewport-fit=cover</code>와 <strong>안전 영역(<code>env(safe-area-inset-*)</code>)</strong> 여백을 추가해, 내부 디스플레이의 카메라 컷아웃·둥근 모서리에 툴바 컨트롤이 가려지지 않도록 했습니다. (일반 화면에서는 여백 0으로 변화 없음)</li>
+    <li>순수 계산 함수 <code>availableColumnHeight()</code>에 대한 단위 테스트 4건과, 폴드7 펼침/접힘 뷰포트를 에뮬레이션해 <strong>오버플로 없음·내부 스크롤·자세 전환 시 높이 갱신</strong>을 확인하는 검증 스크립트를 추가했습니다. (전체 53/53 통과)</li>
+  </ul>
+
   <h2>체크리스트 기능 추가 <time>2026-06-26</time></h2>
   <ul>
     <li>카드 상세 모달에 <strong>체크리스트</strong>를 추가했습니다. 항목 추가·완료 체크·이름 변경·삭제가 가능합니다.</li>
