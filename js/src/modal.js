@@ -291,7 +291,7 @@ export function openCardDetail(init, cb) {
     });
 }
 /**
- * Show the board's archive: a list of archived cards, each restorable or
+ * Show the board's archive: archived lists and cards, each restorable or
  * permanently deletable (with confirmation). Resolves when the view closes.
  */
 export function openArchive(cb) {
@@ -310,16 +310,14 @@ export function openArchive(cb) {
         const listEl = document.createElement('div');
         listEl.className = 'archive-list';
         dialog.appendChild(listEl);
-        const renderList = () => {
-            listEl.replaceChildren();
-            const entries = cb.list();
-            if (entries.length === 0) {
-                const empty = document.createElement('div');
-                empty.className = 'archive-empty';
-                empty.textContent = t('archiveEmpty');
-                listEl.appendChild(empty);
+        // Build one archive section (lists or cards) with restore/delete actions.
+        const renderSection = (title, entries, confirmKey, onRestore, onDelete) => {
+            if (entries.length === 0)
                 return;
-            }
+            const sectionTitle = document.createElement('div');
+            sectionTitle.className = 'archive-section-title';
+            sectionTitle.textContent = title;
+            listEl.appendChild(sectionTitle);
             for (const entry of entries) {
                 const row = document.createElement('div');
                 row.className = 'archive-row';
@@ -329,26 +327,26 @@ export function openArchive(cb) {
                 text.className = 'archive-text';
                 text.textContent = entry.text || ' ';
                 info.appendChild(text);
-                if (entry.columnTitle) {
-                    const origin = document.createElement('div');
-                    origin.className = 'archive-origin';
-                    origin.textContent = entry.columnTitle;
-                    info.appendChild(origin);
+                if (entry.subtitle) {
+                    const sub = document.createElement('div');
+                    sub.className = 'archive-origin';
+                    sub.textContent = entry.subtitle;
+                    info.appendChild(sub);
                 }
                 const restore = document.createElement('button');
                 restore.className = 'archive-btn archive-restore';
                 restore.textContent = t('restore');
                 restore.addEventListener('click', () => {
-                    cb.onRestore(entry.cardId);
+                    onRestore(entry.id);
                     renderList();
                 });
                 const del = document.createElement('button');
                 del.className = 'archive-btn archive-delete';
                 del.textContent = t('deleteForever');
                 del.addEventListener('click', () => {
-                    void customConfirm(t('deleteForeverConfirm')).then((ok) => {
+                    void customConfirm(t(confirmKey)).then((ok) => {
                         if (ok) {
-                            cb.onDeleteForever(entry.cardId);
+                            onDelete(entry.id);
                             renderList();
                         }
                     });
@@ -356,6 +354,20 @@ export function openArchive(cb) {
                 row.append(info, restore, del);
                 listEl.appendChild(row);
             }
+        };
+        const renderList = () => {
+            listEl.replaceChildren();
+            const columns = cb.listColumns();
+            const cards = cb.listCards();
+            if (columns.length === 0 && cards.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'archive-empty';
+                empty.textContent = t('archiveEmpty');
+                listEl.appendChild(empty);
+                return;
+            }
+            renderSection(t('archivedLists'), columns, 'deleteListForeverConfirm', cb.onRestoreColumn, cb.onDeleteColumnForever);
+            renderSection(t('archivedCards'), cards, 'deleteForeverConfirm', cb.onRestoreCard, cb.onDeleteCardForever);
         };
         renderList();
         let settled = false;

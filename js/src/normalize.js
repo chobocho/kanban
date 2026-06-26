@@ -46,6 +46,18 @@ function normalizeArchived(raw) {
         archivedAt: asNumber(obj.archivedAt, Date.now()),
     };
 }
+function normalizeArchivedColumn(raw) {
+    if (!raw || typeof raw !== 'object')
+        return null;
+    const obj = raw;
+    if (!obj.column || typeof obj.column !== 'object')
+        return null; // junk entry, skip
+    return {
+        column: normalizeColumn(obj.column),
+        index: asNumber(obj.index, 0),
+        archivedAt: asNumber(obj.archivedAt, Date.now()),
+    };
+}
 function normalizeColumn(raw) {
     const obj = (raw ?? {});
     const cards = Array.isArray(obj.cards) ? obj.cards.map(normalizeCard) : [];
@@ -67,8 +79,13 @@ function normalizeBoard(raw) {
     board.archived = Array.isArray(obj.archived)
         ? obj.archived.map(normalizeArchived).filter((a) => a !== null)
         : [];
+    board.archivedColumns = Array.isArray(obj.archivedColumns)
+        ? obj.archivedColumns
+            .map(normalizeArchivedColumn)
+            .filter((a) => a !== null)
+        : [];
     // Drop any card label references that no longer point at a real label,
-    // covering both live cards and archived ones.
+    // covering live cards, archived cards and cards inside archived lists.
     const known = new Set(board.labels.map((l) => l.id));
     const clean = (card) => {
         card.labelIds = card.labelIds.filter((id) => known.has(id));
@@ -77,6 +94,8 @@ function normalizeBoard(raw) {
         column.cards.forEach(clean);
     for (const entry of board.archived)
         clean(entry.card);
+    for (const entry of board.archivedColumns)
+        entry.column.cards.forEach(clean);
     return board;
 }
 function normalizeLang(value) {

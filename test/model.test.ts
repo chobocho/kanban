@@ -21,6 +21,9 @@ import {
   archiveCard,
   restoreCard,
   deleteArchivedCard,
+  archiveColumn,
+  restoreColumn,
+  deleteArchivedColumn,
 } from '../src/model.js';
 
 test('createDefaultData has one board with three columns', () => {
@@ -222,6 +225,36 @@ test('deleteArchivedCard permanently removes an archived card', () => {
   assert(deleteArchivedCard(board, card.id), 'delete ok');
   assertEqual(board.archived.length, 0, 'archive empty');
   assert(!restoreCard(board, card.id), 'cannot restore a purged card');
+});
+
+test('archiveColumn moves a whole list (with cards) into the archive', () => {
+  const board = createBoard('b', [createColumn('A'), createColumn('B')]);
+  const colId = board.columns[0].id;
+  addCard(board, colId, 'c1');
+  assert(archiveColumn(board, colId), 'archive ok');
+  assertEqual(board.columns.length, 1, 'column removed');
+  assertEqual(board.archivedColumns.length, 1, 'added to column archive');
+  assertEqual(board.archivedColumns[0].column.cards.length, 1, 'cards travel with the list');
+  assert(!archiveColumn(board, 'missing'), 'unknown column rejected');
+});
+
+test('restoreColumn returns a list near its original position', () => {
+  const board = createBoard('b', [createColumn('A'), createColumn('B'), createColumn('C')]);
+  const midId = board.columns[1].id;
+  archiveColumn(board, midId); // was at index 1
+  assertEqual(board.columns.map((c) => c.title).join(''), 'AC', 'B removed');
+  assert(restoreColumn(board, midId), 'restore ok');
+  assertEqual(board.columns.map((c) => c.title).join(''), 'ABC', 'B restored to index 1');
+  assertEqual(board.archivedColumns.length, 0, 'archive cleared');
+});
+
+test('deleteArchivedColumn permanently removes an archived list', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  archiveColumn(board, colId);
+  assert(deleteArchivedColumn(board, colId), 'delete ok');
+  assertEqual(board.archivedColumns.length, 0, 'archive empty');
+  assert(!restoreColumn(board, colId), 'cannot restore a purged list');
 });
 
 test('getActiveBoard returns the active board', () => {

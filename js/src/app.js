@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch, } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
@@ -208,14 +208,10 @@ export class KanbanApp {
                 if (board && renameColumn(board, colId, title))
                     this.commit();
             },
-            deleteColumn: async (colId) => {
+            archiveColumn: (colId) => {
                 const board = this.active();
-                if (!board)
-                    return;
-                if (await customConfirm(t('deleteColumnConfirm'))) {
-                    if (removeColumn(board, colId))
-                        this.commit();
-                }
+                if (board && archiveColumn(board, colId))
+                    this.commitArchive();
             },
         };
     }
@@ -406,24 +402,44 @@ export class KanbanApp {
         if (!this.active())
             return;
         void openArchive({
-            list: () => {
+            listColumns: () => {
+                const board = this.active();
+                if (!board)
+                    return [];
+                return board.archivedColumns.map((entry) => ({
+                    id: entry.column.id,
+                    text: entry.column.title,
+                    subtitle: `${entry.column.cards.length} ${t('cardsUnit')}`,
+                }));
+            },
+            listCards: () => {
                 const board = this.active();
                 if (!board)
                     return [];
                 return board.archived.map((entry) => ({
-                    cardId: entry.card.id,
+                    id: entry.card.id,
                     text: entry.card.text,
-                    columnTitle: board.columns.find((c) => c.id === entry.columnId)?.title ?? '',
+                    subtitle: board.columns.find((c) => c.id === entry.columnId)?.title ?? '',
                 }));
             },
-            onRestore: (cardId) => {
+            onRestoreColumn: (id) => {
                 const board = this.active();
-                if (board && restoreCard(board, cardId))
+                if (board && restoreColumn(board, id))
                     this.commitArchive();
             },
-            onDeleteForever: (cardId) => {
+            onDeleteColumnForever: (id) => {
                 const board = this.active();
-                if (board && deleteArchivedCard(board, cardId))
+                if (board && deleteArchivedColumn(board, id))
+                    this.commitArchive();
+            },
+            onRestoreCard: (id) => {
+                const board = this.active();
+                if (board && restoreCard(board, id))
+                    this.commitArchive();
+            },
+            onDeleteCardForever: (id) => {
+                const board = this.active();
+                if (board && deleteArchivedCard(board, id))
                     this.commitArchive();
             },
         });

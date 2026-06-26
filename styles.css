@@ -741,6 +741,13 @@ select.control {
   text-align: center;
 }
 
+.archive-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 6px 0 2px;
+}
+
 .archive-row {
   display: flex;
   align-items: center;

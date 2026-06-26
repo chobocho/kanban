@@ -177,15 +177,15 @@ function renderColumn(column, index, labels, filter, now, handlers) {
     title.addEventListener('click', () => {
         startInlineEdit(title, column.title, (value) => handlers.renameColumn(column.id, value));
     });
-    const delBtn = el('button', 'icon-btn', '🗑️');
-    delBtn.title = t('delete');
-    delBtn.addEventListener('click', () => handlers.deleteColumn(column.id));
+    const archiveBtn = el('button', 'icon-btn', '🗄️');
+    archiveBtn.title = t('archive');
+    archiveBtn.addEventListener('click', () => handlers.archiveColumn(column.id));
     header.append(title);
     // While filtering, show how many of the column's cards match.
     if (filtering) {
         header.append(el('span', 'column-count', `${visibleCards.length}/${column.cards.length}`));
     }
-    header.append(delBtn);
+    header.append(archiveBtn);
     const list = el('div', 'cards-list');
     list.dataset.cards = '';
     if (visibleCards.length === 0) {

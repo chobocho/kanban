@@ -11,7 +11,6 @@ import {
   getActiveBoard,
   addColumn,
   renameColumn,
-  removeColumn,
   moveColumn,
   addCard,
   updateCard,
@@ -21,6 +20,9 @@ import {
   archiveCard,
   restoreCard,
   deleteArchivedCard,
+  archiveColumn,
+  restoreColumn,
+  deleteArchivedColumn,
   touch,
 } from './model.js';
 import { History } from './history.js';
@@ -247,12 +249,9 @@ export class KanbanApp {
         const board = this.active();
         if (board && renameColumn(board, colId, title)) this.commit();
       },
-      deleteColumn: async (colId) => {
+      archiveColumn: (colId) => {
         const board = this.active();
-        if (!board) return;
-        if (await customConfirm(t('deleteColumnConfirm'))) {
-          if (removeColumn(board, colId)) this.commit();
-        }
+        if (board && archiveColumn(board, colId)) this.commitArchive();
       },
     };
   }
@@ -447,22 +446,39 @@ export class KanbanApp {
   private openArchiveView(): void {
     if (!this.active()) return;
     void openArchive({
-      list: () => {
+      listColumns: () => {
+        const board = this.active();
+        if (!board) return [];
+        return board.archivedColumns.map((entry) => ({
+          id: entry.column.id,
+          text: entry.column.title,
+          subtitle: `${entry.column.cards.length} ${t('cardsUnit')}`,
+        }));
+      },
+      listCards: () => {
         const board = this.active();
         if (!board) return [];
         return board.archived.map((entry) => ({
-          cardId: entry.card.id,
+          id: entry.card.id,
           text: entry.card.text,
-          columnTitle: board.columns.find((c) => c.id === entry.columnId)?.title ?? '',
+          subtitle: board.columns.find((c) => c.id === entry.columnId)?.title ?? '',
         }));
       },
-      onRestore: (cardId) => {
+      onRestoreColumn: (id) => {
         const board = this.active();
-        if (board && restoreCard(board, cardId)) this.commitArchive();
+        if (board && restoreColumn(board, id)) this.commitArchive();
       },
-      onDeleteForever: (cardId) => {
+      onDeleteColumnForever: (id) => {
         const board = this.active();
-        if (board && deleteArchivedCard(board, cardId)) this.commitArchive();
+        if (board && deleteArchivedColumn(board, id)) this.commitArchive();
+      },
+      onRestoreCard: (id) => {
+        const board = this.active();
+        if (board && restoreCard(board, id)) this.commitArchive();
+      },
+      onDeleteCardForever: (id) => {
+        const board = this.active();
+        if (board && deleteArchivedCard(board, id)) this.commitArchive();
       },
     });
   }

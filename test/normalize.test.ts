@@ -34,6 +34,28 @@ test('partial board is repaired with defaults', () => {
   assertEqual(data.boards[0].columns[0].cards[0].dueDone, false, 'dueDone defaulted');
   assert(Array.isArray(data.boards[0].archived), 'archived defaulted to array');
   assertEqual(data.boards[0].archived.length, 0, 'archived empty by default');
+  assert(Array.isArray(data.boards[0].archivedColumns), 'archivedColumns defaulted to array');
+  assertEqual(data.boards[0].archivedColumns.length, 0, 'archivedColumns empty by default');
+});
+
+test('valid archived columns are kept and junk entries dropped', () => {
+  const data = normalizeAppData({
+    boards: [
+      {
+        id: 'b1',
+        name: 'A',
+        columns: [],
+        archivedColumns: [
+          { column: { id: 'k', title: 'Kept', cards: [{ text: 'x' }] }, index: 2, archivedAt: 9 },
+          { index: 0 }, // no column -> dropped
+          5,
+        ],
+      },
+    ],
+  });
+  assertEqual(data.boards[0].archivedColumns.length, 1, 'only the valid list kept');
+  assertEqual(data.boards[0].archivedColumns[0].column.title, 'Kept', 'list title kept');
+  assertEqual(data.boards[0].archivedColumns[0].column.cards[0].text, 'x', 'nested card kept');
 });
 
 test('valid archived cards are kept and junk entries dropped', () => {

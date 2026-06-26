@@ -46,6 +46,7 @@ export function createBoard(name: string, columns: Column[] = []): Board {
     columns,
     labels: defaultLabels(),
     archived: [],
+    archivedColumns: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -185,6 +186,36 @@ export function deleteArchivedCard(board: Board, cardId: string): boolean {
   const index = board.archived.findIndex((a) => a.card.id === cardId);
   if (index < 0) return false;
   board.archived.splice(index, 1);
+  touch(board);
+  return true;
+}
+
+/** Move a whole list (with its cards) into the archive, keeping its position. */
+export function archiveColumn(board: Board, columnId: string): boolean {
+  const index = board.columns.findIndex((c) => c.id === columnId);
+  if (index < 0) return false;
+  const [column] = board.columns.splice(index, 1);
+  board.archivedColumns.unshift({ column, index, archivedAt: Date.now() });
+  touch(board);
+  return true;
+}
+
+/** Restore an archived list near its original position (clamped into range). */
+export function restoreColumn(board: Board, columnId: string): boolean {
+  const i = board.archivedColumns.findIndex((a) => a.column.id === columnId);
+  if (i < 0) return false;
+  const [entry] = board.archivedColumns.splice(i, 1);
+  const at = Math.max(0, Math.min(entry.index, board.columns.length));
+  board.columns.splice(at, 0, entry.column);
+  touch(board);
+  return true;
+}
+
+/** Permanently remove an archived list. This cannot be undone. */
+export function deleteArchivedColumn(board: Board, columnId: string): boolean {
+  const i = board.archivedColumns.findIndex((a) => a.column.id === columnId);
+  if (i < 0) return false;
+  board.archivedColumns.splice(i, 1);
   touch(board);
   return true;
 }

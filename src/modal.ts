@@ -373,23 +373,27 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
   });
 }
 
-/** One archived card as shown in the archive view. */
+/** One archived item (card or list) as shown in the archive view. */
 export interface ArchiveEntry {
-  cardId: string;
+  id: string;
+  /** Primary text: card text or list title. */
   text: string;
-  /** Title of the origin column (may be empty if it was deleted). */
-  columnTitle: string;
+  /** Secondary line: origin column for cards, card count for lists. */
+  subtitle: string;
 }
 
-/** Callbacks for the archive view. `list` is re-read after every action. */
+/** Callbacks for the archive view. The lists are re-read after every action. */
 export interface ArchiveCallbacks {
-  list(): ArchiveEntry[];
-  onRestore(cardId: string): void;
-  onDeleteForever(cardId: string): void;
+  listColumns(): ArchiveEntry[];
+  listCards(): ArchiveEntry[];
+  onRestoreColumn(id: string): void;
+  onDeleteColumnForever(id: string): void;
+  onRestoreCard(id: string): void;
+  onDeleteCardForever(id: string): void;
 }
 
 /**
- * Show the board's archive: a list of archived cards, each restorable or
+ * Show the board's archive: archived lists and cards, each restorable or
  * permanently deletable (with confirmation). Resolves when the view closes.
  */
 export function openArchive(cb: ArchiveCallbacks): Promise<void> {
@@ -412,16 +416,20 @@ export function openArchive(cb: ArchiveCallbacks): Promise<void> {
     listEl.className = 'archive-list';
     dialog.appendChild(listEl);
 
-    const renderList = (): void => {
-      listEl.replaceChildren();
-      const entries = cb.list();
-      if (entries.length === 0) {
-        const empty = document.createElement('div');
-        empty.className = 'archive-empty';
-        empty.textContent = t('archiveEmpty');
-        listEl.appendChild(empty);
-        return;
-      }
+    // Build one archive section (lists or cards) with restore/delete actions.
+    const renderSection = (
+      title: string,
+      entries: ArchiveEntry[],
+      confirmKey: string,
+      onRestore: (id: string) => void,
+      onDelete: (id: string) => void,
+    ): void => {
+      if (entries.length === 0) return;
+      const sectionTitle = document.createElement('div');
+      sectionTitle.className = 'archive-section-title';
+      sectionTitle.textContent = title;
+      listEl.appendChild(sectionTitle);
+
       for (const entry of entries) {
         const row = document.createElement('div');
         row.className = 'archive-row';
@@ -432,18 +440,18 @@ export function openArchive(cb: ArchiveCallbacks): Promise<void> {
         text.className = 'archive-text';
         text.textContent = entry.text || ' ';
         info.appendChild(text);
-        if (entry.columnTitle) {
-          const origin = document.createElement('div');
-          origin.className = 'archive-origin';
-          origin.textContent = entry.columnTitle;
-          info.appendChild(origin);
+        if (entry.subtitle) {
+          const sub = document.createElement('div');
+          sub.className = 'archive-origin';
+          sub.textContent = entry.subtitle;
+          info.appendChild(sub);
         }
 
         const restore = document.createElement('button');
         restore.className = 'archive-btn archive-restore';
         restore.textContent = t('restore');
         restore.addEventListener('click', () => {
-          cb.onRestore(entry.cardId);
+          onRestore(entry.id);
           renderList();
         });
 
@@ -451,9 +459,9 @@ export function openArchive(cb: ArchiveCallbacks): Promise<void> {
         del.className = 'archive-btn archive-delete';
         del.textContent = t('deleteForever');
         del.addEventListener('click', () => {
-          void customConfirm(t('deleteForeverConfirm')).then((ok) => {
+          void customConfirm(t(confirmKey)).then((ok) => {
             if (ok) {
-              cb.onDeleteForever(entry.cardId);
+              onDelete(entry.id);
               renderList();
             }
           });
@@ -462,6 +470,33 @@ export function openArchive(cb: ArchiveCallbacks): Promise<void> {
         row.append(info, restore, del);
         listEl.appendChild(row);
       }
+    };
+
+    const renderList = (): void => {
+      listEl.replaceChildren();
+      const columns = cb.listColumns();
+      const cards = cb.listCards();
+      if (columns.length === 0 && cards.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'archive-empty';
+        empty.textContent = t('archiveEmpty');
+        listEl.appendChild(empty);
+        return;
+      }
+      renderSection(
+        t('archivedLists'),
+        columns,
+        'deleteListForeverConfirm',
+        cb.onRestoreColumn,
+        cb.onDeleteColumnForever,
+      );
+      renderSection(
+        t('archivedCards'),
+        cards,
+        'deleteForeverConfirm',
+        cb.onRestoreCard,
+        cb.onDeleteCardForever,
+      );
     };
     renderList();
 

@@ -190,6 +190,26 @@ try {
   const afterRestore = await page.locator('.card').count();
   assert(afterRestore === 1, `restoring brings the card back (got ${afterRestore})`);
 
+  // Archive a whole list, then restore it from the archive view.
+  const beforeCols = await page.locator('.column').count();
+  const colHeader = page.locator('.column').first().locator('.column-header');
+  await colHeader.locator('.icon-btn[title="Archive"]').click();
+  await page.waitForTimeout(100);
+  const afterArchiveCols = await page.locator('.column').count();
+  assert(afterArchiveCols === beforeCols - 1, `archiving a list removes it (got ${afterArchiveCols})`);
+
+  await page.locator('#menuBtn').click();
+  await page.locator('#archiveBtn').click();
+  await page.waitForSelector('.card-archive', { timeout: 3000 });
+  const listSection = await page.locator('.archive-section-title').count();
+  assert(listSection >= 1, `archived list shows a section (got ${listSection})`);
+  await page.locator('.archive-restore').first().click();
+  await page.waitForTimeout(100);
+  await page.locator('.card-archive .modal-ok').click();
+  await page.waitForTimeout(100);
+  const restoredCols = await page.locator('.column').count();
+  assert(restoredCols === beforeCols, `restoring brings the list back (got ${restoredCols})`);
+
   // Custom modal (replaces native prompt): create a board via the dialog.
   const boardsBefore = await page.locator('#boardSelect option').count();
   await page.locator('#menuBtn').click();

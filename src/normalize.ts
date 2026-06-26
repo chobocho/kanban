@@ -5,6 +5,7 @@
 import {
   AppData,
   ArchivedCard,
+  ArchivedColumn,
   Board,
   Card,
   Column,
@@ -61,6 +62,17 @@ function normalizeArchived(raw: unknown): ArchivedCard | null {
   };
 }
 
+function normalizeArchivedColumn(raw: unknown): ArchivedColumn | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  if (!obj.column || typeof obj.column !== 'object') return null; // junk entry, skip
+  return {
+    column: normalizeColumn(obj.column),
+    index: asNumber(obj.index, 0),
+    archivedAt: asNumber(obj.archivedAt, Date.now()),
+  };
+}
+
 function normalizeColumn(raw: unknown): Column {
   const obj = (raw ?? {}) as Record<string, unknown>;
   const cards = Array.isArray(obj.cards) ? obj.cards.map(normalizeCard) : [];
@@ -85,15 +97,21 @@ function normalizeBoard(raw: unknown): Board {
   board.archived = Array.isArray(obj.archived)
     ? obj.archived.map(normalizeArchived).filter((a): a is ArchivedCard => a !== null)
     : [];
+  board.archivedColumns = Array.isArray(obj.archivedColumns)
+    ? obj.archivedColumns
+        .map(normalizeArchivedColumn)
+        .filter((a): a is ArchivedColumn => a !== null)
+    : [];
 
   // Drop any card label references that no longer point at a real label,
-  // covering both live cards and archived ones.
+  // covering live cards, archived cards and cards inside archived lists.
   const known = new Set(board.labels.map((l) => l.id));
   const clean = (card: Card): void => {
     card.labelIds = card.labelIds.filter((id) => known.has(id));
   };
   for (const column of board.columns) column.cards.forEach(clean);
   for (const entry of board.archived) clean(entry.card);
+  for (const entry of board.archivedColumns) entry.column.cards.forEach(clean);
   return board;
 }
 

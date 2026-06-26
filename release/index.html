@@ -748,6 +748,13 @@ select.control {
   text-align: center;
 }
 
+.archive-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 6px 0 2px;
+}
+
 .archive-row {
   display: flex;
   align-items: center;
@@ -1082,7 +1089,7 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch } = __require("model");
 const { History } = __require("history");
 const { setLanguage, t } = __require("i18n");
 const { emptyFilter, isFilterActive } = __require("filter");
@@ -1287,14 +1294,10 @@ class KanbanApp {
                 if (board && renameColumn(board, colId, title))
                     this.commit();
             },
-            deleteColumn: async (colId) => {
+            archiveColumn: (colId) => {
                 const board = this.active();
-                if (!board)
-                    return;
-                if (await customConfirm(t('deleteColumnConfirm'))) {
-                    if (removeColumn(board, colId))
-                        this.commit();
-                }
+                if (board && archiveColumn(board, colId))
+                    this.commitArchive();
             },
         };
     }
@@ -1485,24 +1488,44 @@ class KanbanApp {
         if (!this.active())
             return;
         void openArchive({
-            list: () => {
+            listColumns: () => {
+                const board = this.active();
+                if (!board)
+                    return [];
+                return board.archivedColumns.map((entry) => ({
+                    id: entry.column.id,
+                    text: entry.column.title,
+                    subtitle: `${entry.column.cards.length} ${t('cardsUnit')}`,
+                }));
+            },
+            listCards: () => {
                 const board = this.active();
                 if (!board)
                     return [];
                 return board.archived.map((entry) => ({
-                    cardId: entry.card.id,
+                    id: entry.card.id,
                     text: entry.card.text,
-                    columnTitle: board.columns.find((c) => c.id === entry.columnId)?.title ?? '',
+                    subtitle: board.columns.find((c) => c.id === entry.columnId)?.title ?? '',
                 }));
             },
-            onRestore: (cardId) => {
+            onRestoreColumn: (id) => {
                 const board = this.active();
-                if (board && restoreCard(board, cardId))
+                if (board && restoreColumn(board, id))
                     this.commitArchive();
             },
-            onDeleteForever: (cardId) => {
+            onDeleteColumnForever: (id) => {
                 const board = this.active();
-                if (board && deleteArchivedCard(board, cardId))
+                if (board && deleteArchivedColumn(board, id))
+                    this.commitArchive();
+            },
+            onRestoreCard: (id) => {
+                const board = this.active();
+                if (board && restoreCard(board, id))
+                    this.commitArchive();
+            },
+            onDeleteCardForever: (id) => {
+                const board = this.active();
+                if (board && deleteArchivedCard(board, id))
                     this.commitArchive();
             },
         });
@@ -2019,11 +2042,14 @@ const translations = {
         archive: '보관',
         archiveView: '보관함',
         archiveEmpty: '보관함이 비어 있습니다',
+        archivedLists: '보관된 리스트',
+        archivedCards: '보관된 카드',
+        cardsUnit: '개 카드',
         restore: '복원',
         deleteForever: '영구 삭제',
         deleteForeverConfirm: '이 카드를 영구히 삭제할까요? 되돌릴 수 없습니다.',
+        deleteListForeverConfirm: '이 리스트를 영구히 삭제할까요? 되돌릴 수 없습니다.',
         close: '닫기',
-        deleteColumnConfirm: '이 리스트를 삭제할까요?',
         deleteBoardConfirm: '이 보드를 삭제할까요?',
         renameColumn: '리스트 이름',
         boards: '보드',
@@ -2080,11 +2106,14 @@ const translations = {
         archive: 'Archive',
         archiveView: 'Archive',
         archiveEmpty: 'The archive is empty',
+        archivedLists: 'Archived lists',
+        archivedCards: 'Archived cards',
+        cardsUnit: 'cards',
         restore: 'Restore',
         deleteForever: 'Delete forever',
         deleteForeverConfirm: 'Permanently delete this card? This cannot be undone.',
+        deleteListForeverConfirm: 'Permanently delete this list? This cannot be undone.',
         close: 'Close',
-        deleteColumnConfirm: 'Delete this list?',
         deleteBoardConfirm: 'Delete this board?',
         renameColumn: 'List title',
         boards: 'Boards',
@@ -2501,7 +2530,7 @@ function openCardDetail(init, cb) {
     });
 }
 /**
- * Show the board's archive: a list of archived cards, each restorable or
+ * Show the board's archive: archived lists and cards, each restorable or
  * permanently deletable (with confirmation). Resolves when the view closes.
  */
 function openArchive(cb) {
@@ -2520,16 +2549,14 @@ function openArchive(cb) {
         const listEl = document.createElement('div');
         listEl.className = 'archive-list';
         dialog.appendChild(listEl);
-        const renderList = () => {
-            listEl.replaceChildren();
-            const entries = cb.list();
-            if (entries.length === 0) {
-                const empty = document.createElement('div');
-                empty.className = 'archive-empty';
-                empty.textContent = t('archiveEmpty');
-                listEl.appendChild(empty);
+        // Build one archive section (lists or cards) with restore/delete actions.
+        const renderSection = (title, entries, confirmKey, onRestore, onDelete) => {
+            if (entries.length === 0)
                 return;
-            }
+            const sectionTitle = document.createElement('div');
+            sectionTitle.className = 'archive-section-title';
+            sectionTitle.textContent = title;
+            listEl.appendChild(sectionTitle);
             for (const entry of entries) {
                 const row = document.createElement('div');
                 row.className = 'archive-row';
@@ -2539,26 +2566,26 @@ function openArchive(cb) {
                 text.className = 'archive-text';
                 text.textContent = entry.text || ' ';
                 info.appendChild(text);
-                if (entry.columnTitle) {
-                    const origin = document.createElement('div');
-                    origin.className = 'archive-origin';
-                    origin.textContent = entry.columnTitle;
-                    info.appendChild(origin);
+                if (entry.subtitle) {
+                    const sub = document.createElement('div');
+                    sub.className = 'archive-origin';
+                    sub.textContent = entry.subtitle;
+                    info.appendChild(sub);
                 }
                 const restore = document.createElement('button');
                 restore.className = 'archive-btn archive-restore';
                 restore.textContent = t('restore');
                 restore.addEventListener('click', () => {
-                    cb.onRestore(entry.cardId);
+                    onRestore(entry.id);
                     renderList();
                 });
                 const del = document.createElement('button');
                 del.className = 'archive-btn archive-delete';
                 del.textContent = t('deleteForever');
                 del.addEventListener('click', () => {
-                    void customConfirm(t('deleteForeverConfirm')).then((ok) => {
+                    void customConfirm(t(confirmKey)).then((ok) => {
                         if (ok) {
-                            cb.onDeleteForever(entry.cardId);
+                            onDelete(entry.id);
                             renderList();
                         }
                     });
@@ -2566,6 +2593,20 @@ function openArchive(cb) {
                 row.append(info, restore, del);
                 listEl.appendChild(row);
             }
+        };
+        const renderList = () => {
+            listEl.replaceChildren();
+            const columns = cb.listColumns();
+            const cards = cb.listCards();
+            if (columns.length === 0 && cards.length === 0) {
+                const empty = document.createElement('div');
+                empty.className = 'archive-empty';
+                empty.textContent = t('archiveEmpty');
+                listEl.appendChild(empty);
+                return;
+            }
+            renderSection(t('archivedLists'), columns, 'deleteListForeverConfirm', cb.onRestoreColumn, cb.onDeleteColumnForever);
+            renderSection(t('archivedCards'), cards, 'deleteForeverConfirm', cb.onRestoreCard, cb.onDeleteCardForever);
         };
         renderList();
         let settled = false;
@@ -2650,6 +2691,7 @@ function createBoard(name, columns = []) {
         columns,
         labels: defaultLabels(),
         archived: [],
+        archivedColumns: [],
         createdAt: now,
         updatedAt: now,
     };
@@ -2793,6 +2835,36 @@ function deleteArchivedCard(board, cardId) {
     touch(board);
     return true;
 }
+/** Move a whole list (with its cards) into the archive, keeping its position. */
+function archiveColumn(board, columnId) {
+    const index = board.columns.findIndex((c) => c.id === columnId);
+    if (index < 0)
+        return false;
+    const [column] = board.columns.splice(index, 1);
+    board.archivedColumns.unshift({ column, index, archivedAt: Date.now() });
+    touch(board);
+    return true;
+}
+/** Restore an archived list near its original position (clamped into range). */
+function restoreColumn(board, columnId) {
+    const i = board.archivedColumns.findIndex((a) => a.column.id === columnId);
+    if (i < 0)
+        return false;
+    const [entry] = board.archivedColumns.splice(i, 1);
+    const at = Math.max(0, Math.min(entry.index, board.columns.length));
+    board.columns.splice(at, 0, entry.column);
+    touch(board);
+    return true;
+}
+/** Permanently remove an archived list. This cannot be undone. */
+function deleteArchivedColumn(board, columnId) {
+    const i = board.archivedColumns.findIndex((a) => a.column.id === columnId);
+    if (i < 0)
+        return false;
+    board.archivedColumns.splice(i, 1);
+    touch(board);
+    return true;
+}
 /** Append a new label to the board's shared label set and return it. */
 function addLabel(board, name, color) {
     const label = createLabel(name, color);
@@ -2884,6 +2956,9 @@ __exports.removeCard = removeCard;
 __exports.archiveCard = archiveCard;
 __exports.restoreCard = restoreCard;
 __exports.deleteArchivedCard = deleteArchivedCard;
+__exports.archiveColumn = archiveColumn;
+__exports.restoreColumn = restoreColumn;
+__exports.deleteArchivedColumn = deleteArchivedColumn;
 __exports.addLabel = addLabel;
 __exports.updateLabel = updateLabel;
 __exports.removeLabel = removeLabel;
@@ -2942,6 +3017,18 @@ function normalizeArchived(raw) {
         archivedAt: asNumber(obj.archivedAt, Date.now()),
     };
 }
+function normalizeArchivedColumn(raw) {
+    if (!raw || typeof raw !== 'object')
+        return null;
+    const obj = raw;
+    if (!obj.column || typeof obj.column !== 'object')
+        return null; // junk entry, skip
+    return {
+        column: normalizeColumn(obj.column),
+        index: asNumber(obj.index, 0),
+        archivedAt: asNumber(obj.archivedAt, Date.now()),
+    };
+}
 function normalizeColumn(raw) {
     const obj = (raw ?? {});
     const cards = Array.isArray(obj.cards) ? obj.cards.map(normalizeCard) : [];
@@ -2963,8 +3050,13 @@ function normalizeBoard(raw) {
     board.archived = Array.isArray(obj.archived)
         ? obj.archived.map(normalizeArchived).filter((a) => a !== null)
         : [];
+    board.archivedColumns = Array.isArray(obj.archivedColumns)
+        ? obj.archivedColumns
+            .map(normalizeArchivedColumn)
+            .filter((a) => a !== null)
+        : [];
     // Drop any card label references that no longer point at a real label,
-    // covering both live cards and archived ones.
+    // covering live cards, archived cards and cards inside archived lists.
     const known = new Set(board.labels.map((l) => l.id));
     const clean = (card) => {
         card.labelIds = card.labelIds.filter((id) => known.has(id));
@@ -2973,6 +3065,8 @@ function normalizeBoard(raw) {
         column.cards.forEach(clean);
     for (const entry of board.archived)
         clean(entry.card);
+    for (const entry of board.archivedColumns)
+        entry.column.cards.forEach(clean);
     return board;
 }
 function normalizeLang(value) {
@@ -3328,15 +3422,15 @@ function renderColumn(column, index, labels, filter, now, handlers) {
     title.addEventListener('click', () => {
         startInlineEdit(title, column.title, (value) => handlers.renameColumn(column.id, value));
     });
-    const delBtn = el('button', 'icon-btn', '🗑️');
-    delBtn.title = t('delete');
-    delBtn.addEventListener('click', () => handlers.deleteColumn(column.id));
+    const archiveBtn = el('button', 'icon-btn', '🗄️');
+    archiveBtn.title = t('archive');
+    archiveBtn.addEventListener('click', () => handlers.archiveColumn(column.id));
     header.append(title);
     // While filtering, show how many of the column's cards match.
     if (filtering) {
         header.append(el('span', 'column-count', `${visibleCards.length}/${column.cards.length}`));
     }
-    header.append(delBtn);
+    header.append(archiveBtn);
     const list = el('div', 'cards-list');
     list.dataset.cards = '';
     if (visibleCards.length === 0) {
