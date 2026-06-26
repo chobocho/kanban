@@ -115,10 +115,14 @@ export class KanbanApp {
                 if (board && updateCard(board, colId, cardId, { text }))
                     this.commit();
             },
-            deleteCard: (colId, cardId) => {
+            deleteCard: async (colId, cardId) => {
                 const board = this.active();
-                if (board && removeCard(board, colId, cardId))
-                    this.commit();
+                if (!board)
+                    return;
+                if (await customConfirm(t('deleteCardConfirm'))) {
+                    if (removeCard(board, colId, cardId))
+                        this.commit();
+                }
             },
             cycleCardColor: (colId, cardId) => {
                 const board = this.active();
