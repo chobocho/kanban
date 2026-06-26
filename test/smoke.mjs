@@ -141,6 +141,20 @@ try {
   const dueBadge = await page.locator('.column').nth(1).locator('.card-due').count();
   assert(dueBadge === 1, `setting a due date shows a due badge (got ${dueBadge})`);
 
+  // Add a checklist item (applies immediately), then check the card badge.
+  await detailCard.hover();
+  await detailCard.locator('.icon-btn[title="Open card details"]').click();
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  await page.locator('.checklist-add-input').fill('first step');
+  await page.locator('.checklist-add-btn').click();
+  await page.waitForTimeout(100);
+  const items = await page.locator('.checklist-item').count();
+  assert(items === 1, `checklist item is added (got ${items})`);
+  await page.locator('.card-detail .modal-cancel').click();
+  await page.waitForTimeout(100);
+  const checkBadge = await page.locator('.column').nth(1).locator('.card-check').textContent();
+  assert(checkBadge.includes('0/1'), `checklist badge shows progress (got "${checkBadge}")`);
+
   // Reopen and confirm the due date round-trips into the picker.
   await detailCard.hover();
   await detailCard.locator('.icon-btn[title="Open card details"]').click();

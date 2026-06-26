@@ -8,6 +8,7 @@ import {
   ArchivedColumn,
   Board,
   Card,
+  ChecklistItem,
   Column,
   Label,
   Language,
@@ -33,16 +34,29 @@ function normalizeLabel(raw: unknown): Label {
   };
 }
 
+function normalizeChecklistItem(raw: unknown): ChecklistItem {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+  return {
+    id: asString(obj.id, makeId('chk')),
+    text: asString(obj.text, ''),
+    done: obj.done === true,
+  };
+}
+
 function normalizeCard(raw: unknown): Card {
   const obj = (raw ?? {}) as Record<string, unknown>;
   const labelIds = Array.isArray(obj.labelIds)
     ? obj.labelIds.filter((id): id is string => typeof id === 'string')
+    : [];
+  const checklist = Array.isArray(obj.checklist)
+    ? obj.checklist.map(normalizeChecklistItem)
     : [];
   return {
     id: asString(obj.id, makeId('card')),
     text: asString(obj.text, ''),
     description: asString(obj.description, ''),
     labelIds,
+    checklist,
     dueAt:
       typeof obj.dueAt === 'number' && Number.isFinite(obj.dueAt) ? obj.dueAt : null,
     dueDone: obj.dueDone === true,

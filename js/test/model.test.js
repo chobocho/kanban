@@ -1,6 +1,6 @@
 // Unit tests for the pure board operations in src/model.ts.
 import { test, assert, assertEqual } from './harness.js';
-import { createDefaultData, createBoard, createColumn, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, getActiveBoard, addLabel, updateLabel, removeLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, } from '../src/model.js';
+import { createDefaultData, createBoard, createColumn, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, getActiveBoard, addLabel, updateLabel, removeLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, addChecklistItem, updateChecklistItem, removeChecklistItem, checklistProgress, } from '../src/model.js';
 test('createDefaultData has one board with three columns', () => {
     const data = createDefaultData();
     assertEqual(data.boards.length, 1, 'board count');
@@ -207,6 +207,27 @@ test('deleteArchivedColumn permanently removes an archived list', () => {
     assert(deleteArchivedColumn(board, colId), 'delete ok');
     assertEqual(board.archivedColumns.length, 0, 'archive empty');
     assert(!restoreColumn(board, colId), 'cannot restore a purged list');
+});
+test('checklist items add, toggle, rename, remove and report progress', () => {
+    const board = createBoard('b', [createColumn('A')]);
+    const colId = board.columns[0].id;
+    const card = addCard(board, colId, 'a');
+    assertEqual(card.checklist.length, 0, 'starts empty');
+    assert(addChecklistItem(board, colId, card.id, 'step 1'), 'add ok');
+    assert(!addChecklistItem(board, colId, card.id, '   '), 'blank item rejected');
+    assert(addChecklistItem(board, colId, card.id, 'step 2'), 'add 2 ok');
+    assertEqual(card.checklist.length, 2, 'two items');
+    let prog = checklistProgress(card);
+    assertEqual(`${prog.done}/${prog.total}`, '0/2', 'nothing done yet');
+    const firstId = card.checklist[0].id;
+    assert(updateChecklistItem(board, colId, card.id, firstId, { done: true }), 'toggle ok');
+    prog = checklistProgress(card);
+    assertEqual(`${prog.done}/${prog.total}`, '1/2', 'one done');
+    assert(updateChecklistItem(board, colId, card.id, firstId, { text: 'renamed' }), 'rename ok');
+    assertEqual(card.checklist[0].text, 'renamed', 'text patched');
+    assert(removeChecklistItem(board, colId, card.id, firstId), 'remove ok');
+    assertEqual(card.checklist.length, 1, 'one left');
+    assert(!removeChecklistItem(board, colId, card.id, 'missing'), 'unknown item rejected');
 });
 test('getActiveBoard returns the active board', () => {
     const data = createDefaultData();

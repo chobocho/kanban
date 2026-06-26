@@ -716,6 +716,115 @@ select.control {
   color: var(--muted);
 }
 
+/* Checklist inside the card detail modal. */
+.card-detail-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.checklist-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checklist-progress-text {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 28px;
+}
+
+.checklist-progress {
+  flex: 1 1 auto;
+  height: 8px;
+  border-radius: 4px;
+  background: #ebecf0;
+  overflow: hidden;
+}
+
+.checklist-progress-fill {
+  height: 100%;
+  background: #61bd4f;
+  transition: width 0.15s;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checklist-item-text {
+  flex: 1 1 auto;
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
+.checklist-item-text:hover {
+  border-color: #dfe1e6;
+}
+
+.checklist-item-text:focus {
+  outline: none;
+  border-color: var(--bg);
+}
+
+.checklist-item-text.is-done {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.checklist-item-del {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.checklist-item-del:hover {
+  background: #ebecf0;
+}
+
+.checklist-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.checklist-add-input {
+  flex: 1 1 auto;
+  font: inherit;
+  font-size: 14px;
+  padding: 7px 8px;
+  border: 2px solid #c1c7d0;
+  border-radius: 6px;
+}
+
+.checklist-add-input:focus {
+  outline: none;
+  border-color: var(--bg);
+}
+
+.checklist-add-btn {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 14px;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 6px;
+  background: var(--bg);
+  color: #fff;
+  cursor: pointer;
+}
+
 .card-detail .card-detail-delete {
   /* Push the delete button to the far left, away from cancel/save. */
   margin-right: auto;
@@ -890,7 +999,8 @@ select.control {
   opacity: 0.7;
 }
 
-.card-due {
+.card-due,
+.card-check {
   display: inline-flex;
   align-items: center;
   padding: 2px 6px;
@@ -899,6 +1009,11 @@ select.control {
   opacity: 1;
   background: #ebecf0;
   color: var(--text);
+}
+
+.card-check.is-complete {
+  background: #e3fcef;
+  color: #006644;
 }
 
 .card-due.is-overdue {
@@ -1084,7 +1199,7 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch } = __require("model");
 const { History } = __require("history");
 const { setLanguage, t } = __require("i18n");
 const { emptyFilter, isFilterActive } = __require("filter");
@@ -1258,6 +1373,7 @@ class KanbanApp {
                     colors: CARD_COLORS,
                     labels: board.labels,
                     assignedLabelIds: card.labelIds.slice(),
+                    checklist: card.checklist,
                 }, {
                     onSave: (patch) => {
                         if (updateCard(board, colId, cardId, patch))
@@ -1273,6 +1389,24 @@ class KanbanApp {
                     },
                     onRenameLabel: (labelId, name) => {
                         if (updateLabel(board, labelId, { name }))
+                            this.commit();
+                    },
+                    onAddChecklistItem: (text) => {
+                        if (addChecklistItem(board, colId, cardId, text))
+                            this.commit();
+                    },
+                    onToggleChecklistItem: (itemId) => {
+                        const item = card.checklist.find((i) => i.id === itemId);
+                        if (item && updateChecklistItem(board, colId, cardId, itemId, { done: !item.done })) {
+                            this.commit();
+                        }
+                    },
+                    onRenameChecklistItem: (itemId, text) => {
+                        if (updateChecklistItem(board, colId, cardId, itemId, { text }))
+                            this.commit();
+                    },
+                    onRemoveChecklistItem: (itemId) => {
+                        if (removeChecklistItem(board, colId, cardId, itemId))
                             this.commit();
                     },
                 });
@@ -2016,6 +2150,9 @@ const translations = {
         descriptionPlaceholder: '상세 설명을 입력하세요…',
         labels: '라벨',
         labelNamePrompt: '라벨 이름을 입력하세요',
+        checklist: '체크리스트',
+        addChecklistItem: '추가',
+        checklistItemPlaceholder: '항목을 입력하세요…',
         dueDate: '마감일',
         dueComplete: '완료',
         clear: '지우기',
@@ -2079,6 +2216,9 @@ const translations = {
         descriptionPlaceholder: 'Add a more detailed description…',
         labels: 'Labels',
         labelNamePrompt: 'Enter a label name',
+        checklist: 'Checklist',
+        addChecklistItem: 'Add',
+        checklistItemPlaceholder: 'Add an item…',
         dueDate: 'Due date',
         dueComplete: 'Complete',
         clear: 'Clear',
@@ -2438,6 +2578,89 @@ function openCardDetail(init, cb) {
         desc.value = init.description;
         desc.placeholder = t('descriptionPlaceholder');
         dialog.appendChild(desc);
+        // --- Checklist: progress bar + items, all applied immediately. ---
+        addLabel(t('checklist'));
+        const checklistBox = document.createElement('div');
+        checklistBox.className = 'card-detail-checklist';
+        dialog.appendChild(checklistBox);
+        const renderChecklist = () => {
+            checklistBox.replaceChildren();
+            const items = init.checklist;
+            const done = items.filter((i) => i.done).length;
+            const bar = document.createElement('div');
+            bar.className = 'checklist-progress';
+            const fill = document.createElement('div');
+            fill.className = 'checklist-progress-fill';
+            fill.style.width = items.length ? `${(done / items.length) * 100}%` : '0%';
+            const pct = document.createElement('span');
+            pct.className = 'checklist-progress-text';
+            pct.textContent = `${done}/${items.length}`;
+            bar.append(fill);
+            const barRow = document.createElement('div');
+            barRow.className = 'checklist-progress-row';
+            barRow.append(pct, bar);
+            checklistBox.appendChild(barRow);
+            for (const item of items) {
+                const row = document.createElement('div');
+                row.className = 'checklist-item';
+                const check = document.createElement('input');
+                check.type = 'checkbox';
+                check.checked = item.done;
+                check.addEventListener('change', () => {
+                    cb.onToggleChecklistItem(item.id);
+                    renderChecklist();
+                });
+                const text = document.createElement('input');
+                text.type = 'text';
+                text.className = 'checklist-item-text';
+                text.value = item.text;
+                if (item.done)
+                    text.classList.add('is-done');
+                // Commit a rename on blur/Enter, not on every keystroke.
+                text.addEventListener('change', () => cb.onRenameChecklistItem(item.id, text.value.trim()));
+                const del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'checklist-item-del';
+                del.textContent = '🗑️';
+                del.title = t('delete');
+                del.addEventListener('click', () => {
+                    cb.onRemoveChecklistItem(item.id);
+                    renderChecklist();
+                });
+                row.append(check, text, del);
+                checklistBox.appendChild(row);
+            }
+            const addRow = document.createElement('div');
+            addRow.className = 'checklist-add';
+            const addInput = document.createElement('input');
+            addInput.type = 'text';
+            addInput.className = 'checklist-add-input';
+            addInput.placeholder = t('checklistItemPlaceholder');
+            const addItem = () => {
+                const value = addInput.value.trim();
+                if (!value)
+                    return;
+                cb.onAddChecklistItem(value);
+                renderChecklist();
+                // Keep adding: refocus the (rebuilt) input.
+                const next = checklistBox.querySelector('.checklist-add-input');
+                next?.focus();
+            };
+            addInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addItem();
+                }
+            });
+            const addBtn = document.createElement('button');
+            addBtn.type = 'button';
+            addBtn.className = 'checklist-add-btn';
+            addBtn.textContent = t('addChecklistItem');
+            addBtn.addEventListener('click', addItem);
+            addRow.append(addInput, addBtn);
+            checklistBox.appendChild(addRow);
+        };
+        renderChecklist();
         addLabel(t('color'));
         let selectedColor = init.color;
         const swatches = document.createElement('div');
@@ -2661,6 +2884,7 @@ function createCard(text) {
         text,
         description: '',
         labelIds: [],
+        checklist: [],
         dueAt: null,
         dueDone: false,
         color: '',
@@ -2705,6 +2929,13 @@ function touch(board) {
 }
 function findColumn(board, columnId) {
     return board.columns.find((c) => c.id === columnId);
+}
+function findCard(board, columnId, cardId) {
+    return findColumn(board, columnId)?.cards.find((c) => c.id === cardId);
+}
+/** Number of completed and total checklist items on a card. */
+function checklistProgress(card) {
+    return { done: card.checklist.filter((i) => i.done).length, total: card.checklist.length };
 }
 /** Append a new column and return it. */
 function addColumn(board, title) {
@@ -2780,6 +3011,41 @@ function removeCard(board, columnId, cardId) {
     if (index < 0)
         return false;
     column.cards.splice(index, 1);
+    touch(board);
+    return true;
+}
+/** Append a checklist item to a card. Ignores blank text. */
+function addChecklistItem(board, columnId, cardId, text) {
+    const trimmed = text.trim();
+    const card = findCard(board, columnId, cardId);
+    if (!card || !trimmed)
+        return false;
+    card.checklist.push({ id: makeId('chk'), text: trimmed, done: false });
+    touch(board);
+    return true;
+}
+/** Patch a checklist item's done flag and/or text. */
+function updateChecklistItem(board, columnId, cardId, itemId, patch) {
+    const card = findCard(board, columnId, cardId);
+    const item = card?.checklist.find((i) => i.id === itemId);
+    if (!item)
+        return false;
+    if (patch.text !== undefined)
+        item.text = patch.text;
+    if (patch.done !== undefined)
+        item.done = patch.done;
+    touch(board);
+    return true;
+}
+/** Remove a checklist item from a card. */
+function removeChecklistItem(board, columnId, cardId, itemId) {
+    const card = findCard(board, columnId, cardId);
+    if (!card)
+        return false;
+    const index = card.checklist.findIndex((i) => i.id === itemId);
+    if (index < 0)
+        return false;
+    card.checklist.splice(index, 1);
     touch(board);
     return true;
 }
@@ -2935,6 +3201,8 @@ __exports.createBoard = createBoard;
 __exports.createDefaultData = createDefaultData;
 __exports.touch = touch;
 __exports.findColumn = findColumn;
+__exports.findCard = findCard;
+__exports.checklistProgress = checklistProgress;
 __exports.addColumn = addColumn;
 __exports.renameColumn = renameColumn;
 __exports.removeColumn = removeColumn;
@@ -2942,6 +3210,9 @@ __exports.moveColumn = moveColumn;
 __exports.addCard = addCard;
 __exports.updateCard = updateCard;
 __exports.removeCard = removeCard;
+__exports.addChecklistItem = addChecklistItem;
+__exports.updateChecklistItem = updateChecklistItem;
+__exports.removeChecklistItem = removeChecklistItem;
 __exports.archiveCard = archiveCard;
 __exports.restoreCard = restoreCard;
 __exports.deleteArchivedCard = deleteArchivedCard;
@@ -2978,16 +3249,28 @@ function normalizeLabel(raw) {
         color: asString(obj.color, ''),
     };
 }
+function normalizeChecklistItem(raw) {
+    const obj = (raw ?? {});
+    return {
+        id: asString(obj.id, makeId('chk')),
+        text: asString(obj.text, ''),
+        done: obj.done === true,
+    };
+}
 function normalizeCard(raw) {
     const obj = (raw ?? {});
     const labelIds = Array.isArray(obj.labelIds)
         ? obj.labelIds.filter((id) => typeof id === 'string')
+        : [];
+    const checklist = Array.isArray(obj.checklist)
+        ? obj.checklist.map(normalizeChecklistItem)
         : [];
     return {
         id: asString(obj.id, makeId('card')),
         text: asString(obj.text, ''),
         description: asString(obj.description, ''),
         labelIds,
+        checklist,
         dueAt: typeof obj.dueAt === 'number' && Number.isFinite(obj.dueAt) ? obj.dueAt : null,
         dueDone: obj.dueDone === true,
         color: asString(obj.color, ''),
@@ -3236,6 +3519,7 @@ __modules["render"] = function(__exports, __require){
 // delegates every mutation to the provided handlers, keeping it free of state
 // and storage concerns. Data attributes drive the drag-and-drop controller.
 const { getLanguage, t } = __require("i18n");
+const { checklistProgress } = __require("model");
 const { cardMatchesFilter, isFilterActive } = __require("filter");
 /** Card accent colors cycled by the palette button (empty = no accent). */
 const CARD_COLORS = ['', '#ef5350', '#ffa726', '#ffee58', '#66bb6a', '#42a5f5', '#ab47bc'];
@@ -3380,6 +3664,15 @@ function renderCard(card, column, labels, handlers) {
         const note = el('span', 'card-badge', '📝');
         note.title = t('description');
         badges.appendChild(note);
+    }
+    const progress = checklistProgress(card);
+    if (progress.total > 0) {
+        const complete = progress.done === progress.total;
+        const chk = el('span', 'card-badge card-check', `☑️ ${progress.done}/${progress.total}`);
+        if (complete)
+            chk.classList.add('is-complete');
+        chk.title = t('checklist');
+        badges.appendChild(chk);
     }
     if (badges.children.length > 0)
         node.appendChild(badges);

@@ -10,6 +10,13 @@ export interface Label {
   color: string;
 }
 
+/** A single checklist entry on a card. */
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
 /** A single card belonging to a column. */
 export interface Card {
   id: string;
@@ -18,6 +25,8 @@ export interface Card {
   description: string;
   /** Ids of the board labels applied to this card. */
   labelIds: string[];
+  /** Checklist items (ordered) shown on the card's back. */
+  checklist: ChecklistItem[];
   /** Due date as a timestamp (ms), or null when none is set. */
   dueAt: number | null;
   /** Whether the due date has been marked complete. */

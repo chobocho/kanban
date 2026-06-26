@@ -709,6 +709,115 @@ select.control {
   color: var(--muted);
 }
 
+/* Checklist inside the card detail modal. */
+.card-detail-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.checklist-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checklist-progress-text {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 28px;
+}
+
+.checklist-progress {
+  flex: 1 1 auto;
+  height: 8px;
+  border-radius: 4px;
+  background: #ebecf0;
+  overflow: hidden;
+}
+
+.checklist-progress-fill {
+  height: 100%;
+  background: #61bd4f;
+  transition: width 0.15s;
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checklist-item-text {
+  flex: 1 1 auto;
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+}
+
+.checklist-item-text:hover {
+  border-color: #dfe1e6;
+}
+
+.checklist-item-text:focus {
+  outline: none;
+  border-color: var(--bg);
+}
+
+.checklist-item-text.is-done {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.checklist-item-del {
+  flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.checklist-item-del:hover {
+  background: #ebecf0;
+}
+
+.checklist-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.checklist-add-input {
+  flex: 1 1 auto;
+  font: inherit;
+  font-size: 14px;
+  padding: 7px 8px;
+  border: 2px solid #c1c7d0;
+  border-radius: 6px;
+}
+
+.checklist-add-input:focus {
+  outline: none;
+  border-color: var(--bg);
+}
+
+.checklist-add-btn {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 14px;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 6px;
+  background: var(--bg);
+  color: #fff;
+  cursor: pointer;
+}
+
 .card-detail .card-detail-delete {
   /* Push the delete button to the far left, away from cancel/save. */
   margin-right: auto;
@@ -883,7 +992,8 @@ select.control {
   opacity: 0.7;
 }
 
-.card-due {
+.card-due,
+.card-check {
   display: inline-flex;
   align-items: center;
   padding: 2px 6px;
@@ -892,6 +1002,11 @@ select.control {
   opacity: 1;
   background: #ebecf0;
   color: var(--text);
+}
+
+.card-check.is-complete {
+  background: #e3fcef;
+  color: #006644;
 }
 
 .card-due.is-overdue {

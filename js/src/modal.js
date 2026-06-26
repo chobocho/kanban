@@ -210,6 +210,89 @@ export function openCardDetail(init, cb) {
         desc.value = init.description;
         desc.placeholder = t('descriptionPlaceholder');
         dialog.appendChild(desc);
+        // --- Checklist: progress bar + items, all applied immediately. ---
+        addLabel(t('checklist'));
+        const checklistBox = document.createElement('div');
+        checklistBox.className = 'card-detail-checklist';
+        dialog.appendChild(checklistBox);
+        const renderChecklist = () => {
+            checklistBox.replaceChildren();
+            const items = init.checklist;
+            const done = items.filter((i) => i.done).length;
+            const bar = document.createElement('div');
+            bar.className = 'checklist-progress';
+            const fill = document.createElement('div');
+            fill.className = 'checklist-progress-fill';
+            fill.style.width = items.length ? `${(done / items.length) * 100}%` : '0%';
+            const pct = document.createElement('span');
+            pct.className = 'checklist-progress-text';
+            pct.textContent = `${done}/${items.length}`;
+            bar.append(fill);
+            const barRow = document.createElement('div');
+            barRow.className = 'checklist-progress-row';
+            barRow.append(pct, bar);
+            checklistBox.appendChild(barRow);
+            for (const item of items) {
+                const row = document.createElement('div');
+                row.className = 'checklist-item';
+                const check = document.createElement('input');
+                check.type = 'checkbox';
+                check.checked = item.done;
+                check.addEventListener('change', () => {
+                    cb.onToggleChecklistItem(item.id);
+                    renderChecklist();
+                });
+                const text = document.createElement('input');
+                text.type = 'text';
+                text.className = 'checklist-item-text';
+                text.value = item.text;
+                if (item.done)
+                    text.classList.add('is-done');
+                // Commit a rename on blur/Enter, not on every keystroke.
+                text.addEventListener('change', () => cb.onRenameChecklistItem(item.id, text.value.trim()));
+                const del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'checklist-item-del';
+                del.textContent = '🗑️';
+                del.title = t('delete');
+                del.addEventListener('click', () => {
+                    cb.onRemoveChecklistItem(item.id);
+                    renderChecklist();
+                });
+                row.append(check, text, del);
+                checklistBox.appendChild(row);
+            }
+            const addRow = document.createElement('div');
+            addRow.className = 'checklist-add';
+            const addInput = document.createElement('input');
+            addInput.type = 'text';
+            addInput.className = 'checklist-add-input';
+            addInput.placeholder = t('checklistItemPlaceholder');
+            const addItem = () => {
+                const value = addInput.value.trim();
+                if (!value)
+                    return;
+                cb.onAddChecklistItem(value);
+                renderChecklist();
+                // Keep adding: refocus the (rebuilt) input.
+                const next = checklistBox.querySelector('.checklist-add-input');
+                next?.focus();
+            };
+            addInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addItem();
+                }
+            });
+            const addBtn = document.createElement('button');
+            addBtn.type = 'button';
+            addBtn.className = 'checklist-add-btn';
+            addBtn.textContent = t('addChecklistItem');
+            addBtn.addEventListener('click', addItem);
+            addRow.append(addInput, addBtn);
+            checklistBox.appendChild(addRow);
+        };
+        renderChecklist();
         addLabel(t('color'));
         let selectedColor = init.color;
         const swatches = document.createElement('div');

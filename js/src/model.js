@@ -20,6 +20,7 @@ export function createCard(text) {
         text,
         description: '',
         labelIds: [],
+        checklist: [],
         dueAt: null,
         dueDone: false,
         color: '',
@@ -64,6 +65,13 @@ export function touch(board) {
 }
 export function findColumn(board, columnId) {
     return board.columns.find((c) => c.id === columnId);
+}
+export function findCard(board, columnId, cardId) {
+    return findColumn(board, columnId)?.cards.find((c) => c.id === cardId);
+}
+/** Number of completed and total checklist items on a card. */
+export function checklistProgress(card) {
+    return { done: card.checklist.filter((i) => i.done).length, total: card.checklist.length };
 }
 /** Append a new column and return it. */
 export function addColumn(board, title) {
@@ -139,6 +147,41 @@ export function removeCard(board, columnId, cardId) {
     if (index < 0)
         return false;
     column.cards.splice(index, 1);
+    touch(board);
+    return true;
+}
+/** Append a checklist item to a card. Ignores blank text. */
+export function addChecklistItem(board, columnId, cardId, text) {
+    const trimmed = text.trim();
+    const card = findCard(board, columnId, cardId);
+    if (!card || !trimmed)
+        return false;
+    card.checklist.push({ id: makeId('chk'), text: trimmed, done: false });
+    touch(board);
+    return true;
+}
+/** Patch a checklist item's done flag and/or text. */
+export function updateChecklistItem(board, columnId, cardId, itemId, patch) {
+    const card = findCard(board, columnId, cardId);
+    const item = card?.checklist.find((i) => i.id === itemId);
+    if (!item)
+        return false;
+    if (patch.text !== undefined)
+        item.text = patch.text;
+    if (patch.done !== undefined)
+        item.done = patch.done;
+    touch(board);
+    return true;
+}
+/** Remove a checklist item from a card. */
+export function removeChecklistItem(board, columnId, cardId, itemId) {
+    const card = findCard(board, columnId, cardId);
+    if (!card)
+        return false;
+    const index = card.checklist.findIndex((i) => i.id === itemId);
+    if (index < 0)
+        return false;
+    card.checklist.splice(index, 1);
     touch(board);
     return true;
 }

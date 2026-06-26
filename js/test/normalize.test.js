@@ -27,6 +27,7 @@ test('partial board is repaired with defaults', () => {
     assert(data.boards[0].labels.length > 0, 'labels seeded for legacy board');
     assertEqual(data.boards[0].columns[0].cards[0].dueAt, null, 'dueAt defaulted to null');
     assertEqual(data.boards[0].columns[0].cards[0].dueDone, false, 'dueDone defaulted');
+    assertEqual(data.boards[0].columns[0].cards[0].checklist.length, 0, 'checklist defaulted');
     assert(Array.isArray(data.boards[0].archived), 'archived defaulted to array');
     assertEqual(data.boards[0].archived.length, 0, 'archived empty by default');
     assert(Array.isArray(data.boards[0].archivedColumns), 'archivedColumns defaulted to array');

@@ -2,6 +2,7 @@
 // delegates every mutation to the provided handlers, keeping it free of state
 // and storage concerns. Data attributes drive the drag-and-drop controller.
 import { getLanguage, t } from './i18n.js';
+import { checklistProgress } from './model.js';
 import { cardMatchesFilter, isFilterActive } from './filter.js';
 /** Card accent colors cycled by the palette button (empty = no accent). */
 export const CARD_COLORS = ['', '#ef5350', '#ffa726', '#ffee58', '#66bb6a', '#42a5f5', '#ab47bc'];
@@ -146,6 +147,15 @@ function renderCard(card, column, labels, handlers) {
         const note = el('span', 'card-badge', '📝');
         note.title = t('description');
         badges.appendChild(note);
+    }
+    const progress = checklistProgress(card);
+    if (progress.total > 0) {
+        const complete = progress.done === progress.total;
+        const chk = el('span', 'card-badge card-check', `☑️ ${progress.done}/${progress.total}`);
+        if (complete)
+            chk.classList.add('is-complete');
+        chk.title = t('checklist');
+        badges.appendChild(chk);
     }
     if (badges.children.length > 0)
         node.appendChild(badges);

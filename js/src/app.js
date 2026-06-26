@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch, } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
@@ -177,6 +177,7 @@ export class KanbanApp {
                     colors: CARD_COLORS,
                     labels: board.labels,
                     assignedLabelIds: card.labelIds.slice(),
+                    checklist: card.checklist,
                 }, {
                     onSave: (patch) => {
                         if (updateCard(board, colId, cardId, patch))
@@ -192,6 +193,24 @@ export class KanbanApp {
                     },
                     onRenameLabel: (labelId, name) => {
                         if (updateLabel(board, labelId, { name }))
+                            this.commit();
+                    },
+                    onAddChecklistItem: (text) => {
+                        if (addChecklistItem(board, colId, cardId, text))
+                            this.commit();
+                    },
+                    onToggleChecklistItem: (itemId) => {
+                        const item = card.checklist.find((i) => i.id === itemId);
+                        if (item && updateChecklistItem(board, colId, cardId, itemId, { done: !item.done })) {
+                            this.commit();
+                        }
+                    },
+                    onRenameChecklistItem: (itemId, text) => {
+                        if (updateChecklistItem(board, colId, cardId, itemId, { text }))
+                            this.commit();
+                    },
+                    onRemoveChecklistItem: (itemId) => {
+                        if (removeChecklistItem(board, colId, cardId, itemId))
                             this.commit();
                     },
                 });

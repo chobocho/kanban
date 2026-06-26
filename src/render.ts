@@ -4,6 +4,7 @@
 
 import { Board, Card, Column, Label } from './types.js';
 import { getLanguage, t } from './i18n.js';
+import { checklistProgress } from './model.js';
 import { FilterState, cardMatchesFilter, isFilterActive } from './filter.js';
 
 export interface RenderHandlers {
@@ -181,6 +182,14 @@ function renderCard(
     const note = el('span', 'card-badge', '📝');
     note.title = t('description');
     badges.appendChild(note);
+  }
+  const progress = checklistProgress(card);
+  if (progress.total > 0) {
+    const complete = progress.done === progress.total;
+    const chk = el('span', 'card-badge card-check', `☑️ ${progress.done}/${progress.total}`);
+    if (complete) chk.classList.add('is-complete');
+    chk.title = t('checklist');
+    badges.appendChild(chk);
   }
   if (badges.children.length > 0) node.appendChild(badges);
 

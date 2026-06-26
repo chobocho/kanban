@@ -18,16 +18,28 @@ function normalizeLabel(raw) {
         color: asString(obj.color, ''),
     };
 }
+function normalizeChecklistItem(raw) {
+    const obj = (raw ?? {});
+    return {
+        id: asString(obj.id, makeId('chk')),
+        text: asString(obj.text, ''),
+        done: obj.done === true,
+    };
+}
 function normalizeCard(raw) {
     const obj = (raw ?? {});
     const labelIds = Array.isArray(obj.labelIds)
         ? obj.labelIds.filter((id) => typeof id === 'string')
+        : [];
+    const checklist = Array.isArray(obj.checklist)
+        ? obj.checklist.map(normalizeChecklistItem)
         : [];
     return {
         id: asString(obj.id, makeId('card')),
         text: asString(obj.text, ''),
         description: asString(obj.description, ''),
         labelIds,
+        checklist,
         dueAt: typeof obj.dueAt === 'number' && Number.isFinite(obj.dueAt) ? obj.dueAt : null,
         dueDone: obj.dueDone === true,
         color: asString(obj.color, ''),

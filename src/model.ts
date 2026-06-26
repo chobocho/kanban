@@ -2,7 +2,7 @@
 // are intentionally free of any DOM or storage concerns so they can be unit
 // tested in isolation (see test/model.test.ts).
 
-import { AppData, Board, Card, Column, Label, SCHEMA_VERSION } from './types.js';
+import { AppData, Board, Card, ChecklistItem, Column, Label, SCHEMA_VERSION } from './types.js';
 import { makeId } from './id.js';
 
 /** Default label palette seeded on every new board (Trello-like colors). */
@@ -25,6 +25,7 @@ export function createCard(text: string): Card {
     text,
     description: '',
     labelIds: [],
+    checklist: [],
     dueAt: null,
     dueDone: false,
     color: '',
@@ -74,6 +75,15 @@ export function touch(board: Board): void {
 
 export function findColumn(board: Board, columnId: string): Column | undefined {
   return board.columns.find((c) => c.id === columnId);
+}
+
+export function findCard(board: Board, columnId: string, cardId: string): Card | undefined {
+  return findColumn(board, columnId)?.cards.find((c) => c.id === cardId);
+}
+
+/** Number of completed and total checklist items on a card. */
+export function checklistProgress(card: Card): { done: number; total: number } {
+  return { done: card.checklist.filter((i) => i.done).length, total: card.checklist.length };
 }
 
 /** Append a new column and return it. */
@@ -147,6 +157,54 @@ export function removeCard(board: Board, columnId: string, cardId: string): bool
   const index = column.cards.findIndex((c) => c.id === cardId);
   if (index < 0) return false;
   column.cards.splice(index, 1);
+  touch(board);
+  return true;
+}
+
+/** Append a checklist item to a card. Ignores blank text. */
+export function addChecklistItem(
+  board: Board,
+  columnId: string,
+  cardId: string,
+  text: string,
+): boolean {
+  const trimmed = text.trim();
+  const card = findCard(board, columnId, cardId);
+  if (!card || !trimmed) return false;
+  card.checklist.push({ id: makeId('chk'), text: trimmed, done: false });
+  touch(board);
+  return true;
+}
+
+/** Patch a checklist item's done flag and/or text. */
+export function updateChecklistItem(
+  board: Board,
+  columnId: string,
+  cardId: string,
+  itemId: string,
+  patch: Partial<Pick<ChecklistItem, 'text' | 'done'>>,
+): boolean {
+  const card = findCard(board, columnId, cardId);
+  const item = card?.checklist.find((i) => i.id === itemId);
+  if (!item) return false;
+  if (patch.text !== undefined) item.text = patch.text;
+  if (patch.done !== undefined) item.done = patch.done;
+  touch(board);
+  return true;
+}
+
+/** Remove a checklist item from a card. */
+export function removeChecklistItem(
+  board: Board,
+  columnId: string,
+  cardId: string,
+  itemId: string,
+): boolean {
+  const card = findCard(board, columnId, cardId);
+  if (!card) return false;
+  const index = card.checklist.findIndex((i) => i.id === itemId);
+  if (index < 0) return false;
+  card.checklist.splice(index, 1);
   touch(board);
   return true;
 }

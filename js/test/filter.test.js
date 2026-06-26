@@ -9,6 +9,7 @@ function card(patch) {
         text: '',
         description: '',
         labelIds: [],
+        checklist: [],
         dueAt: null,
         dueDone: false,
         color: '',
