@@ -276,10 +276,7 @@ export class KanbanApp {
       this.menuPanel.hidden = !this.menuPanel.hidden;
     });
     this.menuPanel.addEventListener('click', (e) => {
-      const el = e.target as HTMLElement;
-      // Undo/redo stay open so they can be tapped repeatedly.
-      if (el.closest('[data-keep-menu]')) return;
-      if (el.closest('button, label')) this.menuPanel.hidden = true;
+      if ((e.target as HTMLElement).closest('button, label')) this.menuPanel.hidden = true;
     });
 
     this.undoBtn.addEventListener('click', () => this.undo());

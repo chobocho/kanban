@@ -990,6 +990,11 @@ select.control {
       <select id="boardSelect" class="control" title="boards"></select>
     </div>
 
+    <div class="toolbar-group">
+      <button id="undoBtn" class="control icon-control" data-i18n-title="undo">↶</button>
+      <button id="redoBtn" class="control icon-control" data-i18n-title="redo">↷</button>
+    </div>
+
     <div class="toolbar-group filter-group">
       <input id="filterInput" class="control filter-input" type="search"
              data-i18n-placeholder="searchPlaceholder" />
@@ -1001,16 +1006,6 @@ select.control {
     <div class="toolbar-group menu-group">
       <button id="menuBtn" class="control icon-control" data-i18n-title="menu">☰</button>
       <div id="menuPanel" class="menu-panel" hidden>
-        <div class="menu-section">
-          <div class="menu-title" data-i18n="edit">편집</div>
-          <button id="undoBtn" class="menu-item" data-keep-menu>
-            <span class="menu-icon">↶</span><span class="menu-label" data-i18n="undo">실행 취소</span>
-          </button>
-          <button id="redoBtn" class="menu-item" data-keep-menu>
-            <span class="menu-icon">↷</span><span class="menu-label" data-i18n="redo">다시 실행</span>
-          </button>
-        </div>
-
         <div class="menu-section">
           <div class="menu-title" data-i18n="boards">보드</div>
           <button id="newBoardBtn" class="menu-item">
@@ -1319,11 +1314,7 @@ class KanbanApp {
             this.menuPanel.hidden = !this.menuPanel.hidden;
         });
         this.menuPanel.addEventListener('click', (e) => {
-            const el = e.target;
-            // Undo/redo stay open so they can be tapped repeatedly.
-            if (el.closest('[data-keep-menu]'))
-                return;
-            if (el.closest('button, label'))
+            if (e.target.closest('button, label'))
                 this.menuPanel.hidden = true;
         });
         this.undoBtn.addEventListener('click', () => this.undo());
@@ -2054,7 +2045,6 @@ const translations = {
         renameColumn: '리스트 이름',
         boards: '보드',
         menu: '메뉴',
-        edit: '편집',
         view: '보기',
         data: '데이터',
         newBoard: '새 보드',
@@ -2118,7 +2108,6 @@ const translations = {
         renameColumn: 'List title',
         boards: 'Boards',
         menu: 'Menu',
-        edit: 'Edit',
         view: 'View',
         data: 'Data',
         newBoard: 'New board',

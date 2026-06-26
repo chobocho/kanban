@@ -56,11 +56,8 @@ try {
   const cols2 = await page.locator('.column').count();
   assert(cols2 === 4, `add-column adds a list (got ${cols2})`);
 
-  // Undo reverts the column add; redo restores it (both live in the menu, which
-  // stays open across undo/redo clicks).
+  // Undo reverts the column add; redo restores it (toolbar icon buttons).
   assert(!(await page.locator('#undoBtn').isDisabled()), 'undo enabled after edits');
-  await page.locator('#menuBtn').click();
-  await page.waitForSelector('#menuPanel:not([hidden])', { timeout: 3000 });
   await page.locator('#undoBtn').click();
   await page.waitForTimeout(100);
   const colsUndo = await page.locator('.column').count();
@@ -69,7 +66,6 @@ try {
   await page.waitForTimeout(100);
   const colsRedo = await page.locator('.column').count();
   assert(colsRedo === 4, `redo restores add-column (got ${colsRedo})`);
-  await page.locator('#menuBtn').click(); // close the menu
 
   // The overflow menu opens and holds the secondary controls.
   await page.locator('#menuBtn').click();

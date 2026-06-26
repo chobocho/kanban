@@ -15,6 +15,11 @@
       <select id="boardSelect" class="control" title="boards"></select>
     </div>
 
+    <div class="toolbar-group">
+      <button id="undoBtn" class="control icon-control" data-i18n-title="undo">↶</button>
+      <button id="redoBtn" class="control icon-control" data-i18n-title="redo">↷</button>
+    </div>
+
     <div class="toolbar-group filter-group">
       <input id="filterInput" class="control filter-input" type="search"
              data-i18n-placeholder="searchPlaceholder" />
@@ -26,16 +31,6 @@
     <div class="toolbar-group menu-group">
       <button id="menuBtn" class="control icon-control" data-i18n-title="menu">☰</button>
       <div id="menuPanel" class="menu-panel" hidden>
-        <div class="menu-section">
-          <div class="menu-title" data-i18n="edit">편집</div>
-          <button id="undoBtn" class="menu-item" data-keep-menu>
-            <span class="menu-icon">↶</span><span class="menu-label" data-i18n="undo">실행 취소</span>
-          </button>
-          <button id="redoBtn" class="menu-item" data-keep-menu>
-            <span class="menu-icon">↷</span><span class="menu-label" data-i18n="redo">다시 실행</span>
-          </button>
-        </div>
-
         <div class="menu-section">
           <div class="menu-title" data-i18n="boards">보드</div>
           <button id="newBoardBtn" class="menu-item">
