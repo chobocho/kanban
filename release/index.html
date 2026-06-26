@@ -224,11 +224,24 @@ select.control {
   gap: 2px;
   margin-top: 4px;
   opacity: 0;
+  /* Hidden actions must not be tappable; otherwise a touch on the invisible
+     delete button would remove the card. Re-enabled together with opacity. */
+  pointer-events: none;
   transition: opacity 0.1s;
 }
 
 .card:hover .card-actions {
   opacity: 1;
+  pointer-events: auto;
+}
+
+/* Touch devices have no hover, so the actions would stay invisible yet remain
+   in the layout. Keep them visible (and tappable) there. */
+@media (hover: none) {
+  .card-actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .icon-btn {
@@ -256,10 +269,14 @@ select.control {
 .inline-edit {
   width: 100%;
   font: inherit;
+  line-height: 1.4;
+  box-sizing: border-box;
   border: 2px solid var(--bg);
   border-radius: 4px;
   padding: 6px;
-  resize: vertical;
+  /* Height is managed by autoGrow() (grows with content up to 20 lines). */
+  resize: none;
+  overflow-y: hidden;
   min-height: 38px;
 }
 
@@ -574,10 +591,14 @@ class KanbanApp {
                 if (board && updateCard(board, colId, cardId, { text }))
                     this.commit();
             },
-            deleteCard: (colId, cardId) => {
+            deleteCard: async (colId, cardId) => {
                 const board = this.active();
-                if (board && removeCard(board, colId, cardId))
-                    this.commit();
+                if (!board)
+                    return;
+                if (await customConfirm(t('deleteCardConfirm'))) {
+                    if (removeCard(board, colId, cardId))
+                        this.commit();
+                }
             },
             cycleCardColor: (colId, cardId) => {
                 const board = this.active();
@@ -1110,6 +1131,7 @@ const translations = {
         newColumnTitle: '새 리스트',
         newCardText: '새 카드',
         color: '색상 변경',
+        deleteCardConfirm: '이 카드를 삭제할까요?',
         deleteColumnConfirm: '이 리스트를 삭제할까요?',
         deleteBoardConfirm: '이 보드를 삭제할까요?',
         renameColumn: '리스트 이름',
@@ -1140,6 +1162,7 @@ const translations = {
         newColumnTitle: 'New list',
         newCardText: 'New card',
         color: 'Change color',
+        deleteCardConfirm: 'Delete this card?',
         deleteColumnConfirm: 'Delete this list?',
         deleteBoardConfirm: 'Delete this board?',
         renameColumn: 'List title',
@@ -1737,6 +1760,22 @@ function el(tag, className, text) {
         node.textContent = text;
     return node;
 }
+/** Maximum visible height of an inline editor, in text lines. */
+const INLINE_EDIT_MAX_LINES = 20;
+/** Resize a textarea to fit its content, capped at `maxLines` lines. */
+function autoGrow(textarea, maxLines) {
+    const style = getComputedStyle(textarea);
+    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
+    const verticalPadding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+    const verticalBorder = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+    const maxHeight = lineHeight * maxLines + verticalPadding + verticalBorder;
+    // Shrink first so the textarea can grow *and* shrink with the content.
+    textarea.style.height = 'auto';
+    // scrollHeight covers content + padding; add the border for box-sizing: border-box.
+    const needed = textarea.scrollHeight + verticalBorder;
+    textarea.style.height = `${Math.min(needed, maxHeight)}px`;
+    textarea.style.overflowY = needed > maxHeight ? 'auto' : 'hidden';
+}
 /** Replace a text element with a textarea for inline editing. */
 function startInlineEdit(host, initial, onSave) {
     const textarea = el('textarea', 'inline-edit');
@@ -1744,6 +1783,9 @@ function startInlineEdit(host, initial, onSave) {
     host.replaceWith(textarea);
     textarea.focus();
     textarea.select();
+    autoGrow(textarea, INLINE_EDIT_MAX_LINES);
+    // Grow/shrink as the user types (covers typing, pasting and Shift+Enter).
+    textarea.addEventListener('input', () => autoGrow(textarea, INLINE_EDIT_MAX_LINES));
     let done = false;
     const finish = (commit) => {
         if (done)
@@ -1756,6 +1798,7 @@ function startInlineEdit(host, initial, onSave) {
     };
     textarea.addEventListener('blur', () => finish(true));
     textarea.addEventListener('keydown', (e) => {
+        // Enter commits; Shift+Enter inserts a newline (handled natively).
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             finish(true);
