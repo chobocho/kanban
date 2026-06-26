@@ -13,15 +13,6 @@
     <div class="toolbar-group">
       <label class="visually-hidden" for="boardSelect" data-i18n="boards">보드</label>
       <select id="boardSelect" class="control" title="boards"></select>
-      <button id="newBoardBtn" class="control icon-control" data-i18n-title="newBoard">🆕</button>
-      <button id="renameBoardBtn" class="control icon-control" data-i18n-title="rename">✏️</button>
-      <button id="deleteBoardBtn" class="control icon-control" data-i18n-title="delete">🗑️</button>
-      <button id="archiveBtn" class="control icon-control" data-i18n-title="archiveView">🗄️</button>
-    </div>
-
-    <div class="toolbar-group">
-      <button id="undoBtn" class="control icon-control" data-i18n-title="undo">↶</button>
-      <button id="redoBtn" class="control icon-control" data-i18n-title="redo">↷</button>
     </div>
 
     <div class="toolbar-group filter-group">
@@ -32,25 +23,73 @@
       <div id="filterPanel" class="filter-panel" hidden></div>
     </div>
 
-    <div class="toolbar-group">
-      <button id="zoomOutBtn" class="control icon-control" data-i18n-title="zoomOut">🔍➖</button>
-      <button id="zoomResetBtn" class="control icon-control" data-i18n-title="zoomReset">↩️</button>
-      <button id="zoomInBtn" class="control icon-control" data-i18n-title="zoomIn">🔍➕</button>
-    </div>
+    <div class="toolbar-group menu-group">
+      <button id="menuBtn" class="control icon-control" data-i18n-title="menu">☰</button>
+      <div id="menuPanel" class="menu-panel" hidden>
+        <div class="menu-section">
+          <div class="menu-title" data-i18n="edit">편집</div>
+          <button id="undoBtn" class="menu-item" data-keep-menu>
+            <span class="menu-icon">↶</span><span class="menu-label" data-i18n="undo">실행 취소</span>
+          </button>
+          <button id="redoBtn" class="menu-item" data-keep-menu>
+            <span class="menu-icon">↷</span><span class="menu-label" data-i18n="redo">다시 실행</span>
+          </button>
+        </div>
 
-    <div class="toolbar-group">
-      <button id="exportJsonBtn" class="control icon-control" data-i18n-title="exportJson">💾</button>
-      <label class="control icon-control file-label" for="importJsonInput" data-i18n-title="importJson">📂</label>
-      <input id="importJsonInput" type="file" accept="application/json,.json" hidden />
-      <button id="exportPngBtn" class="control icon-control" data-i18n-title="exportPng">🖼️</button>
-    </div>
+        <div class="menu-section">
+          <div class="menu-title" data-i18n="boards">보드</div>
+          <button id="newBoardBtn" class="menu-item">
+            <span class="menu-icon">🆕</span><span class="menu-label" data-i18n="newBoard">새 보드</span>
+          </button>
+          <button id="renameBoardBtn" class="menu-item">
+            <span class="menu-icon">✏️</span><span class="menu-label" data-i18n="rename">이름 변경</span>
+          </button>
+          <button id="deleteBoardBtn" class="menu-item">
+            <span class="menu-icon">🗑️</span><span class="menu-label" data-i18n="delete">삭제</span>
+          </button>
+          <button id="archiveBtn" class="menu-item">
+            <span class="menu-icon">🗄️</span><span class="menu-label" data-i18n="archiveView">보관함</span>
+          </button>
+        </div>
 
-    <div class="toolbar-group">
-      <label class="visually-hidden" for="langSelect" data-i18n="language">언어</label>
-      <select id="langSelect" class="control" title="language">
-        <option value="ko">한국어</option>
-        <option value="en">English</option>
-      </select>
+        <div class="menu-section">
+          <div class="menu-title" data-i18n="view">보기</div>
+          <button id="zoomInBtn" class="menu-item">
+            <span class="menu-icon">🔍➕</span><span class="menu-label" data-i18n="zoomIn">확대</span>
+          </button>
+          <button id="zoomOutBtn" class="menu-item">
+            <span class="menu-icon">🔍➖</span><span class="menu-label" data-i18n="zoomOut">축소</span>
+          </button>
+          <button id="zoomResetBtn" class="menu-item">
+            <span class="menu-icon">↩️</span><span class="menu-label" data-i18n="zoomReset">원래대로</span>
+          </button>
+        </div>
+
+        <div class="menu-section">
+          <div class="menu-title" data-i18n="data">데이터</div>
+          <button id="exportJsonBtn" class="menu-item">
+            <span class="menu-icon">💾</span><span class="menu-label" data-i18n="exportJson">JSON 내보내기</span>
+          </button>
+          <label id="importJsonLabel" class="menu-item" for="importJsonInput">
+            <span class="menu-icon">📂</span><span class="menu-label" data-i18n="importJson">JSON 가져오기</span>
+          </label>
+          <input id="importJsonInput" type="file" accept="application/json,.json" hidden />
+          <button id="exportPngBtn" class="menu-item">
+            <span class="menu-icon">🖼️</span><span class="menu-label" data-i18n="exportPng">PNG 저장</span>
+          </button>
+        </div>
+
+        <div class="menu-section">
+          <div class="menu-title" data-i18n="language">언어</div>
+          <div class="menu-row">
+            <span class="menu-icon">🌐</span>
+            <select id="langSelect" class="control menu-select" title="language">
+              <option value="ko">한국어</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
 

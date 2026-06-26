@@ -56,8 +56,11 @@ try {
   const cols2 = await page.locator('.column').count();
   assert(cols2 === 4, `add-column adds a list (got ${cols2})`);
 
-  // Undo reverts the column add; redo restores it (state left unchanged after).
+  // Undo reverts the column add; redo restores it (both live in the menu, which
+  // stays open across undo/redo clicks).
   assert(!(await page.locator('#undoBtn').isDisabled()), 'undo enabled after edits');
+  await page.locator('#menuBtn').click();
+  await page.waitForSelector('#menuPanel:not([hidden])', { timeout: 3000 });
   await page.locator('#undoBtn').click();
   await page.waitForTimeout(100);
   const colsUndo = await page.locator('.column').count();
@@ -66,18 +69,25 @@ try {
   await page.waitForTimeout(100);
   const colsRedo = await page.locator('.column').count();
   assert(colsRedo === 4, `redo restores add-column (got ${colsRedo})`);
+  await page.locator('#menuBtn').click(); // close the menu
 
-  // Language switch to English updates labels (now in tooltips).
+  // The overflow menu opens and holds the secondary controls.
+  await page.locator('#menuBtn').click();
+  await page.waitForSelector('#menuPanel:not([hidden])', { timeout: 3000 });
+  assert(true, 'overflow menu opens');
+
+  // Language switch to English updates labels (menu closes on change).
   await page.selectOption('#langSelect', 'en');
   await page.waitForTimeout(100);
   const addColText = await page.locator('[data-add-column]').textContent();
   assert(addColText.trim() === '➕', `add-column shows an emoji icon (got "${addColText}")`);
   const addColTitle = await page.locator('[data-add-column]').getAttribute('title');
   assert(addColTitle.includes('Add list'), `language switch updates tooltip (got "${addColTitle}")`);
-  const newBoardTitle = await page.locator('#newBoardBtn').getAttribute('title');
-  assert(newBoardTitle === 'New board', `toolbar tooltip localized (got "${newBoardTitle}")`);
+  await page.locator('#menuBtn').click();
+  const newBoardLabel = await page.locator('#newBoardBtn .menu-label').textContent();
+  assert(newBoardLabel.trim() === 'New board', `menu label localized (got "${newBoardLabel}")`);
 
-  // Zoom button changes the scale transform.
+  // Zoom button (in the menu) changes the scale transform.
   await page.locator('#zoomInBtn').click();
   const transform = await page.locator('#boardScale').evaluate((el) => el.style.transform);
   assert(/scale\(/.test(transform), `zoom applies a transform (got "${transform}")`);
@@ -167,6 +177,7 @@ try {
   const afterArchive = await page.locator('.card').count();
   assert(afterArchive === 0, `archiving removes the card from the board (got ${afterArchive})`);
 
+  await page.locator('#menuBtn').click();
   await page.locator('#archiveBtn').click();
   await page.waitForSelector('.card-archive', { timeout: 3000 });
   const archivedRows = await page.locator('.archive-row').count();
@@ -181,6 +192,7 @@ try {
 
   // Custom modal (replaces native prompt): create a board via the dialog.
   const boardsBefore = await page.locator('#boardSelect option').count();
+  await page.locator('#menuBtn').click();
   await page.locator('#newBoardBtn').click();
   await page.waitForSelector('.modal-dialog', { timeout: 3000 });
   assert(true, 'custom modal opens for new board (no native prompt)');
@@ -194,6 +206,7 @@ try {
   assert(selectedText === 'Project X', `new board uses entered name (got "${selectedText}")`);
 
   // Cancelling the modal makes no change.
+  await page.locator('#menuBtn').click();
   await page.locator('#newBoardBtn').click();
   await page.waitForSelector('.modal-dialog', { timeout: 3000 });
   await page.locator('.modal-cancel').click();

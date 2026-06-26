@@ -59,6 +59,8 @@ export class KanbanApp {
   private readonly filterBtn: HTMLButtonElement;
   private readonly filterClearBtn: HTMLButtonElement;
   private readonly filterPanel: HTMLElement;
+  private readonly menuBtn: HTMLButtonElement;
+  private readonly menuPanel: HTMLElement;
 
   constructor(private readonly doc: Document) {
     this.columnsEl = this.byId('columns');
@@ -70,6 +72,8 @@ export class KanbanApp {
     this.filterBtn = this.byId('filterBtn') as HTMLButtonElement;
     this.filterClearBtn = this.byId('filterClearBtn') as HTMLButtonElement;
     this.filterPanel = this.byId('filterPanel');
+    this.menuBtn = this.byId('menuBtn') as HTMLButtonElement;
+    this.menuPanel = this.byId('menuPanel');
   }
 
   private byId(id: string): HTMLElement {
@@ -119,7 +123,29 @@ export class KanbanApp {
     // Ctrl/Cmd+Z to undo, Ctrl/Cmd+Shift+Z or Ctrl+Y to redo.
     this.doc.addEventListener('keydown', (e) => this.onKeyDown(e));
 
+    // Dismiss the filter/overflow popovers when clicking outside of them.
+    this.doc.addEventListener('pointerdown', (e) => this.closePanelsOnOutside(e), true);
+
     this.render();
+  }
+
+  /** Close a popover when a pointer goes down outside it and its toggle button. */
+  private closePanelsOnOutside(e: Event): void {
+    const target = e.target as Node;
+    if (
+      !this.filterPanel.hidden &&
+      !this.filterPanel.contains(target) &&
+      !this.filterBtn.contains(target)
+    ) {
+      this.filterPanel.hidden = true;
+    }
+    if (
+      !this.menuPanel.hidden &&
+      !this.menuPanel.contains(target) &&
+      !this.menuBtn.contains(target)
+    ) {
+      this.menuPanel.hidden = true;
+    }
   }
 
   private onKeyDown(e: KeyboardEvent): void {
@@ -243,6 +269,18 @@ export class KanbanApp {
 
     this.langSelect.addEventListener('change', () => {
       this.setLang(this.langSelect.value as Language);
+      this.menuPanel.hidden = true;
+    });
+
+    // Overflow menu: toggle, and close after an action is chosen.
+    this.menuBtn.addEventListener('click', () => {
+      this.menuPanel.hidden = !this.menuPanel.hidden;
+    });
+    this.menuPanel.addEventListener('click', (e) => {
+      const el = e.target as HTMLElement;
+      // Undo/redo stay open so they can be tapped repeatedly.
+      if (el.closest('[data-keep-menu]')) return;
+      if (el.closest('button, label')) this.menuPanel.hidden = true;
     });
 
     this.undoBtn.addEventListener('click', () => this.undo());

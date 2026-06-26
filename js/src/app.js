@@ -35,6 +35,8 @@ export class KanbanApp {
         this.filterBtn = this.byId('filterBtn');
         this.filterClearBtn = this.byId('filterClearBtn');
         this.filterPanel = this.byId('filterPanel');
+        this.menuBtn = this.byId('menuBtn');
+        this.menuPanel = this.byId('menuPanel');
     }
     byId(id) {
         const node = this.doc.getElementById(id);
@@ -80,7 +82,23 @@ export class KanbanApp {
         });
         // Ctrl/Cmd+Z to undo, Ctrl/Cmd+Shift+Z or Ctrl+Y to redo.
         this.doc.addEventListener('keydown', (e) => this.onKeyDown(e));
+        // Dismiss the filter/overflow popovers when clicking outside of them.
+        this.doc.addEventListener('pointerdown', (e) => this.closePanelsOnOutside(e), true);
         this.render();
+    }
+    /** Close a popover when a pointer goes down outside it and its toggle button. */
+    closePanelsOnOutside(e) {
+        const target = e.target;
+        if (!this.filterPanel.hidden &&
+            !this.filterPanel.contains(target) &&
+            !this.filterBtn.contains(target)) {
+            this.filterPanel.hidden = true;
+        }
+        if (!this.menuPanel.hidden &&
+            !this.menuPanel.contains(target) &&
+            !this.menuBtn.contains(target)) {
+            this.menuPanel.hidden = true;
+        }
     }
     onKeyDown(e) {
         if (!(e.ctrlKey || e.metaKey))
@@ -212,6 +230,19 @@ export class KanbanApp {
         });
         this.langSelect.addEventListener('change', () => {
             this.setLang(this.langSelect.value);
+            this.menuPanel.hidden = true;
+        });
+        // Overflow menu: toggle, and close after an action is chosen.
+        this.menuBtn.addEventListener('click', () => {
+            this.menuPanel.hidden = !this.menuPanel.hidden;
+        });
+        this.menuPanel.addEventListener('click', (e) => {
+            const el = e.target;
+            // Undo/redo stay open so they can be tapped repeatedly.
+            if (el.closest('[data-keep-menu]'))
+                return;
+            if (el.closest('button, label'))
+                this.menuPanel.hidden = true;
         });
         this.undoBtn.addEventListener('click', () => this.undo());
         this.redoBtn.addEventListener('click', () => this.redo());
