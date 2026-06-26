@@ -28,15 +28,25 @@ function autoGrow(textarea, maxLines) {
     textarea.style.height = `${Math.min(needed, maxHeight)}px`;
     textarea.style.overflowY = needed > maxHeight ? 'auto' : 'hidden';
 }
-/** Replace a text element with a textarea for inline editing. */
+/** Replace a text element with a textarea (plus submit/cancel buttons) for
+ *  inline editing. Enter inserts a newline; commit is explicit via the ✓ button
+ *  (or by tapping away), so the editor works without a physical keyboard. */
 function startInlineEdit(host, initial, onSave) {
+    const wrap = el('div', 'inline-edit-wrap');
     const textarea = el('textarea', 'inline-edit');
     textarea.value = initial;
-    host.replaceWith(textarea);
+    const actions = el('div', 'inline-edit-actions');
+    const cancelBtn = el('button', 'inline-edit-btn inline-edit-cancel', '✕');
+    cancelBtn.title = t('cancel');
+    const okBtn = el('button', 'inline-edit-btn inline-edit-ok', '✓');
+    okBtn.title = t('save');
+    actions.append(cancelBtn, okBtn);
+    wrap.append(textarea, actions);
+    host.replaceWith(wrap);
     textarea.focus();
     textarea.select();
     autoGrow(textarea, INLINE_EDIT_MAX_LINES);
-    // Grow/shrink as the user types (covers typing, pasting and Shift+Enter).
+    // Grow/shrink as the user types (covers typing, pasting and newlines).
     textarea.addEventListener('input', () => autoGrow(textarea, INLINE_EDIT_MAX_LINES));
     let done = false;
     const finish = (commit) => {
@@ -48,18 +58,27 @@ function startInlineEdit(host, initial, onSave) {
         else
             onSave(initial); // re-render restores original
     };
-    textarea.addEventListener('blur', () => finish(true));
+    // Commit when focus leaves the whole editor (e.g. tapping another card), but
+    // not when it moves to one of our own buttons.
+    textarea.addEventListener('blur', (e) => {
+        const next = e.relatedTarget;
+        if (next instanceof Node && wrap.contains(next))
+            return;
+        finish(true);
+    });
     textarea.addEventListener('keydown', (e) => {
-        // Enter commits; Shift+Enter inserts a newline (handled natively).
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            finish(true);
-        }
-        else if (e.key === 'Escape') {
+        // Enter inserts a newline (native); only Escape exits, discarding edits.
+        if (e.key === 'Escape') {
             e.preventDefault();
             finish(false);
         }
     });
+    // Keep the textarea focused while a button is pressed so its blur handler does
+    // not commit before the button's own action runs (matters on touch devices).
+    cancelBtn.addEventListener('pointerdown', (e) => e.preventDefault());
+    okBtn.addEventListener('pointerdown', (e) => e.preventDefault());
+    cancelBtn.addEventListener('click', () => finish(false));
+    okBtn.addEventListener('click', () => finish(true));
 }
 function renderCard(card, column, handlers) {
     const node = el('div', 'card');
