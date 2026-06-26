@@ -12,6 +12,22 @@ function el(tag, className, text) {
         node.textContent = text;
     return node;
 }
+/** Maximum visible height of an inline editor, in text lines. */
+const INLINE_EDIT_MAX_LINES = 20;
+/** Resize a textarea to fit its content, capped at `maxLines` lines. */
+function autoGrow(textarea, maxLines) {
+    const style = getComputedStyle(textarea);
+    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
+    const verticalPadding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+    const verticalBorder = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+    const maxHeight = lineHeight * maxLines + verticalPadding + verticalBorder;
+    // Shrink first so the textarea can grow *and* shrink with the content.
+    textarea.style.height = 'auto';
+    // scrollHeight covers content + padding; add the border for box-sizing: border-box.
+    const needed = textarea.scrollHeight + verticalBorder;
+    textarea.style.height = `${Math.min(needed, maxHeight)}px`;
+    textarea.style.overflowY = needed > maxHeight ? 'auto' : 'hidden';
+}
 /** Replace a text element with a textarea for inline editing. */
 function startInlineEdit(host, initial, onSave) {
     const textarea = el('textarea', 'inline-edit');
@@ -19,6 +35,9 @@ function startInlineEdit(host, initial, onSave) {
     host.replaceWith(textarea);
     textarea.focus();
     textarea.select();
+    autoGrow(textarea, INLINE_EDIT_MAX_LINES);
+    // Grow/shrink as the user types (covers typing, pasting and Shift+Enter).
+    textarea.addEventListener('input', () => autoGrow(textarea, INLINE_EDIT_MAX_LINES));
     let done = false;
     const finish = (commit) => {
         if (done)
@@ -31,6 +50,7 @@ function startInlineEdit(host, initial, onSave) {
     };
     textarea.addEventListener('blur', () => finish(true));
     textarea.addEventListener('keydown', (e) => {
+        // Enter commits; Shift+Enter inserts a newline (handled natively).
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             finish(true);

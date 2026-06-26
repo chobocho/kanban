@@ -262,10 +262,14 @@ select.control {
 .inline-edit {
   width: 100%;
   font: inherit;
+  line-height: 1.4;
+  box-sizing: border-box;
   border: 2px solid var(--bg);
   border-radius: 4px;
   padding: 6px;
-  resize: vertical;
+  /* Height is managed by autoGrow() (grows with content up to 20 lines). */
+  resize: none;
+  overflow-y: hidden;
   min-height: 38px;
 }
 
