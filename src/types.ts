@@ -18,6 +18,10 @@ export interface Card {
   description: string;
   /** Ids of the board labels applied to this card. */
   labelIds: string[];
+  /** Due date as a timestamp (ms), or null when none is set. */
+  dueAt: number | null;
+  /** Whether the due date has been marked complete. */
+  dueDone: boolean;
   /** Optional accent color (hex). Empty means default. */
   color: string;
   createdAt: number;

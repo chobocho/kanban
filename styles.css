@@ -582,10 +582,12 @@ select.control {
   background: #dfe1e6;
 }
 
-/* Description badge on the card face. */
+/* Description / due-date badges on the card face. */
 .card-badges {
   display: flex;
-  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
   margin-top: 4px;
 }
 
@@ -593,6 +595,78 @@ select.control {
   font-size: 12px;
   line-height: 1;
   opacity: 0.7;
+}
+
+.card-due {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 600;
+  opacity: 1;
+  background: #ebecf0;
+  color: var(--text);
+}
+
+.card-due.is-overdue {
+  background: #ffebe6;
+  color: #bf2600;
+}
+
+.card-due.is-soon {
+  background: #fffae6;
+  color: #974f0c;
+}
+
+.card-due.is-done {
+  background: #e3fcef;
+  color: #006644;
+  text-decoration: line-through;
+}
+
+/* Due-date controls inside the card detail modal. */
+.card-detail-due {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-detail-due-input {
+  font: inherit;
+  font-size: 15px;
+  padding: 8px 10px;
+  border: 2px solid #c1c7d0;
+  border-radius: 6px;
+}
+
+.card-detail-due-input:focus {
+  outline: none;
+  border-color: var(--bg);
+}
+
+.card-detail-due-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.card-detail-due-clear {
+  font: inherit;
+  font-size: 14px;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #ebecf0;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.card-detail-due-clear:hover {
+  background: #dfe1e6;
 }
 
 @keyframes modal-fade {

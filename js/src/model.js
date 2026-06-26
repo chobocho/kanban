@@ -20,6 +20,8 @@ export function createCard(text) {
         text,
         description: '',
         labelIds: [],
+        dueAt: null,
+        dueDone: false,
         color: '',
         createdAt: Date.now(),
     };
@@ -118,6 +120,10 @@ export function updateCard(board, columnId, cardId, patch) {
         card.text = patch.text;
     if (patch.description !== undefined)
         card.description = patch.description;
+    if (patch.dueAt !== undefined)
+        card.dueAt = patch.dueAt;
+    if (patch.dueDone !== undefined)
+        card.dueDone = patch.dueDone;
     if (patch.color !== undefined)
         card.color = patch.color;
     touch(board);

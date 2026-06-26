@@ -122,6 +122,10 @@ export interface CardDetailInit {
   description: string;
   color: string;
   createdAt: number;
+  /** Current due date (ms) or null when unset. */
+  dueAt: number | null;
+  /** Whether the due date is marked complete. */
+  dueDone: boolean;
   /** Accent palette to offer; the first (empty) entry means "no accent". */
   colors: readonly string[];
   /** The board's shared labels (mutated in place when renamed). */
@@ -130,14 +134,40 @@ export interface CardDetailInit {
   assignedLabelIds: string[];
 }
 
+/** Fields saved when the card detail modal is committed. */
+export interface CardDetailPatch {
+  text: string;
+  description: string;
+  dueAt: number | null;
+  dueDone: boolean;
+  color: string;
+}
+
 /** Callbacks invoked by the card detail modal. */
 export interface CardDetailCallbacks {
-  onSave(patch: { text: string; description: string; color: string }): void;
+  onSave(patch: CardDetailPatch): void;
   onDelete(): void;
   /** Assign/unassign a label on the card. */
   onToggleLabel(labelId: string): void;
   /** Rename a board label (applies everywhere it is used). */
   onRenameLabel(labelId: string, name: string): void;
+}
+
+/** Convert a timestamp to a `datetime-local` input value in local time. */
+function toLocalInputValue(ts: number): string {
+  const d = new Date(ts);
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
+
+/** Parse a `datetime-local` value (local time) back into a timestamp or null. */
+function fromLocalInputValue(value: string): number | null {
+  if (!value) return null;
+  const ts = new Date(value).getTime();
+  return Number.isFinite(ts) ? ts : null;
 }
 
 /** Format a timestamp using the active language's locale. */
@@ -219,6 +249,35 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     };
     renderLabels();
 
+    // --- Due date: a datetime picker, a "done" toggle and a clear button. ---
+    addLabel(t('dueDate'));
+    const dueRow = document.createElement('div');
+    dueRow.className = 'card-detail-due';
+
+    const dueInput = document.createElement('input');
+    dueInput.className = 'card-detail-due-input';
+    dueInput.type = 'datetime-local';
+    if (init.dueAt != null) dueInput.value = toLocalInputValue(init.dueAt);
+
+    const doneLabel = document.createElement('label');
+    doneLabel.className = 'card-detail-due-done';
+    const doneCheck = document.createElement('input');
+    doneCheck.type = 'checkbox';
+    doneCheck.checked = init.dueDone;
+    doneLabel.append(doneCheck, document.createTextNode(t('dueComplete')));
+
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'card-detail-due-clear';
+    clearBtn.textContent = t('clear');
+    clearBtn.addEventListener('click', () => {
+      dueInput.value = '';
+      doneCheck.checked = false;
+    });
+
+    dueRow.append(dueInput, doneLabel, clearBtn);
+    dialog.appendChild(dueRow);
+
     addLabel(t('description'));
     const desc = document.createElement('textarea');
     desc.className = 'card-detail-desc';
@@ -261,9 +320,12 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
       resolve();
     };
     const save = (): void => {
+      const dueAt = fromLocalInputValue(dueInput.value);
       cb.onSave({
         text: title.value.trim(),
         description: desc.value.trim(),
+        dueAt,
+        dueDone: dueAt != null && doneCheck.checked,
         color: selectedColor,
       });
       close();

@@ -175,6 +175,8 @@ export class KanbanApp {
             description: card.description,
             color: card.color,
             createdAt: card.createdAt,
+            dueAt: card.dueAt,
+            dueDone: card.dueDone,
             colors: CARD_COLORS,
             labels: board.labels,
             assignedLabelIds: card.labelIds.slice(),

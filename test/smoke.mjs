@@ -126,10 +126,23 @@ try {
   // Assign the first label from the detail modal; it applies immediately.
   await page.locator('.card-detail-label-chip').first().click();
   await page.waitForTimeout(100);
-  await page.locator('.card-detail .modal-cancel').click();
+  // Set a far-future due date, then save (applies on Save).
+  await page.locator('.card-detail-due-input').fill('2031-01-02T10:30');
+  await page.locator('.card-detail .modal-ok').click();
   await page.waitForTimeout(100);
   const labelChips = await page.locator('.column').nth(1).locator('.card-label').count();
   assert(labelChips === 1, `assigning a label shows a chip on the card (got ${labelChips})`);
+  const dueBadge = await page.locator('.column').nth(1).locator('.card-due').count();
+  assert(dueBadge === 1, `setting a due date shows a due badge (got ${dueBadge})`);
+
+  // Reopen and confirm the due date round-trips into the picker.
+  await detailCard.hover();
+  await detailCard.locator('.icon-btn[title="Open card details"]').click();
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  const dueVal = await page.locator('.card-detail-due-input').inputValue();
+  assert(dueVal === '2031-01-02T10:30', `due date round-trips (got "${dueVal}")`);
+  await page.locator('.card-detail .modal-cancel').click();
+  await page.waitForTimeout(100);
 
   // Custom modal (replaces native prompt): create a board via the dialog.
   const boardsBefore = await page.locator('#boardSelect option').count();

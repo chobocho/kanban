@@ -30,6 +30,19 @@ test('partial board is repaired with defaults', () => {
   assertEqual(data.boards[0].columns[0].cards[0].description, '', 'description defaulted');
   assertEqual(data.boards[0].columns[0].cards[0].labelIds.length, 0, 'labelIds defaulted');
   assert(data.boards[0].labels.length > 0, 'labels seeded for legacy board');
+  assertEqual(data.boards[0].columns[0].cards[0].dueAt, null, 'dueAt defaulted to null');
+  assertEqual(data.boards[0].columns[0].cards[0].dueDone, false, 'dueDone defaulted');
+});
+
+test('a valid stored due date is preserved', () => {
+  const data = normalizeAppData({
+    boards: [
+      { id: 'b1', name: 'A', columns: [{ title: 'C', cards: [{ text: 'x', dueAt: 1234, dueDone: true }] }] },
+    ],
+  });
+  const card = data.boards[0].columns[0].cards[0];
+  assertEqual(card.dueAt, 1234, 'due date kept');
+  assertEqual(card.dueDone, true, 'dueDone kept');
 });
 
 test('stored labels are kept and dangling card references are dropped', () => {

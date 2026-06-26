@@ -3,7 +3,7 @@
 // and storage concerns. Data attributes drive the drag-and-drop controller.
 
 import { Board, Card, Column, Label } from './types.js';
-import { t } from './i18n.js';
+import { getLanguage, t } from './i18n.js';
 
 export interface RenderHandlers {
   addCard(colId: string): void;
@@ -18,6 +18,29 @@ export interface RenderHandlers {
 
 /** Card accent colors cycled by the palette button (empty = no accent). */
 export const CARD_COLORS = ['', '#ef5350', '#ffa726', '#ffee58', '#66bb6a', '#42a5f5', '#ab47bc'];
+
+/** A due date is "soon" when it falls within this window from now (24h). */
+const DUE_SOON_MS = 24 * 60 * 60 * 1000;
+
+/** Classify a card's due date for badge styling. */
+function dueStatus(card: Card): 'done' | 'overdue' | 'soon' | 'upcoming' {
+  if (card.dueDone) return 'done';
+  const remaining = (card.dueAt ?? 0) - Date.now();
+  if (remaining < 0) return 'overdue';
+  if (remaining < DUE_SOON_MS) return 'soon';
+  return 'upcoming';
+}
+
+/** Short, locale-aware due-date label, e.g. "6/30 14:00". */
+function formatDueShort(ts: number): string {
+  const locale = getLanguage() === 'en' ? 'en-US' : 'ko-KR';
+  return new Date(ts).toLocaleString(locale, {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -145,14 +168,20 @@ function renderCard(
   });
   node.appendChild(text);
 
-  // Badge hinting that the card carries a description (Trello-style).
+  // Badges row: due date (if any) and a description hint (Trello-style).
+  const badges = el('div', 'card-badges');
+  if (card.dueAt != null) {
+    const status = dueStatus(card);
+    const due = el('span', `card-badge card-due is-${status}`, `🕒 ${formatDueShort(card.dueAt)}`);
+    due.title = t('dueDate');
+    badges.appendChild(due);
+  }
   if (card.description.trim()) {
-    const badge = el('div', 'card-badges');
     const note = el('span', 'card-badge', '📝');
     note.title = t('description');
-    badge.appendChild(note);
-    node.appendChild(badge);
+    badges.appendChild(note);
   }
+  if (badges.children.length > 0) node.appendChild(badges);
 
   const actions = el('div', 'card-actions');
   const openBtn = el('button', 'icon-btn', '🔍');

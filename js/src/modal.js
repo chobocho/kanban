@@ -92,6 +92,20 @@ export function customConfirm(message) {
 export function customPrompt(message, defaultValue = '') {
     return openModal({ kind: 'prompt', message, defaultValue }).then((r) => typeof r === 'string' ? r : null);
 }
+/** Convert a timestamp to a `datetime-local` input value in local time. */
+function toLocalInputValue(ts) {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return (`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+        `T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+}
+/** Parse a `datetime-local` value (local time) back into a timestamp or null. */
+function fromLocalInputValue(value) {
+    if (!value)
+        return null;
+    const ts = new Date(value).getTime();
+    return Number.isFinite(ts) ? ts : null;
+}
 /** Format a timestamp using the active language's locale. */
 function formatDate(ts) {
     const locale = getLanguage() === 'en' ? 'en-US' : 'ko-KR';
@@ -165,6 +179,31 @@ export function openCardDetail(init, cb) {
             }
         };
         renderLabels();
+        // --- Due date: a datetime picker, a "done" toggle and a clear button. ---
+        addLabel(t('dueDate'));
+        const dueRow = document.createElement('div');
+        dueRow.className = 'card-detail-due';
+        const dueInput = document.createElement('input');
+        dueInput.className = 'card-detail-due-input';
+        dueInput.type = 'datetime-local';
+        if (init.dueAt != null)
+            dueInput.value = toLocalInputValue(init.dueAt);
+        const doneLabel = document.createElement('label');
+        doneLabel.className = 'card-detail-due-done';
+        const doneCheck = document.createElement('input');
+        doneCheck.type = 'checkbox';
+        doneCheck.checked = init.dueDone;
+        doneLabel.append(doneCheck, document.createTextNode(t('dueComplete')));
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'card-detail-due-clear';
+        clearBtn.textContent = t('clear');
+        clearBtn.addEventListener('click', () => {
+            dueInput.value = '';
+            doneCheck.checked = false;
+        });
+        dueRow.append(dueInput, doneLabel, clearBtn);
+        dialog.appendChild(dueRow);
         addLabel(t('description'));
         const desc = document.createElement('textarea');
         desc.className = 'card-detail-desc';
@@ -207,9 +246,12 @@ export function openCardDetail(init, cb) {
             resolve();
         };
         const save = () => {
+            const dueAt = fromLocalInputValue(dueInput.value);
             cb.onSave({
                 text: title.value.trim(),
                 description: desc.value.trim(),
+                dueAt,
+                dueDone: dueAt != null && doneCheck.checked,
                 color: selectedColor,
             });
             close();

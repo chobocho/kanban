@@ -86,6 +86,19 @@ test('updateCard patches description independently', () => {
   assertEqual(board.columns[0].cards[0].text, 'a', 'text untouched');
 });
 
+test('updateCard sets and clears the due date', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  assertEqual(card.dueAt, null, 'new card has no due date');
+  assertEqual(card.dueDone, false, 'new card is not complete');
+  assert(updateCard(board, colId, card.id, { dueAt: 1000, dueDone: true }), 'update ok');
+  assertEqual(board.columns[0].cards[0].dueAt, 1000, 'due date set');
+  assertEqual(board.columns[0].cards[0].dueDone, true, 'marked complete');
+  assert(updateCard(board, colId, card.id, { dueAt: null }), 'clear ok');
+  assertEqual(board.columns[0].cards[0].dueAt, null, 'due date cleared');
+});
+
 test('removeCard deletes a card', () => {
   const board = createBoard('b', [createColumn('A')]);
   const colId = board.columns[0].id;

@@ -28,6 +28,8 @@ function normalizeCard(raw) {
         text: asString(obj.text, ''),
         description: asString(obj.description, ''),
         labelIds,
+        dueAt: typeof obj.dueAt === 'number' && Number.isFinite(obj.dueAt) ? obj.dueAt : null,
+        dueDone: obj.dueDone === true,
         color: asString(obj.color, ''),
         createdAt: asNumber(obj.createdAt, Date.now()),
     };

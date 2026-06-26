@@ -25,6 +25,8 @@ export function createCard(text: string): Card {
     text,
     description: '',
     labelIds: [],
+    dueAt: null,
+    dueDone: false,
     color: '',
     createdAt: Date.now(),
   };
@@ -122,7 +124,7 @@ export function updateCard(
   board: Board,
   columnId: string,
   cardId: string,
-  patch: Partial<Pick<Card, 'text' | 'description' | 'color'>>,
+  patch: Partial<Pick<Card, 'text' | 'description' | 'dueAt' | 'dueDone' | 'color'>>,
 ): boolean {
   const column = findColumn(board, columnId);
   if (!column) return false;
@@ -130,6 +132,8 @@ export function updateCard(
   if (!card) return false;
   if (patch.text !== undefined) card.text = patch.text;
   if (patch.description !== undefined) card.description = patch.description;
+  if (patch.dueAt !== undefined) card.dueAt = patch.dueAt;
+  if (patch.dueDone !== undefined) card.dueDone = patch.dueDone;
   if (patch.color !== undefined) card.color = patch.color;
   touch(board);
   return true;
