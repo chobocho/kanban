@@ -28,6 +28,7 @@ export class KanbanApp {
         /** Current search/label/due filter (in-memory, not persisted). */
         this.filter = emptyFilter();
         this.columnsEl = this.byId('columns');
+        this.surfaceEl = this.byId('boardSurface');
         this.boardSelect = this.byId('boardSelect');
         this.langSelect = this.byId('langSelect');
         this.undoBtn = this.byId('undoBtn');
@@ -49,7 +50,7 @@ export class KanbanApp {
     async start() {
         this.data = await loadData();
         setLanguage(this.data.settings.lang);
-        const surface = this.byId('boardSurface');
+        const surface = this.surfaceEl;
         const scale = this.byId('boardScale');
         this.zoom = new ZoomController(scale, surface, (value) => {
             this.data.settings.zoom = value;
@@ -487,8 +488,14 @@ export class KanbanApp {
     }
     render() {
         const board = this.active();
+        // Rebuilding the board clears the DOM, which resets the surface scroll to 0
+        // and snaps the view back to the first list. Capture and restore the scroll
+        // offset so an edit keeps the list the user was working on in view.
+        const { scrollLeft, scrollTop } = this.surfaceEl;
         if (board)
             renderBoard(this.columnsEl, board, this.filter, this.handlers);
+        this.surfaceEl.scrollLeft = scrollLeft;
+        this.surfaceEl.scrollTop = scrollTop;
         this.refreshBoardSelect();
         this.refreshLabels();
         this.refreshFilterUi();
