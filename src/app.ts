@@ -23,6 +23,7 @@ import {
   addComment,
   updateComment,
   removeComment,
+  duplicateCard,
   archiveCard,
   restoreCard,
   deleteArchivedCard,
@@ -236,6 +237,12 @@ export class KanbanApp {
             assignedLabelIds: card.labelIds.slice(),
             checklist: card.checklist,
             comments: card.comments,
+            columnId: colId,
+            columns: board.columns.map((c) => ({
+              id: c.id,
+              title: c.title,
+              cardCount: c.cards.length,
+            })),
           },
           {
             onSave: (patch) => {
@@ -273,6 +280,12 @@ export class KanbanApp {
             },
             onRemoveComment: (commentId) => {
               if (removeComment(board, colId, cardId, commentId)) this.commit();
+            },
+            onCopy: () => {
+              if (duplicateCard(board, colId, cardId)) this.commit();
+            },
+            onMove: (toColumnId, toIndex) => {
+              if (moveCard(board, colId, cardId, toColumnId, toIndex)) this.commit();
             },
           },
         );

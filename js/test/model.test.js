@@ -1,6 +1,6 @@
 // Unit tests for the pure board operations in src/model.ts.
 import { test, assert, assertEqual } from './harness.js';
-import { createDefaultData, createBoard, createColumn, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, getActiveBoard, addLabel, updateLabel, removeLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, addChecklistItem, updateChecklistItem, removeChecklistItem, checklistProgress, addComment, updateComment, removeComment, } from '../src/model.js';
+import { createDefaultData, createBoard, createColumn, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, getActiveBoard, addLabel, updateLabel, removeLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, addChecklistItem, updateChecklistItem, removeChecklistItem, checklistProgress, addComment, updateComment, removeComment, duplicateCard, } from '../src/model.js';
 test('createDefaultData has one board with three columns', () => {
     const data = createDefaultData();
     assertEqual(data.boards.length, 1, 'board count');
@@ -248,6 +248,31 @@ test('comments add newest-first, edit, remove and reject blanks', () => {
     assert(removeComment(board, colId, card.id, id), 'remove ok');
     assertEqual(card.comments.length, 1, 'one left');
     assert(!removeComment(board, colId, card.id, 'missing'), 'unknown remove rejected');
+});
+test('duplicateCard copies content with fresh ids, right after the original', () => {
+    const board = createBoard('b', [createColumn('A')]);
+    const colId = board.columns[0].id;
+    const card = addCard(board, colId, 'original');
+    addCard(board, colId, 'tail');
+    updateCard(board, colId, card.id, { description: 'desc', dueAt: 5000, dueDone: true, color: '#f00' });
+    toggleCardLabel(board, colId, card.id, board.labels[0].id);
+    addChecklistItem(board, colId, card.id, 'step');
+    updateChecklistItem(board, colId, card.id, card.checklist[0].id, { done: true });
+    addComment(board, colId, card.id, 'note');
+    const copy = duplicateCard(board, colId, card.id);
+    assert(copy !== null, 'copy created');
+    assertEqual(board.columns[0].cards.map((c) => c.text).join(','), 'original,original,tail', 'inserted after original');
+    assert(copy.id !== card.id, 'fresh card id');
+    assertEqual(copy.description, 'desc', 'description copied');
+    assertEqual(copy.dueAt, 5000, 'due date copied');
+    assertEqual(copy.dueDone, true, 'due state copied');
+    assertEqual(copy.color, '#f00', 'color copied');
+    assertEqual(copy.labelIds.join(''), card.labelIds.join(''), 'labels copied');
+    assertEqual(copy.checklist.length, 1, 'checklist copied');
+    assertEqual(copy.checklist[0].done, true, 'checklist state copied');
+    assert(copy.checklist[0].id !== card.checklist[0].id, 'fresh checklist item id');
+    assertEqual(copy.comments.length, 0, 'comments are not copied');
+    assertEqual(duplicateCard(board, colId, 'missing'), null, 'unknown card rejected');
 });
 test('getActiveBoard returns the active board', () => {
     const data = createDefaultData();

@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch, } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
@@ -185,6 +185,12 @@ export class KanbanApp {
                     assignedLabelIds: card.labelIds.slice(),
                     checklist: card.checklist,
                     comments: card.comments,
+                    columnId: colId,
+                    columns: board.columns.map((c) => ({
+                        id: c.id,
+                        title: c.title,
+                        cardCount: c.cards.length,
+                    })),
                 }, {
                     onSave: (patch) => {
                         if (updateCard(board, colId, cardId, patch))
@@ -230,6 +236,14 @@ export class KanbanApp {
                     },
                     onRemoveComment: (commentId) => {
                         if (removeComment(board, colId, cardId, commentId))
+                            this.commit();
+                    },
+                    onCopy: () => {
+                        if (duplicateCard(board, colId, cardId))
+                            this.commit();
+                    },
+                    onMove: (toColumnId, toIndex) => {
+                        if (moveCard(board, colId, cardId, toColumnId, toIndex))
                             this.commit();
                     },
                 });

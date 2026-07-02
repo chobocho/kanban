@@ -836,6 +836,39 @@ select.control {
   cursor: pointer;
 }
 
+/* Card actions (copy/move) inside the card detail modal. */
+.card-detail-ops {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.card-detail-op-btn {
+  font: inherit;
+  font-size: 14px;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #ebecf0;
+  cursor: pointer;
+}
+
+.card-detail-op-btn:hover {
+  background: #dfe1e6;
+}
+
+.card-detail-move {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.card-detail-move-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* Comments inside the card detail modal. */
 .card-detail-comments {
   display: flex;

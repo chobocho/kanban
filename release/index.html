@@ -843,6 +843,39 @@ select.control {
   cursor: pointer;
 }
 
+/* Card actions (copy/move) inside the card detail modal. */
+.card-detail-ops {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.card-detail-op-btn {
+  font: inherit;
+  font-size: 14px;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #ebecf0;
+  cursor: pointer;
+}
+
+.card-detail-op-btn:hover {
+  background: #dfe1e6;
+}
+
+.card-detail-move {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.card-detail-move-select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* Comments inside the card detail modal. */
 .card-detail-comments {
   display: flex;
@@ -1305,7 +1338,7 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch } = __require("model");
 const { History } = __require("history");
 const { setLanguage, t } = __require("i18n");
 const { emptyFilter, isFilterActive } = __require("filter");
@@ -1487,6 +1520,12 @@ class KanbanApp {
                     assignedLabelIds: card.labelIds.slice(),
                     checklist: card.checklist,
                     comments: card.comments,
+                    columnId: colId,
+                    columns: board.columns.map((c) => ({
+                        id: c.id,
+                        title: c.title,
+                        cardCount: c.cards.length,
+                    })),
                 }, {
                     onSave: (patch) => {
                         if (updateCard(board, colId, cardId, patch))
@@ -1532,6 +1571,14 @@ class KanbanApp {
                     },
                     onRemoveComment: (commentId) => {
                         if (removeComment(board, colId, cardId, commentId))
+                            this.commit();
+                    },
+                    onCopy: () => {
+                        if (duplicateCard(board, colId, cardId))
+                            this.commit();
+                    },
+                    onMove: (toColumnId, toIndex) => {
+                        if (moveCard(board, colId, cardId, toColumnId, toIndex))
                             this.commit();
                     },
                 });
@@ -2357,6 +2404,12 @@ const translations = {
         checklist: '체크리스트',
         addChecklistItem: '추가',
         checklistItemPlaceholder: '항목을 입력하세요…',
+        actions: '동작',
+        copyCard: '카드 복사',
+        moveCardAction: '카드 이동',
+        list: '리스트',
+        position: '위치',
+        move: '이동',
         comments: '코멘트',
         addComment: '작성',
         commentPlaceholder: '코멘트를 입력하세요…',
@@ -2428,6 +2481,12 @@ const translations = {
         checklist: 'Checklist',
         addChecklistItem: 'Add',
         checklistItemPlaceholder: 'Add an item…',
+        actions: 'Actions',
+        copyCard: 'Copy card',
+        moveCardAction: 'Move card',
+        list: 'List',
+        position: 'Position',
+        move: 'Move',
         comments: 'Comments',
         addComment: 'Add',
         commentPlaceholder: 'Write a comment…',
@@ -3040,6 +3099,70 @@ function openCardDetail(init, cb) {
             swatches.appendChild(swatch);
         }
         dialog.appendChild(swatches);
+        // --- Actions: copy the card, or move it to another list/position. ---
+        addLabel(t('actions'));
+        const opsBox = document.createElement('div');
+        opsBox.className = 'card-detail-ops';
+        dialog.appendChild(opsBox);
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'card-detail-op-btn';
+        copyBtn.textContent = `📑 ${t('copyCard')}`;
+        const moveBtn = document.createElement('button');
+        moveBtn.type = 'button';
+        moveBtn.className = 'card-detail-op-btn';
+        moveBtn.textContent = `📤 ${t('moveCardAction')}`;
+        opsBox.append(copyBtn, moveBtn);
+        // The move picker: destination list + 1-based position + confirm.
+        const moveRow = document.createElement('div');
+        moveRow.className = 'card-detail-move';
+        moveRow.hidden = true;
+        dialog.insertBefore(moveRow, opsBox.nextSibling);
+        const listSelect = document.createElement('select');
+        listSelect.className = 'control card-detail-move-select';
+        listSelect.title = t('list');
+        for (const col of init.columns) {
+            const option = document.createElement('option');
+            option.value = col.id;
+            option.textContent = col.title || ' ';
+            listSelect.appendChild(option);
+        }
+        listSelect.value = init.columnId;
+        const posSelect = document.createElement('select');
+        posSelect.className = 'control card-detail-move-select';
+        posSelect.title = t('position');
+        // A move within the same list keeps the card count; another list gains one.
+        const refreshPositions = () => {
+            posSelect.replaceChildren();
+            const target = init.columns.find((c) => c.id === listSelect.value);
+            if (!target)
+                return;
+            const count = Math.max(1, target.cardCount + (target.id === init.columnId ? 0 : 1));
+            for (let i = 1; i <= count; i++) {
+                const option = document.createElement('option');
+                option.value = String(i - 1);
+                option.textContent = String(i);
+                posSelect.appendChild(option);
+            }
+        };
+        refreshPositions();
+        listSelect.addEventListener('change', refreshPositions);
+        const moveGo = document.createElement('button');
+        moveGo.type = 'button';
+        moveGo.className = 'comment-add-btn';
+        moveGo.textContent = t('move');
+        moveRow.append(listSelect, posSelect, moveGo);
+        moveBtn.addEventListener('click', () => {
+            moveRow.hidden = !moveRow.hidden;
+        });
+        moveGo.addEventListener('click', () => {
+            cb.onMove(listSelect.value, Number(posSelect.value));
+            close();
+        });
+        copyBtn.addEventListener('click', () => {
+            cb.onCopy();
+            close();
+        });
         const meta = document.createElement('div');
         meta.className = 'card-detail-meta';
         meta.textContent = `${t('created')}: ${formatDate(init.createdAt)}`;
@@ -3361,6 +3484,35 @@ function updateCard(board, columnId, cardId, patch) {
     touch(board);
     return true;
 }
+/**
+ * Insert a copy of a card right after the original (Trello's "copy card").
+ * Content travels with the copy (labels, checklist state, due date, color) but
+ * comments do not, and every id is regenerated.
+ */
+function duplicateCard(board, columnId, cardId) {
+    const column = findColumn(board, columnId);
+    if (!column)
+        return null;
+    const index = column.cards.findIndex((c) => c.id === cardId);
+    if (index < 0)
+        return null;
+    const source = column.cards[index];
+    const copy = {
+        id: makeId('card'),
+        text: source.text,
+        description: source.description,
+        labelIds: source.labelIds.slice(),
+        checklist: source.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
+        comments: [],
+        dueAt: source.dueAt,
+        dueDone: source.dueDone,
+        color: source.color,
+        createdAt: Date.now(),
+    };
+    column.cards.splice(index + 1, 0, copy);
+    touch(board);
+    return copy;
+}
 function removeCard(board, columnId, cardId) {
     const column = findColumn(board, columnId);
     if (!column)
@@ -3602,6 +3754,7 @@ __exports.removeColumn = removeColumn;
 __exports.moveColumn = moveColumn;
 __exports.addCard = addCard;
 __exports.updateCard = updateCard;
+__exports.duplicateCard = duplicateCard;
 __exports.removeCard = removeCard;
 __exports.addChecklistItem = addChecklistItem;
 __exports.updateChecklistItem = updateChecklistItem;

@@ -403,6 +403,70 @@ export function openCardDetail(init, cb) {
             swatches.appendChild(swatch);
         }
         dialog.appendChild(swatches);
+        // --- Actions: copy the card, or move it to another list/position. ---
+        addLabel(t('actions'));
+        const opsBox = document.createElement('div');
+        opsBox.className = 'card-detail-ops';
+        dialog.appendChild(opsBox);
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.className = 'card-detail-op-btn';
+        copyBtn.textContent = `📑 ${t('copyCard')}`;
+        const moveBtn = document.createElement('button');
+        moveBtn.type = 'button';
+        moveBtn.className = 'card-detail-op-btn';
+        moveBtn.textContent = `📤 ${t('moveCardAction')}`;
+        opsBox.append(copyBtn, moveBtn);
+        // The move picker: destination list + 1-based position + confirm.
+        const moveRow = document.createElement('div');
+        moveRow.className = 'card-detail-move';
+        moveRow.hidden = true;
+        dialog.insertBefore(moveRow, opsBox.nextSibling);
+        const listSelect = document.createElement('select');
+        listSelect.className = 'control card-detail-move-select';
+        listSelect.title = t('list');
+        for (const col of init.columns) {
+            const option = document.createElement('option');
+            option.value = col.id;
+            option.textContent = col.title || ' ';
+            listSelect.appendChild(option);
+        }
+        listSelect.value = init.columnId;
+        const posSelect = document.createElement('select');
+        posSelect.className = 'control card-detail-move-select';
+        posSelect.title = t('position');
+        // A move within the same list keeps the card count; another list gains one.
+        const refreshPositions = () => {
+            posSelect.replaceChildren();
+            const target = init.columns.find((c) => c.id === listSelect.value);
+            if (!target)
+                return;
+            const count = Math.max(1, target.cardCount + (target.id === init.columnId ? 0 : 1));
+            for (let i = 1; i <= count; i++) {
+                const option = document.createElement('option');
+                option.value = String(i - 1);
+                option.textContent = String(i);
+                posSelect.appendChild(option);
+            }
+        };
+        refreshPositions();
+        listSelect.addEventListener('change', refreshPositions);
+        const moveGo = document.createElement('button');
+        moveGo.type = 'button';
+        moveGo.className = 'comment-add-btn';
+        moveGo.textContent = t('move');
+        moveRow.append(listSelect, posSelect, moveGo);
+        moveBtn.addEventListener('click', () => {
+            moveRow.hidden = !moveRow.hidden;
+        });
+        moveGo.addEventListener('click', () => {
+            cb.onMove(listSelect.value, Number(posSelect.value));
+            close();
+        });
+        copyBtn.addEventListener('click', () => {
+            cb.onCopy();
+            close();
+        });
         const meta = document.createElement('div');
         meta.className = 'card-detail-meta';
         meta.textContent = `${t('created')}: ${formatDate(init.createdAt)}`;

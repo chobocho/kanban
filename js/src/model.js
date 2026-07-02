@@ -140,6 +140,35 @@ export function updateCard(board, columnId, cardId, patch) {
     touch(board);
     return true;
 }
+/**
+ * Insert a copy of a card right after the original (Trello's "copy card").
+ * Content travels with the copy (labels, checklist state, due date, color) but
+ * comments do not, and every id is regenerated.
+ */
+export function duplicateCard(board, columnId, cardId) {
+    const column = findColumn(board, columnId);
+    if (!column)
+        return null;
+    const index = column.cards.findIndex((c) => c.id === cardId);
+    if (index < 0)
+        return null;
+    const source = column.cards[index];
+    const copy = {
+        id: makeId('card'),
+        text: source.text,
+        description: source.description,
+        labelIds: source.labelIds.slice(),
+        checklist: source.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
+        comments: [],
+        dueAt: source.dueAt,
+        dueDone: source.dueDone,
+        color: source.color,
+        createdAt: Date.now(),
+    };
+    column.cards.splice(index + 1, 0, copy);
+    touch(board);
+    return copy;
+}
 export function removeCard(board, columnId, cardId) {
     const column = findColumn(board, columnId);
     if (!column)
