@@ -17,6 +17,13 @@ export interface ChecklistItem {
   done: boolean;
 }
 
+/** A comment left on a card (newest first). */
+export interface Comment {
+  id: string;
+  text: string;
+  createdAt: number;
+}
+
 /** A single card belonging to a column. */
 export interface Card {
   id: string;
@@ -27,6 +34,8 @@ export interface Card {
   labelIds: string[];
   /** Checklist items (ordered) shown on the card's back. */
   checklist: ChecklistItem[];
+  /** Comments (newest first) shown on the card's back. */
+  comments: Comment[];
   /** Due date as a timestamp (ms), or null when none is set. */
   dueAt: number | null;
   /** Whether the due date has been marked complete. */

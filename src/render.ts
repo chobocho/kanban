@@ -183,6 +183,11 @@ function renderCard(
     note.title = t('description');
     badges.appendChild(note);
   }
+  if (card.comments.length > 0) {
+    const cmt = el('span', 'card-badge', `💬 ${card.comments.length}`);
+    cmt.title = t('comments');
+    badges.appendChild(cmt);
+  }
   const progress = checklistProgress(card);
   if (progress.total > 0) {
     const complete = progress.done === progress.total;

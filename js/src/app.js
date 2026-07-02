@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch, } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
@@ -184,6 +184,7 @@ export class KanbanApp {
                     labels: board.labels,
                     assignedLabelIds: card.labelIds.slice(),
                     checklist: card.checklist,
+                    comments: card.comments,
                 }, {
                     onSave: (patch) => {
                         if (updateCard(board, colId, cardId, patch))
@@ -217,6 +218,18 @@ export class KanbanApp {
                     },
                     onRemoveChecklistItem: (itemId) => {
                         if (removeChecklistItem(board, colId, cardId, itemId))
+                            this.commit();
+                    },
+                    onAddComment: (text) => {
+                        if (addComment(board, colId, cardId, text))
+                            this.commit();
+                    },
+                    onEditComment: (commentId, text) => {
+                        if (updateComment(board, colId, cardId, commentId, text))
+                            this.commit();
+                    },
+                    onRemoveComment: (commentId) => {
+                        if (removeComment(board, colId, cardId, commentId))
                             this.commit();
                     },
                 });

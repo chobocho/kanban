@@ -14,6 +14,7 @@ function card(patch: Partial<Card>): Card {
     description: '',
     labelIds: [],
     checklist: [],
+    comments: [],
     dueAt: null,
     dueDone: false,
     color: '',

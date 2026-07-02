@@ -71,6 +71,30 @@ test('valid archived cards are kept and junk entries dropped', () => {
     assertEqual(data.boards[0].archived[0].card.text, 'kept', 'archived card text kept');
     assertEqual(data.boards[0].archived[0].columnId, 'c1', 'origin column kept');
 });
+test('comments are kept and defaulted when missing', () => {
+    const data = normalizeAppData({
+        boards: [
+            {
+                id: 'b1',
+                name: 'A',
+                columns: [
+                    {
+                        title: 'C',
+                        cards: [
+                            { text: 'x', comments: [{ id: 'm1', text: 'hi', createdAt: 7 }, 'junk'] },
+                            { text: 'y' },
+                        ],
+                    },
+                ],
+            },
+        ],
+    });
+    const [withComments, without] = data.boards[0].columns[0].cards;
+    assertEqual(withComments.comments.length, 2, 'entries normalized (junk repaired)');
+    assertEqual(withComments.comments[0].text, 'hi', 'comment text kept');
+    assertEqual(withComments.comments[0].createdAt, 7, 'comment timestamp kept');
+    assertEqual(without.comments.length, 0, 'missing comments default to empty');
+});
 test('a valid stored due date is preserved', () => {
     const data = normalizeAppData({
         boards: [

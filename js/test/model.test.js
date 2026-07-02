@@ -1,6 +1,6 @@
 // Unit tests for the pure board operations in src/model.ts.
 import { test, assert, assertEqual } from './harness.js';
-import { createDefaultData, createBoard, createColumn, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, getActiveBoard, addLabel, updateLabel, removeLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, addChecklistItem, updateChecklistItem, removeChecklistItem, checklistProgress, } from '../src/model.js';
+import { createDefaultData, createBoard, createColumn, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, getActiveBoard, addLabel, updateLabel, removeLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, addChecklistItem, updateChecklistItem, removeChecklistItem, checklistProgress, addComment, updateComment, removeComment, } from '../src/model.js';
 test('createDefaultData has one board with three columns', () => {
     const data = createDefaultData();
     assertEqual(data.boards.length, 1, 'board count');
@@ -228,6 +228,26 @@ test('checklist items add, toggle, rename, remove and report progress', () => {
     assert(removeChecklistItem(board, colId, card.id, firstId), 'remove ok');
     assertEqual(card.checklist.length, 1, 'one left');
     assert(!removeChecklistItem(board, colId, card.id, 'missing'), 'unknown item rejected');
+});
+test('comments add newest-first, edit, remove and reject blanks', () => {
+    const board = createBoard('b', [createColumn('A')]);
+    const colId = board.columns[0].id;
+    const card = addCard(board, colId, 'a');
+    assertEqual(card.comments.length, 0, 'starts empty');
+    assert(addComment(board, colId, card.id, 'first'), 'add ok');
+    assert(!addComment(board, colId, card.id, '   '), 'blank comment rejected');
+    assert(addComment(board, colId, card.id, 'second'), 'add 2 ok');
+    assertEqual(card.comments.length, 2, 'two comments');
+    assertEqual(card.comments[0].text, 'second', 'newest comment first');
+    const id = card.comments[0].id;
+    assert(updateComment(board, colId, card.id, id, 'edited'), 'edit ok');
+    assertEqual(card.comments[0].text, 'edited', 'text patched');
+    assert(!updateComment(board, colId, card.id, id, '  '), 'blank edit rejected');
+    assertEqual(card.comments[0].text, 'edited', 'blank edit kept old text');
+    assert(!updateComment(board, colId, card.id, 'missing', 'x'), 'unknown comment rejected');
+    assert(removeComment(board, colId, card.id, id), 'remove ok');
+    assertEqual(card.comments.length, 1, 'one left');
+    assert(!removeComment(board, colId, card.id, 'missing'), 'unknown remove rejected');
 });
 test('getActiveBoard returns the active board', () => {
     const data = createDefaultData();

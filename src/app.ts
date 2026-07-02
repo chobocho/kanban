@@ -20,6 +20,9 @@ import {
   addChecklistItem,
   updateChecklistItem,
   removeChecklistItem,
+  addComment,
+  updateComment,
+  removeComment,
   archiveCard,
   restoreCard,
   deleteArchivedCard,
@@ -232,6 +235,7 @@ export class KanbanApp {
             labels: board.labels,
             assignedLabelIds: card.labelIds.slice(),
             checklist: card.checklist,
+            comments: card.comments,
           },
           {
             onSave: (patch) => {
@@ -260,6 +264,15 @@ export class KanbanApp {
             },
             onRemoveChecklistItem: (itemId) => {
               if (removeChecklistItem(board, colId, cardId, itemId)) this.commit();
+            },
+            onAddComment: (text) => {
+              if (addComment(board, colId, cardId, text)) this.commit();
+            },
+            onEditComment: (commentId, text) => {
+              if (updateComment(board, colId, cardId, commentId, text)) this.commit();
+            },
+            onRemoveComment: (commentId) => {
+              if (removeComment(board, colId, cardId, commentId)) this.commit();
             },
           },
         );

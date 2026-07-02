@@ -26,6 +26,7 @@ export function createCard(text: string): Card {
     description: '',
     labelIds: [],
     checklist: [],
+    comments: [],
     dueAt: null,
     dueDone: false,
     color: '',
@@ -205,6 +206,50 @@ export function removeChecklistItem(
   const index = card.checklist.findIndex((i) => i.id === itemId);
   if (index < 0) return false;
   card.checklist.splice(index, 1);
+  touch(board);
+  return true;
+}
+
+/** Prepend a comment to a card (newest first). Ignores blank text. */
+export function addComment(board: Board, columnId: string, cardId: string, text: string): boolean {
+  const trimmed = text.trim();
+  const card = findCard(board, columnId, cardId);
+  if (!card || !trimmed) return false;
+  card.comments.unshift({ id: makeId('cmt'), text: trimmed, createdAt: Date.now() });
+  touch(board);
+  return true;
+}
+
+/** Replace a comment's text. Blank text is rejected (use removeComment instead). */
+export function updateComment(
+  board: Board,
+  columnId: string,
+  cardId: string,
+  commentId: string,
+  text: string,
+): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  const card = findCard(board, columnId, cardId);
+  const comment = card?.comments.find((c) => c.id === commentId);
+  if (!comment) return false;
+  comment.text = trimmed;
+  touch(board);
+  return true;
+}
+
+/** Delete a comment from a card. */
+export function removeComment(
+  board: Board,
+  columnId: string,
+  cardId: string,
+  commentId: string,
+): boolean {
+  const card = findCard(board, columnId, cardId);
+  if (!card) return false;
+  const index = card.comments.findIndex((c) => c.id === commentId);
+  if (index < 0) return false;
+  card.comments.splice(index, 1);
   touch(board);
   return true;
 }

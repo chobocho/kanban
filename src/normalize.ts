@@ -10,6 +10,7 @@ import {
   Card,
   ChecklistItem,
   Column,
+  Comment,
   Label,
   Language,
   SCHEMA_VERSION,
@@ -43,6 +44,15 @@ function normalizeChecklistItem(raw: unknown): ChecklistItem {
   };
 }
 
+function normalizeComment(raw: unknown): Comment {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+  return {
+    id: asString(obj.id, makeId('cmt')),
+    text: asString(obj.text, ''),
+    createdAt: asNumber(obj.createdAt, Date.now()),
+  };
+}
+
 function normalizeCard(raw: unknown): Card {
   const obj = (raw ?? {}) as Record<string, unknown>;
   const labelIds = Array.isArray(obj.labelIds)
@@ -51,12 +61,14 @@ function normalizeCard(raw: unknown): Card {
   const checklist = Array.isArray(obj.checklist)
     ? obj.checklist.map(normalizeChecklistItem)
     : [];
+  const comments = Array.isArray(obj.comments) ? obj.comments.map(normalizeComment) : [];
   return {
     id: asString(obj.id, makeId('card')),
     text: asString(obj.text, ''),
     description: asString(obj.description, ''),
     labelIds,
     checklist,
+    comments,
     dueAt:
       typeof obj.dueAt === 'number' && Number.isFinite(obj.dueAt) ? obj.dueAt : null,
     dueDone: obj.dueDone === true,

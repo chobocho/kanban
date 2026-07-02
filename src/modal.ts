@@ -3,7 +3,7 @@
 // click, and use only the DOM (no external library).
 
 import { getLanguage, t } from './i18n.js';
-import { ChecklistItem, Label } from './types.js';
+import { ChecklistItem, Comment, Label } from './types.js';
 
 type ModalKind = 'alert' | 'confirm' | 'prompt';
 type ModalResult = string | boolean | null;
@@ -134,6 +134,8 @@ export interface CardDetailInit {
   assignedLabelIds: string[];
   /** The card's checklist (live reference; re-read after each edit). */
   checklist: ChecklistItem[];
+  /** The card's comments, newest first (live reference; re-read after each edit). */
+  comments: Comment[];
 }
 
 /** Fields saved when the card detail modal is committed. */
@@ -162,6 +164,12 @@ export interface CardDetailCallbacks {
   onRenameChecklistItem(itemId: string, text: string): void;
   /** Remove a checklist item. */
   onRemoveChecklistItem(itemId: string): void;
+  /** Add a comment (prepended, newest first). */
+  onAddComment(text: string): void;
+  /** Replace a comment's text. */
+  onEditComment(commentId: string, text: string): void;
+  /** Delete a comment. */
+  onRemoveComment(commentId: string): void;
 }
 
 /** Convert a timestamp to a `datetime-local` input value in local time. */
@@ -385,6 +393,102 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
       checklistBox.appendChild(addRow);
     };
     renderChecklist();
+
+    // --- Comments: newest first, add via textarea, edit in place, delete. ---
+    addLabel(t('comments'));
+    const commentsBox = document.createElement('div');
+    commentsBox.className = 'card-detail-comments';
+    dialog.appendChild(commentsBox);
+
+    const renderComments = (): void => {
+      commentsBox.replaceChildren();
+
+      const addRow = document.createElement('div');
+      addRow.className = 'comment-add';
+      const addInput = document.createElement('textarea');
+      addInput.className = 'comment-add-input';
+      addInput.placeholder = t('commentPlaceholder');
+      addInput.rows = 2;
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'comment-add-btn';
+      addBtn.textContent = t('addComment');
+      addBtn.addEventListener('click', () => {
+        const value = addInput.value.trim();
+        if (!value) return;
+        cb.onAddComment(value);
+        renderComments();
+      });
+      addRow.append(addInput, addBtn);
+      commentsBox.appendChild(addRow);
+
+      for (const comment of init.comments) {
+        const row = document.createElement('div');
+        row.className = 'comment-item';
+
+        const meta = document.createElement('div');
+        meta.className = 'comment-meta';
+        const date = document.createElement('span');
+        date.className = 'comment-date';
+        date.textContent = formatDate(comment.createdAt);
+
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.className = 'comment-btn';
+        editBtn.textContent = '✏️';
+        editBtn.title = t('edit');
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'comment-btn';
+        delBtn.textContent = '🗑️';
+        delBtn.title = t('delete');
+        delBtn.addEventListener('click', () => {
+          void customConfirm(t('deleteCommentConfirm')).then((ok) => {
+            if (!ok) return;
+            cb.onRemoveComment(comment.id);
+            renderComments();
+          });
+        });
+
+        meta.append(date, editBtn, delBtn);
+
+        const text = document.createElement('div');
+        text.className = 'comment-text';
+        text.textContent = comment.text;
+
+        // Editing swaps the text for a textarea with explicit save/cancel.
+        editBtn.addEventListener('click', () => {
+          const editor = document.createElement('textarea');
+          editor.className = 'comment-add-input';
+          editor.value = comment.text;
+          editor.rows = 2;
+          const actionsRow = document.createElement('div');
+          actionsRow.className = 'comment-edit-actions';
+          const saveBtn = document.createElement('button');
+          saveBtn.type = 'button';
+          saveBtn.className = 'comment-add-btn';
+          saveBtn.textContent = t('save');
+          saveBtn.addEventListener('click', () => {
+            const value = editor.value.trim();
+            if (value) cb.onEditComment(comment.id, value);
+            renderComments();
+          });
+          const cancelEdit = document.createElement('button');
+          cancelEdit.type = 'button';
+          cancelEdit.className = 'comment-btn';
+          cancelEdit.textContent = t('cancel');
+          cancelEdit.addEventListener('click', () => renderComments());
+          actionsRow.append(cancelEdit, saveBtn);
+          row.replaceChildren(meta, editor, actionsRow);
+          editor.focus();
+        });
+
+        row.append(meta, text);
+        commentsBox.appendChild(row);
+      }
+    };
+    renderComments();
 
     addLabel(t('color'));
     let selectedColor = init.color;

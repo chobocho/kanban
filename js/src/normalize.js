@@ -26,6 +26,14 @@ function normalizeChecklistItem(raw) {
         done: obj.done === true,
     };
 }
+function normalizeComment(raw) {
+    const obj = (raw ?? {});
+    return {
+        id: asString(obj.id, makeId('cmt')),
+        text: asString(obj.text, ''),
+        createdAt: asNumber(obj.createdAt, Date.now()),
+    };
+}
 function normalizeCard(raw) {
     const obj = (raw ?? {});
     const labelIds = Array.isArray(obj.labelIds)
@@ -34,12 +42,14 @@ function normalizeCard(raw) {
     const checklist = Array.isArray(obj.checklist)
         ? obj.checklist.map(normalizeChecklistItem)
         : [];
+    const comments = Array.isArray(obj.comments) ? obj.comments.map(normalizeComment) : [];
     return {
         id: asString(obj.id, makeId('card')),
         text: asString(obj.text, ''),
         description: asString(obj.description, ''),
         labelIds,
         checklist,
+        comments,
         dueAt: typeof obj.dueAt === 'number' && Number.isFinite(obj.dueAt) ? obj.dueAt : null,
         dueDone: obj.dueDone === true,
         color: asString(obj.color, ''),

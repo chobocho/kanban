@@ -10,6 +10,7 @@ function card(patch) {
         description: '',
         labelIds: [],
         checklist: [],
+        comments: [],
         dueAt: null,
         dueDone: false,
         color: '',
