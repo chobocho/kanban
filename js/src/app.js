@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch, } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
@@ -264,6 +264,21 @@ export class KanbanApp {
                 const board = this.active();
                 if (board && archiveColumn(board, colId))
                     this.commitArchive();
+            },
+            sortColumn: (colId, by) => {
+                const board = this.active();
+                if (board && sortColumnCards(board, colId, by))
+                    this.commit();
+            },
+            copyColumn: (colId) => {
+                const board = this.active();
+                if (board && duplicateColumn(board, colId))
+                    this.commit();
+            },
+            moveAllCards: (fromColId, toColId) => {
+                const board = this.active();
+                if (board && moveAllCards(board, fromColId, toColId))
+                    this.commit();
             },
         };
     }

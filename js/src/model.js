@@ -110,6 +110,64 @@ export function moveColumn(board, fromIndex, toIndex) {
     touch(board);
     return true;
 }
+/**
+ * Sort a column's cards: by name (alphabetical), creation date (newest first)
+ * or due date (earliest first, cards without a due date last). Stable.
+ */
+export function sortColumnCards(board, columnId, by) {
+    const column = findColumn(board, columnId);
+    if (!column)
+        return false;
+    const compare = by === 'name'
+        ? (a, b) => a.text.localeCompare(b.text)
+        : by === 'created'
+            ? (a, b) => b.createdAt - a.createdAt
+            : (a, b) => (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER);
+    column.cards.sort(compare);
+    touch(board);
+    return true;
+}
+/**
+ * Insert a copy of a whole list right after the original (Trello's "copy
+ * list"). Every card is duplicated with fresh ids; comments are not copied.
+ */
+export function duplicateColumn(board, columnId) {
+    const index = board.columns.findIndex((c) => c.id === columnId);
+    if (index < 0)
+        return null;
+    const source = board.columns[index];
+    const copy = createColumn(source.title);
+    for (const card of source.cards) {
+        copy.cards.push({
+            id: makeId('card'),
+            text: card.text,
+            description: card.description,
+            labelIds: card.labelIds.slice(),
+            checklist: card.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
+            comments: [],
+            dueAt: card.dueAt,
+            dueDone: card.dueDone,
+            color: card.color,
+            createdAt: Date.now(),
+        });
+    }
+    board.columns.splice(index + 1, 0, copy);
+    touch(board);
+    return copy;
+}
+/** Move every card of one list to the end of another (Trello's "move all"). */
+export function moveAllCards(board, fromColumnId, toColumnId) {
+    if (fromColumnId === toColumnId)
+        return false;
+    const from = findColumn(board, fromColumnId);
+    const to = findColumn(board, toColumnId);
+    if (!from || !to || from.cards.length === 0)
+        return false;
+    to.cards.push(...from.cards);
+    from.cards = [];
+    touch(board);
+    return true;
+}
 /** Add a card to a column and return it, or null if the column is missing. */
 export function addCard(board, columnId, text) {
     const column = findColumn(board, columnId);

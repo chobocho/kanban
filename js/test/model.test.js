@@ -1,6 +1,6 @@
 // Unit tests for the pure board operations in src/model.ts.
 import { test, assert, assertEqual } from './harness.js';
-import { createDefaultData, createBoard, createColumn, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, getActiveBoard, addLabel, updateLabel, removeLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, addChecklistItem, updateChecklistItem, removeChecklistItem, checklistProgress, addComment, updateComment, removeComment, duplicateCard, } from '../src/model.js';
+import { createDefaultData, createBoard, createColumn, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, getActiveBoard, addLabel, updateLabel, removeLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, addChecklistItem, updateChecklistItem, removeChecklistItem, checklistProgress, addComment, updateComment, removeComment, duplicateCard, sortColumnCards, duplicateColumn, moveAllCards, } from '../src/model.js';
 test('createDefaultData has one board with three columns', () => {
     const data = createDefaultData();
     assertEqual(data.boards.length, 1, 'board count');
@@ -273,6 +273,53 @@ test('duplicateCard copies content with fresh ids, right after the original', ()
     assert(copy.checklist[0].id !== card.checklist[0].id, 'fresh checklist item id');
     assertEqual(copy.comments.length, 0, 'comments are not copied');
     assertEqual(duplicateCard(board, colId, 'missing'), null, 'unknown card rejected');
+});
+test('sortColumnCards sorts by name, creation date and due date', () => {
+    const board = createBoard('b', [createColumn('A')]);
+    const colId = board.columns[0].id;
+    const b = addCard(board, colId, 'banana');
+    const a = addCard(board, colId, 'apple');
+    const c = addCard(board, colId, 'cherry');
+    a.createdAt = 100;
+    b.createdAt = 300;
+    c.createdAt = 200;
+    updateCard(board, colId, a.id, { dueAt: 5000 });
+    updateCard(board, colId, c.id, { dueAt: 1000 });
+    assert(sortColumnCards(board, colId, 'name'), 'sort by name ok');
+    assertEqual(board.columns[0].cards.map((x) => x.text).join(','), 'apple,banana,cherry', 'alphabetical');
+    assert(sortColumnCards(board, colId, 'created'), 'sort by created ok');
+    assertEqual(board.columns[0].cards.map((x) => x.text).join(','), 'banana,cherry,apple', 'newest first');
+    assert(sortColumnCards(board, colId, 'due'), 'sort by due ok');
+    assertEqual(board.columns[0].cards.map((x) => x.text).join(','), 'cherry,apple,banana', 'earliest due first, no due date last');
+    assert(!sortColumnCards(board, 'missing', 'name'), 'unknown column rejected');
+});
+test('duplicateColumn copies the list and its cards with fresh ids', () => {
+    const board = createBoard('b', [createColumn('A'), createColumn('B')]);
+    const colId = board.columns[0].id;
+    const card = addCard(board, colId, 'x');
+    addChecklistItem(board, colId, card.id, 'step');
+    const copy = duplicateColumn(board, colId);
+    assert(copy !== null, 'copy created');
+    assertEqual(board.columns.map((c) => c.title).join(','), 'A,A,B', 'inserted after original');
+    assert(copy.id !== colId, 'fresh column id');
+    assertEqual(copy.cards.length, 1, 'cards copied');
+    assert(copy.cards[0].id !== card.id, 'fresh card id');
+    assertEqual(copy.cards[0].text, 'x', 'card content copied');
+    assertEqual(copy.cards[0].checklist.length, 1, 'checklist copied');
+    assertEqual(duplicateColumn(board, 'missing'), null, 'unknown column rejected');
+});
+test('moveAllCards appends every card to the target list', () => {
+    const board = createBoard('b', [createColumn('A'), createColumn('B')]);
+    const a = board.columns[0].id;
+    const b = board.columns[1].id;
+    addCard(board, a, 'c1');
+    addCard(board, a, 'c2');
+    addCard(board, b, 'x');
+    assert(moveAllCards(board, a, b), 'move ok');
+    assertEqual(board.columns[0].cards.length, 0, 'source emptied');
+    assertEqual(board.columns[1].cards.map((c) => c.text).join(','), 'x,c1,c2', 'appended in order');
+    assert(!moveAllCards(board, a, a), 'same column rejected');
+    assert(!moveAllCards(board, 'missing', b), 'unknown source rejected');
 });
 test('getActiveBoard returns the active board', () => {
     const data = createDefaultData();

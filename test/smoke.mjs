@@ -200,10 +200,10 @@ try {
   const afterRestore = await page.locator('.card').count();
   assert(afterRestore === 1, `restoring brings the card back (got ${afterRestore})`);
 
-  // Archive a whole list, then restore it from the archive view.
+  // Archive a whole list via its ⋯ menu, then restore it from the archive view.
   const beforeCols = await page.locator('.column').count();
-  const colHeader = page.locator('.column').first().locator('.column-header');
-  await colHeader.locator('.icon-btn[title="Archive"]').click();
+  await page.locator('.column').first().locator('.column-menu-btn').click();
+  await page.locator('.column').first().locator('.column-menu-item', { hasText: 'Archive' }).click();
   await page.waitForTimeout(100);
   const afterArchiveCols = await page.locator('.column').count();
   assert(afterArchiveCols === beforeCols - 1, `archiving a list removes it (got ${afterArchiveCols})`);
@@ -243,6 +243,54 @@ try {
   await page.waitForTimeout(100);
   const boardsCancel = await page.locator('#boardSelect option').count();
   assert(boardsCancel === boardsAfter, `cancelling the modal makes no change (got ${boardsCancel})`);
+
+  // --- List ⋯ menu and card actions (on the fresh "Project X" board) ---------
+  // Copy list: duplicates the first list right after the original.
+  const pxCols = await page.locator('.column').count();
+  await page.locator('.column').first().locator('.column-menu-btn').click();
+  await page.locator('.column').first().locator('.column-menu-item', { hasText: 'Copy list' }).click();
+  await page.waitForTimeout(100);
+  const colsCopied = await page.locator('.column').count();
+  assert(colsCopied === pxCols + 1, `copy list duplicates the list (got ${colsCopied})`);
+
+  // Card count badge reflects the number of cards in the list.
+  await page.locator('.column').first().locator('.add-card-btn').click();
+  await page.locator('.column').first().locator('.add-card-btn').click();
+  await page.waitForTimeout(100);
+  const countBadge = await page.locator('.column').first().locator('.column-count').textContent();
+  assert(countBadge === '2', `column header shows the card count (got "${countBadge}")`);
+
+  // Move all cards to another list via the ⋯ menu.
+  await page.locator('.column').first().locator('.column-menu-btn').click();
+  await page.locator('.column').first().locator('.column-menu-item', { hasText: 'In Progress' }).click();
+  await page.waitForTimeout(100);
+  const srcCount = await page.locator('.column').nth(0).locator('.card').count();
+  const dstCount = await page.locator('.column').nth(2).locator('.card').count();
+  assert(srcCount === 0 && dstCount === 2, `move all cards empties the source (got ${srcCount}/${dstCount})`);
+
+  // Comments: add one from the card detail modal and check the 💬 badge.
+  const commentCard = page.locator('.column').nth(2).locator('.card').first();
+  await commentCard.hover();
+  await commentCard.locator('.icon-btn[title="Open card details"]').click();
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  await page.locator('.comment-add-input').fill('looks good');
+  await page.locator('.comment-add .comment-add-btn').click();
+  await page.waitForTimeout(100);
+  const commentItems = await page.locator('.comment-item').count();
+  assert(commentItems === 1, `comment is added in the modal (got ${commentItems})`);
+  await page.locator('.card-detail .modal-cancel').click();
+  await page.waitForTimeout(100);
+  const commentBadge = await page.locator('.column').nth(2).locator('.card-badge', { hasText: '💬' }).count();
+  assert(commentBadge === 1, `comment badge appears on the card (got ${commentBadge})`);
+
+  // Copy card: the detail modal's copy action duplicates the card.
+  await commentCard.hover();
+  await commentCard.locator('.icon-btn[title="Open card details"]').click();
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  await page.locator('.card-detail-op-btn', { hasText: 'Copy card' }).click();
+  await page.waitForTimeout(100);
+  const afterCopy = await page.locator('.column').nth(2).locator('.card').count();
+  assert(afterCopy === 3, `copy card duplicates the card (got ${afterCopy})`);
 
   assert(errors.length === 0, `no runtime errors (${JSON.stringify(errors)})`);
 

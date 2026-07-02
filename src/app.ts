@@ -12,6 +12,9 @@ import {
   addColumn,
   renameColumn,
   moveColumn,
+  sortColumnCards,
+  duplicateColumn,
+  moveAllCards,
   addCard,
   updateCard,
   moveCard,
@@ -304,6 +307,18 @@ export class KanbanApp {
       archiveColumn: (colId) => {
         const board = this.active();
         if (board && archiveColumn(board, colId)) this.commitArchive();
+      },
+      sortColumn: (colId, by) => {
+        const board = this.active();
+        if (board && sortColumnCards(board, colId, by)) this.commit();
+      },
+      copyColumn: (colId) => {
+        const board = this.active();
+        if (board && duplicateColumn(board, colId)) this.commit();
+      },
+      moveAllCards: (fromColId, toColId) => {
+        const board = this.active();
+        if (board && moveAllCards(board, fromColId, toColId)) this.commit();
       },
     };
   }

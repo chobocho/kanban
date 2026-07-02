@@ -4,7 +4,7 @@
 
 import { Board, Card, Column, Label } from './types.js';
 import { getLanguage, t } from './i18n.js';
-import { checklistProgress } from './model.js';
+import { CardSortKey, checklistProgress } from './model.js';
 import { FilterState, cardMatchesFilter, isFilterActive } from './filter.js';
 
 export interface RenderHandlers {
@@ -16,6 +16,9 @@ export interface RenderHandlers {
   addColumn(): void;
   renameColumn(colId: string, title: string): void;
   archiveColumn(colId: string): void;
+  sortColumn(colId: string, by: CardSortKey): void;
+  copyColumn(colId: string): void;
+  moveAllCards(fromColId: string, toColId: string): void;
 }
 
 /** Card accent colors cycled by the palette button (empty = no accent). */
@@ -213,9 +216,65 @@ function renderCard(
   return node;
 }
 
+/** Build the list's ⋯ menu: sort, copy, move all cards, archive. */
+function renderColumnMenu(
+  column: Column,
+  allColumns: Column[],
+  handlers: RenderHandlers,
+): HTMLElement {
+  const wrap = el('div', 'column-menu-wrap');
+  const toggle = el('button', 'icon-btn column-menu-btn', '⋯');
+  toggle.title = t('listMenu');
+  const menu = el('div', 'column-menu');
+  menu.hidden = true;
+  wrap.append(toggle, menu);
+
+  // Close when a pointer goes down anywhere outside the menu and its toggle.
+  const onOutside = (e: Event): void => {
+    if (!wrap.contains(e.target as Node)) closeMenu();
+  };
+  const closeMenu = (): void => {
+    menu.hidden = true;
+    document.removeEventListener('pointerdown', onOutside, true);
+  };
+  toggle.addEventListener('click', () => {
+    menu.hidden = !menu.hidden;
+    if (!menu.hidden) document.addEventListener('pointerdown', onOutside, true);
+    else document.removeEventListener('pointerdown', onOutside, true);
+  });
+
+  const addItem = (label: string, onPick: () => void): void => {
+    const item = el('button', 'column-menu-item', label);
+    item.addEventListener('click', () => {
+      closeMenu();
+      onPick();
+    });
+    menu.appendChild(item);
+  };
+
+  menu.appendChild(el('div', 'column-menu-title', t('sortBy')));
+  addItem(`🔤 ${t('sortByName')}`, () => handlers.sortColumn(column.id, 'name'));
+  addItem(`🕘 ${t('sortByCreated')}`, () => handlers.sortColumn(column.id, 'created'));
+  addItem(`🕒 ${t('sortByDue')}`, () => handlers.sortColumn(column.id, 'due'));
+
+  menu.appendChild(el('div', 'column-menu-title', t('actions')));
+  addItem(`📑 ${t('copyList')}`, () => handlers.copyColumn(column.id));
+  addItem(`🗄️ ${t('archive')}`, () => handlers.archiveColumn(column.id));
+
+  const others = allColumns.filter((c) => c.id !== column.id);
+  if (others.length > 0 && column.cards.length > 0) {
+    menu.appendChild(el('div', 'column-menu-title', t('moveAllCardsTo')));
+    for (const other of others) {
+      addItem(`➡️ ${other.title || ' '}`, () => handlers.moveAllCards(column.id, other.id));
+    }
+  }
+  return wrap;
+}
+
 function renderColumn(
   column: Column,
   index: number,
+  allColumns: Column[],
   labels: Map<string, Label>,
   filter: FilterState,
   now: number,
@@ -236,15 +295,13 @@ function renderColumn(
   title.addEventListener('click', () => {
     startInlineEdit(title, column.title, (value) => handlers.renameColumn(column.id, value));
   });
-  const archiveBtn = el('button', 'icon-btn', '🗄️');
-  archiveBtn.title = t('archive');
-  archiveBtn.addEventListener('click', () => handlers.archiveColumn(column.id));
   header.append(title);
-  // While filtering, show how many of the column's cards match.
-  if (filtering) {
-    header.append(el('span', 'column-count', `${visibleCards.length}/${column.cards.length}`));
-  }
-  header.append(archiveBtn);
+  // Card count; while filtering, show how many of the column's cards match.
+  const count = filtering
+    ? `${visibleCards.length}/${column.cards.length}`
+    : String(column.cards.length);
+  header.append(el('span', 'column-count', count));
+  header.append(renderColumnMenu(column, allColumns, handlers));
 
   const list = el('div', 'cards-list');
   list.dataset.cards = '';
@@ -277,7 +334,9 @@ export function renderBoard(
   const labels = new Map(board.labels.map((label) => [label.id, label]));
   const now = Date.now();
   board.columns.forEach((column, index) => {
-    container.appendChild(renderColumn(column, index, labels, filter, now, handlers));
+    container.appendChild(
+      renderColumn(column, index, board.columns, labels, filter, now, handlers),
+    );
   });
 
   const addColumn = el('button', 'add-column', '➕');

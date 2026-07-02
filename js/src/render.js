@@ -178,7 +178,55 @@ function renderCard(card, column, labels, handlers) {
     node.appendChild(actions);
     return node;
 }
-function renderColumn(column, index, labels, filter, now, handlers) {
+/** Build the list's ⋯ menu: sort, copy, move all cards, archive. */
+function renderColumnMenu(column, allColumns, handlers) {
+    const wrap = el('div', 'column-menu-wrap');
+    const toggle = el('button', 'icon-btn column-menu-btn', '⋯');
+    toggle.title = t('listMenu');
+    const menu = el('div', 'column-menu');
+    menu.hidden = true;
+    wrap.append(toggle, menu);
+    // Close when a pointer goes down anywhere outside the menu and its toggle.
+    const onOutside = (e) => {
+        if (!wrap.contains(e.target))
+            closeMenu();
+    };
+    const closeMenu = () => {
+        menu.hidden = true;
+        document.removeEventListener('pointerdown', onOutside, true);
+    };
+    toggle.addEventListener('click', () => {
+        menu.hidden = !menu.hidden;
+        if (!menu.hidden)
+            document.addEventListener('pointerdown', onOutside, true);
+        else
+            document.removeEventListener('pointerdown', onOutside, true);
+    });
+    const addItem = (label, onPick) => {
+        const item = el('button', 'column-menu-item', label);
+        item.addEventListener('click', () => {
+            closeMenu();
+            onPick();
+        });
+        menu.appendChild(item);
+    };
+    menu.appendChild(el('div', 'column-menu-title', t('sortBy')));
+    addItem(`🔤 ${t('sortByName')}`, () => handlers.sortColumn(column.id, 'name'));
+    addItem(`🕘 ${t('sortByCreated')}`, () => handlers.sortColumn(column.id, 'created'));
+    addItem(`🕒 ${t('sortByDue')}`, () => handlers.sortColumn(column.id, 'due'));
+    menu.appendChild(el('div', 'column-menu-title', t('actions')));
+    addItem(`📑 ${t('copyList')}`, () => handlers.copyColumn(column.id));
+    addItem(`🗄️ ${t('archive')}`, () => handlers.archiveColumn(column.id));
+    const others = allColumns.filter((c) => c.id !== column.id);
+    if (others.length > 0 && column.cards.length > 0) {
+        menu.appendChild(el('div', 'column-menu-title', t('moveAllCardsTo')));
+        for (const other of others) {
+            addItem(`➡️ ${other.title || ' '}`, () => handlers.moveAllCards(column.id, other.id));
+        }
+    }
+    return wrap;
+}
+function renderColumn(column, index, allColumns, labels, filter, now, handlers) {
     const node = el('div', 'column');
     node.dataset.colId = column.id;
     node.dataset.colIndex = String(index);
@@ -192,15 +240,13 @@ function renderColumn(column, index, labels, filter, now, handlers) {
     title.addEventListener('click', () => {
         startInlineEdit(title, column.title, (value) => handlers.renameColumn(column.id, value));
     });
-    const archiveBtn = el('button', 'icon-btn', '🗄️');
-    archiveBtn.title = t('archive');
-    archiveBtn.addEventListener('click', () => handlers.archiveColumn(column.id));
     header.append(title);
-    // While filtering, show how many of the column's cards match.
-    if (filtering) {
-        header.append(el('span', 'column-count', `${visibleCards.length}/${column.cards.length}`));
-    }
-    header.append(archiveBtn);
+    // Card count; while filtering, show how many of the column's cards match.
+    const count = filtering
+        ? `${visibleCards.length}/${column.cards.length}`
+        : String(column.cards.length);
+    header.append(el('span', 'column-count', count));
+    header.append(renderColumnMenu(column, allColumns, handlers));
     const list = el('div', 'cards-list');
     list.dataset.cards = '';
     if (visibleCards.length === 0) {
@@ -224,7 +270,7 @@ export function renderBoard(container, board, filter, handlers) {
     const labels = new Map(board.labels.map((label) => [label.id, label]));
     const now = Date.now();
     board.columns.forEach((column, index) => {
-        container.appendChild(renderColumn(column, index, labels, filter, now, handlers));
+        container.appendChild(renderColumn(column, index, board.columns, labels, filter, now, handlers));
     });
     const addColumn = el('button', 'add-column', '➕');
     addColumn.title = t('addColumn');

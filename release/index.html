@@ -377,7 +377,57 @@ select.control {
   word-break: break-word;
 }
 
-/* Match count shown in a column header while a filter is active. */
+/* The list's ⋯ menu (sort / copy / move all / archive). */
+.column-menu-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.column-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 1200;
+  margin-top: 4px;
+  width: 210px;
+  padding: 6px;
+  background: #fff;
+  color: var(--text);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3);
+  cursor: default;
+}
+
+.column-menu-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 6px 8px 2px;
+}
+
+.column-menu-item {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+
+.column-menu-item:hover {
+  background: #ebecf0;
+}
+
+/* Card count in a column header (matches/total while a filter is active). */
 .column-count {
   flex: 0 0 auto;
   font-size: 11px;
@@ -1338,7 +1388,7 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch } = __require("model");
 const { History } = __require("history");
 const { setLanguage, t } = __require("i18n");
 const { emptyFilter, isFilterActive } = __require("filter");
@@ -1599,6 +1649,21 @@ class KanbanApp {
                 const board = this.active();
                 if (board && archiveColumn(board, colId))
                     this.commitArchive();
+            },
+            sortColumn: (colId, by) => {
+                const board = this.active();
+                if (board && sortColumnCards(board, colId, by))
+                    this.commit();
+            },
+            copyColumn: (colId) => {
+                const board = this.active();
+                if (board && duplicateColumn(board, colId))
+                    this.commit();
+            },
+            moveAllCards: (fromColId, toColId) => {
+                const board = this.active();
+                if (board && moveAllCards(board, fromColId, toColId))
+                    this.commit();
             },
         };
     }
@@ -2404,6 +2469,13 @@ const translations = {
         checklist: '체크리스트',
         addChecklistItem: '추가',
         checklistItemPlaceholder: '항목을 입력하세요…',
+        listMenu: '리스트 메뉴',
+        sortBy: '정렬',
+        sortByName: '이름순',
+        sortByCreated: '생성일순 (최신 먼저)',
+        sortByDue: '마감일순',
+        copyList: '리스트 복사',
+        moveAllCardsTo: '카드 모두 이동',
         actions: '동작',
         copyCard: '카드 복사',
         moveCardAction: '카드 이동',
@@ -2481,6 +2553,13 @@ const translations = {
         checklist: 'Checklist',
         addChecklistItem: 'Add',
         checklistItemPlaceholder: 'Add an item…',
+        listMenu: 'List menu',
+        sortBy: 'Sort by',
+        sortByName: 'Name',
+        sortByCreated: 'Date created (newest first)',
+        sortByDue: 'Due date',
+        copyList: 'Copy list',
+        moveAllCardsTo: 'Move all cards',
         actions: 'Actions',
         copyCard: 'Copy card',
         moveCardAction: 'Move card',
@@ -3454,6 +3533,64 @@ function moveColumn(board, fromIndex, toIndex) {
     touch(board);
     return true;
 }
+/**
+ * Sort a column's cards: by name (alphabetical), creation date (newest first)
+ * or due date (earliest first, cards without a due date last). Stable.
+ */
+function sortColumnCards(board, columnId, by) {
+    const column = findColumn(board, columnId);
+    if (!column)
+        return false;
+    const compare = by === 'name'
+        ? (a, b) => a.text.localeCompare(b.text)
+        : by === 'created'
+            ? (a, b) => b.createdAt - a.createdAt
+            : (a, b) => (a.dueAt ?? Number.MAX_SAFE_INTEGER) - (b.dueAt ?? Number.MAX_SAFE_INTEGER);
+    column.cards.sort(compare);
+    touch(board);
+    return true;
+}
+/**
+ * Insert a copy of a whole list right after the original (Trello's "copy
+ * list"). Every card is duplicated with fresh ids; comments are not copied.
+ */
+function duplicateColumn(board, columnId) {
+    const index = board.columns.findIndex((c) => c.id === columnId);
+    if (index < 0)
+        return null;
+    const source = board.columns[index];
+    const copy = createColumn(source.title);
+    for (const card of source.cards) {
+        copy.cards.push({
+            id: makeId('card'),
+            text: card.text,
+            description: card.description,
+            labelIds: card.labelIds.slice(),
+            checklist: card.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
+            comments: [],
+            dueAt: card.dueAt,
+            dueDone: card.dueDone,
+            color: card.color,
+            createdAt: Date.now(),
+        });
+    }
+    board.columns.splice(index + 1, 0, copy);
+    touch(board);
+    return copy;
+}
+/** Move every card of one list to the end of another (Trello's "move all"). */
+function moveAllCards(board, fromColumnId, toColumnId) {
+    if (fromColumnId === toColumnId)
+        return false;
+    const from = findColumn(board, fromColumnId);
+    const to = findColumn(board, toColumnId);
+    if (!from || !to || from.cards.length === 0)
+        return false;
+    to.cards.push(...from.cards);
+    from.cards = [];
+    touch(board);
+    return true;
+}
 /** Add a card to a column and return it, or null if the column is missing. */
 function addCard(board, columnId, text) {
     const column = findColumn(board, columnId);
@@ -3752,6 +3889,9 @@ __exports.addColumn = addColumn;
 __exports.renameColumn = renameColumn;
 __exports.removeColumn = removeColumn;
 __exports.moveColumn = moveColumn;
+__exports.sortColumnCards = sortColumnCards;
+__exports.duplicateColumn = duplicateColumn;
+__exports.moveAllCards = moveAllCards;
 __exports.addCard = addCard;
 __exports.updateCard = updateCard;
 __exports.duplicateCard = duplicateCard;
@@ -4254,7 +4394,55 @@ function renderCard(card, column, labels, handlers) {
     node.appendChild(actions);
     return node;
 }
-function renderColumn(column, index, labels, filter, now, handlers) {
+/** Build the list's ⋯ menu: sort, copy, move all cards, archive. */
+function renderColumnMenu(column, allColumns, handlers) {
+    const wrap = el('div', 'column-menu-wrap');
+    const toggle = el('button', 'icon-btn column-menu-btn', '⋯');
+    toggle.title = t('listMenu');
+    const menu = el('div', 'column-menu');
+    menu.hidden = true;
+    wrap.append(toggle, menu);
+    // Close when a pointer goes down anywhere outside the menu and its toggle.
+    const onOutside = (e) => {
+        if (!wrap.contains(e.target))
+            closeMenu();
+    };
+    const closeMenu = () => {
+        menu.hidden = true;
+        document.removeEventListener('pointerdown', onOutside, true);
+    };
+    toggle.addEventListener('click', () => {
+        menu.hidden = !menu.hidden;
+        if (!menu.hidden)
+            document.addEventListener('pointerdown', onOutside, true);
+        else
+            document.removeEventListener('pointerdown', onOutside, true);
+    });
+    const addItem = (label, onPick) => {
+        const item = el('button', 'column-menu-item', label);
+        item.addEventListener('click', () => {
+            closeMenu();
+            onPick();
+        });
+        menu.appendChild(item);
+    };
+    menu.appendChild(el('div', 'column-menu-title', t('sortBy')));
+    addItem(`🔤 ${t('sortByName')}`, () => handlers.sortColumn(column.id, 'name'));
+    addItem(`🕘 ${t('sortByCreated')}`, () => handlers.sortColumn(column.id, 'created'));
+    addItem(`🕒 ${t('sortByDue')}`, () => handlers.sortColumn(column.id, 'due'));
+    menu.appendChild(el('div', 'column-menu-title', t('actions')));
+    addItem(`📑 ${t('copyList')}`, () => handlers.copyColumn(column.id));
+    addItem(`🗄️ ${t('archive')}`, () => handlers.archiveColumn(column.id));
+    const others = allColumns.filter((c) => c.id !== column.id);
+    if (others.length > 0 && column.cards.length > 0) {
+        menu.appendChild(el('div', 'column-menu-title', t('moveAllCardsTo')));
+        for (const other of others) {
+            addItem(`➡️ ${other.title || ' '}`, () => handlers.moveAllCards(column.id, other.id));
+        }
+    }
+    return wrap;
+}
+function renderColumn(column, index, allColumns, labels, filter, now, handlers) {
     const node = el('div', 'column');
     node.dataset.colId = column.id;
     node.dataset.colIndex = String(index);
@@ -4268,15 +4456,13 @@ function renderColumn(column, index, labels, filter, now, handlers) {
     title.addEventListener('click', () => {
         startInlineEdit(title, column.title, (value) => handlers.renameColumn(column.id, value));
     });
-    const archiveBtn = el('button', 'icon-btn', '🗄️');
-    archiveBtn.title = t('archive');
-    archiveBtn.addEventListener('click', () => handlers.archiveColumn(column.id));
     header.append(title);
-    // While filtering, show how many of the column's cards match.
-    if (filtering) {
-        header.append(el('span', 'column-count', `${visibleCards.length}/${column.cards.length}`));
-    }
-    header.append(archiveBtn);
+    // Card count; while filtering, show how many of the column's cards match.
+    const count = filtering
+        ? `${visibleCards.length}/${column.cards.length}`
+        : String(column.cards.length);
+    header.append(el('span', 'column-count', count));
+    header.append(renderColumnMenu(column, allColumns, handlers));
     const list = el('div', 'cards-list');
     list.dataset.cards = '';
     if (visibleCards.length === 0) {
@@ -4300,7 +4486,7 @@ function renderBoard(container, board, filter, handlers) {
     const labels = new Map(board.labels.map((label) => [label.id, label]));
     const now = Date.now();
     board.columns.forEach((column, index) => {
-        container.appendChild(renderColumn(column, index, labels, filter, now, handlers));
+        container.appendChild(renderColumn(column, index, board.columns, labels, filter, now, handlers));
     });
     const addColumn = el('button', 'add-column', '➕');
     addColumn.title = t('addColumn');
