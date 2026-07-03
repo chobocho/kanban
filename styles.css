@@ -886,6 +886,22 @@ select.control {
   cursor: pointer;
 }
 
+/* "Add label" button below the label rows in the card detail modal. */
+.card-detail-label-add {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: #ebecf0;
+  cursor: pointer;
+}
+
+.card-detail-label-add:hover {
+  background: #dfe1e6;
+}
+
 /* Card actions (copy/move) inside the card detail modal. */
 .card-detail-ops {
   display: flex;

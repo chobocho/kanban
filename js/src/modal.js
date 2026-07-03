@@ -237,9 +237,51 @@ export function openCardDetail(init, cb) {
                         renderLabels();
                     });
                 });
-                row.append(chip, rename);
+                const recolor = document.createElement('button');
+                recolor.className = 'card-detail-label-edit';
+                recolor.textContent = '🎨';
+                recolor.title = t('color');
+                recolor.addEventListener('click', () => {
+                    void openColorPicker(t('labelColorPrompt'), init.labelColors, label.color).then((color) => {
+                        if (color === null)
+                            return;
+                        cb.onRecolorLabel(label.id, color);
+                        renderLabels();
+                    });
+                });
+                const remove = document.createElement('button');
+                remove.className = 'card-detail-label-edit';
+                remove.textContent = '🗑️';
+                remove.title = t('delete');
+                remove.addEventListener('click', () => {
+                    void customConfirm(t('deleteLabelConfirm')).then((ok) => {
+                        if (!ok)
+                            return;
+                        assigned.delete(label.id);
+                        cb.onRemoveLabel(label.id);
+                        renderLabels();
+                    });
+                });
+                row.append(chip, rename, recolor, remove);
                 labelList.appendChild(row);
             }
+            // Create a new label: ask for a name, then a color from the palette.
+            const add = document.createElement('button');
+            add.className = 'card-detail-label-add';
+            add.textContent = `➕ ${t('addLabelBtn')}`;
+            add.addEventListener('click', () => {
+                void customPrompt(t('labelNamePrompt')).then((name) => {
+                    if (name === null)
+                        return;
+                    void openColorPicker(t('labelColorPrompt'), init.labelColors, '').then((color) => {
+                        if (color === null)
+                            return;
+                        cb.onAddLabel(name, color);
+                        renderLabels();
+                    });
+                });
+            });
+            labelList.appendChild(add);
         };
         renderLabels();
         // --- Due date: a datetime picker, a "done" toggle and a clear button. ---

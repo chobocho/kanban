@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, touch, } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
@@ -194,6 +194,7 @@ export class KanbanApp {
                     dueDone: card.dueDone,
                     colors: CARD_COLORS,
                     labels: board.labels,
+                    labelColors: LABEL_COLORS,
                     assignedLabelIds: card.labelIds.slice(),
                     checklist: card.checklist,
                     comments: card.comments,
@@ -218,6 +219,18 @@ export class KanbanApp {
                     },
                     onRenameLabel: (labelId, name) => {
                         if (updateLabel(board, labelId, { name }))
+                            this.commit();
+                    },
+                    onRecolorLabel: (labelId, color) => {
+                        if (updateLabel(board, labelId, { color }))
+                            this.commit();
+                    },
+                    onAddLabel: (name, labelColor) => {
+                        addLabel(board, name, labelColor);
+                        this.commit();
+                    },
+                    onRemoveLabel: (labelId) => {
+                        if (removeLabel(board, labelId))
                             this.commit();
                     },
                     onAddChecklistItem: (text) => {

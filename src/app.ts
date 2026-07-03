@@ -18,8 +18,11 @@ import {
   addCard,
   updateCard,
   moveCard,
+  addLabel,
   updateLabel,
+  removeLabel,
   toggleCardLabel,
+  LABEL_COLORS,
   addChecklistItem,
   updateChecklistItem,
   removeChecklistItem,
@@ -258,6 +261,7 @@ export class KanbanApp {
             dueDone: card.dueDone,
             colors: CARD_COLORS,
             labels: board.labels,
+            labelColors: LABEL_COLORS,
             assignedLabelIds: card.labelIds.slice(),
             checklist: card.checklist,
             comments: card.comments,
@@ -280,6 +284,16 @@ export class KanbanApp {
             },
             onRenameLabel: (labelId, name) => {
               if (updateLabel(board, labelId, { name })) this.commit();
+            },
+            onRecolorLabel: (labelId, color) => {
+              if (updateLabel(board, labelId, { color })) this.commit();
+            },
+            onAddLabel: (name, labelColor) => {
+              addLabel(board, name, labelColor);
+              this.commit();
+            },
+            onRemoveLabel: (labelId) => {
+              if (removeLabel(board, labelId)) this.commit();
             },
             onAddChecklistItem: (text) => {
               if (addChecklistItem(board, colId, cardId, text)) this.commit();

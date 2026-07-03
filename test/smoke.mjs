@@ -292,6 +292,27 @@ try {
   const afterCopy = await page.locator('.column').nth(2).locator('.card').count();
   assert(afterCopy === 3, `copy card duplicates the card (got ${afterCopy})`);
 
+  // Label management: create a label (name + color), then delete it again.
+  await commentCard.hover();
+  await commentCard.locator('.icon-btn[title="Open card details"]').click();
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  const labelRows = await page.locator('.card-detail-label-row').count();
+  await page.locator('.card-detail-label-add').click();
+  await page.waitForTimeout(100);
+  await page.locator('.modal-overlay').last().locator('.modal-input').fill('Urgent');
+  await page.locator('.modal-overlay').last().locator('.modal-ok').click();
+  await page.locator('.modal-overlay').last().locator('.card-detail-swatch').nth(2).click();
+  await page.waitForTimeout(100);
+  const labelRowsAdded = await page.locator('.card-detail-label-row').count();
+  assert(labelRowsAdded === labelRows + 1, `adding a label appends a row (got ${labelRowsAdded})`);
+  await page.locator('.card-detail-label-row').last().locator('[title="Delete"]').click();
+  await page.locator('.modal-overlay').last().locator('.modal-ok').click();
+  await page.waitForTimeout(100);
+  const labelRowsRemoved = await page.locator('.card-detail-label-row').count();
+  assert(labelRowsRemoved === labelRows, `deleting a label removes its row (got ${labelRowsRemoved})`);
+  await page.locator('.card-detail .modal-cancel').click();
+  await page.waitForTimeout(100);
+
   // Board background: picking a palette color updates the theme variable.
   await page.locator('#menuBtn').click();
   await page.locator('#bgColorBtn').click();

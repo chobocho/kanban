@@ -178,6 +178,15 @@ test('updateLabel renames a label', () => {
   assert(!updateLabel(board, 'missing', { name: 'x' }), 'unknown label rejected');
 });
 
+test('updateLabel changes a label color independently of the name', () => {
+  const board = createBoard('b');
+  const labelId = board.labels[0].id;
+  updateLabel(board, labelId, { name: 'Bug' });
+  assert(updateLabel(board, labelId, { color: '#123456' }), 'update ok');
+  assertEqual(board.labels[0].color, '#123456', 'color patched');
+  assertEqual(board.labels[0].name, 'Bug', 'name untouched');
+});
+
 test('removeLabel deletes it and strips it from cards', () => {
   const board = createBoard('b', [createColumn('A')]);
   const colId = board.columns[0].id;
