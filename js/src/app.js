@@ -3,9 +3,9 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch, } from './model.js';
 import { History } from './history.js';
-import { setLanguage, t } from './i18n.js';
+import { setLanguage, t, tf } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
 import { renderBoard, CARD_COLORS } from './render.js';
 import { DragController } from './dnd.js';
@@ -13,9 +13,14 @@ import { ZoomController } from './zoom.js';
 import { LayoutController } from './layout.js';
 import { downloadJson, readJsonFile } from './jsonio.js';
 import { exportBoardPng } from './png.js';
-import { customAlert, customConfirm, customPrompt, openCardDetail, openArchive, openColorPicker, } from './modal.js';
+import { customAlert, customConfirm, customPrompt, openCardDetail, openArchive, openColorPicker, openActivityLog, } from './modal.js';
 /** Maximum number of undo steps kept per board. */
 const MAX_HISTORY = 8;
+/** Shorten a card/list title for a compact activity-log line. */
+function snip(text) {
+    const oneLine = text.replace(/\s+/g, ' ').trim();
+    return oneLine.length > 40 ? `${oneLine.slice(0, 40)}…` : oneLine;
+}
 /** Darken a #rrggbb color by the given factor (0..1) for the toolbar shade. */
 function darken(hex, factor) {
     const match = /^#([0-9a-f]{6})$/i.exec(hex);
@@ -78,8 +83,22 @@ export class KanbanApp {
         new DragController(this.columnsEl, {
             moveCard: (from, cardId, to, index) => {
                 const board = this.active();
-                if (board && moveCard(board, from, cardId, to, index))
+                if (!board)
+                    return;
+                const fromCol = board.columns.find((c) => c.id === from);
+                const toCol = board.columns.find((c) => c.id === to);
+                const card = fromCol?.cards.find((c) => c.id === cardId);
+                if (moveCard(board, from, cardId, to, index)) {
+                    // Reorders within a list are not activity; cross-list moves are.
+                    if (from !== to && card && fromCol && toCol) {
+                        logActivity(board, 'activityCardMove', [
+                            snip(card.text),
+                            snip(fromCol.title),
+                            snip(toCol.title),
+                        ]);
+                    }
                     this.commit();
+                }
             },
             moveColumn: (from, to) => {
                 const board = this.active();
@@ -153,8 +172,15 @@ export class KanbanApp {
         return {
             addCard: (colId) => {
                 const board = this.active();
-                if (board && addCard(board, colId, t('newCardText')))
-                    this.commit();
+                if (!board)
+                    return;
+                const column = board.columns.find((c) => c.id === colId);
+                const card = addCard(board, colId, t('newCardText'));
+                if (!card)
+                    return;
+                if (column)
+                    logActivity(board, 'activityCardAdd', [snip(card.text), snip(column.title)]);
+                this.commit();
             },
             editCard: (colId, cardId, text) => {
                 const board = this.active();
@@ -163,8 +189,14 @@ export class KanbanApp {
             },
             archiveCard: (colId, cardId) => {
                 const board = this.active();
-                if (board && archiveCard(board, colId, cardId))
+                if (!board)
+                    return;
+                const card = board.columns.find((c) => c.id === colId)?.cards.find((c) => c.id === cardId);
+                if (archiveCard(board, colId, cardId)) {
+                    if (card)
+                        logActivity(board, 'activityCardArchive', [snip(card.text)]);
                     this.commitArchive();
+                }
             },
             cycleCardColor: (colId, cardId) => {
                 const board = this.active();
@@ -214,8 +246,10 @@ export class KanbanApp {
                             this.commit();
                     },
                     onArchive: () => {
-                        if (archiveCard(board, colId, cardId))
+                        if (archiveCard(board, colId, cardId)) {
+                            logActivity(board, 'activityCardArchive', [snip(card.text)]);
                             this.commitArchive();
+                        }
                     },
                     onToggleLabel: (labelId) => {
                         if (toggleCardLabel(board, colId, cardId, labelId))
@@ -276,12 +310,24 @@ export class KanbanApp {
                             this.commit();
                     },
                     onCopy: () => {
-                        if (duplicateCard(board, colId, cardId))
+                        if (duplicateCard(board, colId, cardId)) {
+                            logActivity(board, 'activityCardCopy', [snip(card.text)]);
                             this.commit();
+                        }
                     },
                     onMove: (toColumnId, toIndex) => {
-                        if (moveCard(board, colId, cardId, toColumnId, toIndex))
+                        const fromCol = board.columns.find((c) => c.id === colId);
+                        const toCol = board.columns.find((c) => c.id === toColumnId);
+                        if (moveCard(board, colId, cardId, toColumnId, toIndex)) {
+                            if (colId !== toColumnId && fromCol && toCol) {
+                                logActivity(board, 'activityCardMove', [
+                                    snip(card.text),
+                                    snip(fromCol.title),
+                                    snip(toCol.title),
+                                ]);
+                            }
                             this.commit();
+                        }
                     },
                     onToggleTemplate: () => {
                         if (updateCard(board, colId, cardId, { isTemplate: !card.isTemplate })) {
@@ -289,17 +335,20 @@ export class KanbanApp {
                         }
                     },
                     onCreateFromTemplate: () => {
-                        if (createCardFromTemplate(board, colId, cardId))
+                        if (createCardFromTemplate(board, colId, cardId)) {
+                            logActivity(board, 'activityCardCopy', [snip(card.text)]);
                             this.commit();
+                        }
                     },
                 });
             },
             addColumn: () => {
                 const board = this.active();
-                if (board) {
-                    addColumn(board, t('newColumnTitle'));
-                    this.commit();
-                }
+                if (!board)
+                    return;
+                const column = addColumn(board, t('newColumnTitle'));
+                logActivity(board, 'activityListAdd', [snip(column.title)]);
+                this.commit();
             },
             renameColumn: (colId, title) => {
                 const board = this.active();
@@ -308,23 +357,49 @@ export class KanbanApp {
             },
             archiveColumn: (colId) => {
                 const board = this.active();
-                if (board && archiveColumn(board, colId))
+                if (!board)
+                    return;
+                const column = board.columns.find((c) => c.id === colId);
+                if (archiveColumn(board, colId)) {
+                    if (column)
+                        logActivity(board, 'activityListArchive', [snip(column.title)]);
                     this.commitArchive();
+                }
             },
             sortColumn: (colId, by) => {
                 const board = this.active();
-                if (board && sortColumnCards(board, colId, by))
+                if (!board)
+                    return;
+                const column = board.columns.find((c) => c.id === colId);
+                if (sortColumnCards(board, colId, by)) {
+                    if (column)
+                        logActivity(board, 'activitySort', [snip(column.title)]);
                     this.commit();
+                }
             },
             copyColumn: (colId) => {
                 const board = this.active();
-                if (board && duplicateColumn(board, colId))
+                if (!board)
+                    return;
+                const column = board.columns.find((c) => c.id === colId);
+                if (duplicateColumn(board, colId)) {
+                    if (column)
+                        logActivity(board, 'activityListCopy', [snip(column.title)]);
                     this.commit();
+                }
             },
             moveAllCards: (fromColId, toColId) => {
                 const board = this.active();
-                if (board && moveAllCards(board, fromColId, toColId))
+                if (!board)
+                    return;
+                const fromCol = board.columns.find((c) => c.id === fromColId);
+                const toCol = board.columns.find((c) => c.id === toColId);
+                if (moveAllCards(board, fromColId, toColId)) {
+                    if (fromCol && toCol) {
+                        logActivity(board, 'activityMoveAll', [snip(fromCol.title), snip(toCol.title)]);
+                    }
                     this.commit();
+                }
             },
         };
     }
@@ -334,6 +409,12 @@ export class KanbanApp {
         this.byId('deleteBoardBtn').addEventListener('click', () => this.deleteBoard());
         this.byId('archiveBtn').addEventListener('click', () => this.openArchiveView());
         this.byId('bgColorBtn').addEventListener('click', () => this.pickBackground());
+        this.byId('activityBtn').addEventListener('click', () => {
+            const board = this.active();
+            if (!board)
+                return;
+            void openActivityLog(board.activity.map((e) => ({ text: tf(e.kind, e.params), when: e.createdAt })));
+        });
         this.boardSelect.addEventListener('change', () => {
             this.data.activeBoardId = this.boardSelect.value;
             this.commitReset();
@@ -567,8 +648,14 @@ export class KanbanApp {
             },
             onRestoreColumn: (id) => {
                 const board = this.active();
-                if (board && restoreColumn(board, id))
+                if (!board)
+                    return;
+                const entry = board.archivedColumns.find((a) => a.column.id === id);
+                if (restoreColumn(board, id)) {
+                    if (entry)
+                        logActivity(board, 'activityListRestore', [snip(entry.column.title)]);
                     this.commitArchive();
+                }
             },
             onDeleteColumnForever: (id) => {
                 const board = this.active();
@@ -577,8 +664,14 @@ export class KanbanApp {
             },
             onRestoreCard: (id) => {
                 const board = this.active();
-                if (board && restoreCard(board, id))
+                if (!board)
+                    return;
+                const entry = board.archived.find((a) => a.card.id === id);
+                if (restoreCard(board, id)) {
+                    if (entry)
+                        logActivity(board, 'activityCardRestore', [snip(entry.card.text)]);
                     this.commitArchive();
+                }
             },
             onDeleteCardForever: (id) => {
                 const board = this.active();

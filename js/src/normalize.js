@@ -123,6 +123,9 @@ function normalizeBoard(raw) {
         : [];
     board.background = asString(obj.background, '');
     board.starred = obj.starred === true;
+    board.activity = Array.isArray(obj.activity)
+        ? obj.activity.map(normalizeActivity).filter((a) => a !== null)
+        : [];
     board.archivedColumns = Array.isArray(obj.archivedColumns)
         ? obj.archivedColumns
             .map(normalizeArchivedColumn)
@@ -141,6 +144,23 @@ function normalizeBoard(raw) {
     for (const entry of board.archivedColumns)
         entry.column.cards.forEach(clean);
     return board;
+}
+/** An activity entry without a kind cannot be rendered, so it is dropped. */
+function normalizeActivity(raw) {
+    if (!raw || typeof raw !== 'object')
+        return null;
+    const obj = raw;
+    if (typeof obj.kind !== 'string' || obj.kind === '')
+        return null;
+    const params = Array.isArray(obj.params)
+        ? obj.params.filter((p) => typeof p === 'string')
+        : [];
+    return {
+        id: asString(obj.id, makeId('act')),
+        kind: obj.kind,
+        params,
+        createdAt: asNumber(obj.createdAt, Date.now()),
+    };
 }
 function normalizeLang(value) {
     return value === 'en' ? 'en' : 'ko';

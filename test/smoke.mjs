@@ -367,6 +367,17 @@ try {
   const bgVar = await page.evaluate(() => document.documentElement.style.getPropertyValue('--bg'));
   assert(bgVar === '#0079bf', `board background applies a theme color (got "${bgVar}")`);
 
+  // Activity log: earlier actions on this board appear as localized lines.
+  await page.locator('#menuBtn').click();
+  await page.locator('#activityBtn').click();
+  await page.waitForSelector('.activity-row', { timeout: 3000 });
+  const activityRows = await page.locator('.activity-row').count();
+  assert(activityRows >= 3, `activity log lists recent actions (got ${activityRows})`);
+  const moveAllLine = await page.locator('.activity-text', { hasText: 'Moved all cards' }).count();
+  assert(moveAllLine >= 1, `move-all action was logged (got ${moveAllLine})`);
+  await page.locator('.card-archive .modal-ok').click();
+  await page.waitForTimeout(100);
+
   // Board star: starring moves the board to the front of the selector.
   await page.locator('#starBtn').click();
   await page.waitForTimeout(100);

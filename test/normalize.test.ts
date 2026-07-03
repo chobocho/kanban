@@ -90,6 +90,30 @@ test('board background is kept and defaulted when missing', () => {
   assertEqual(data.boards[1].background, '', 'missing background defaults to empty');
 });
 
+test('board activity is kept, junk dropped, and defaulted when missing', () => {
+  const data = normalizeAppData({
+    boards: [
+      {
+        id: 'b1',
+        name: 'A',
+        columns: [],
+        activity: [
+          { id: 'e1', kind: 'activityCardAdd', params: ['x', 'To Do', 7], createdAt: 5 },
+          { id: 'e2', params: [] }, // no kind -> dropped
+          'junk',
+        ],
+      },
+      { id: 'b2', name: 'B', columns: [] },
+    ],
+  });
+  const activity = data.boards[0].activity;
+  assertEqual(activity.length, 1, 'only the valid entry kept');
+  assertEqual(activity[0].kind, 'activityCardAdd', 'kind kept');
+  assertEqual(activity[0].params.join(','), 'x,To Do', 'string params kept, junk params dropped');
+  assertEqual(activity[0].createdAt, 5, 'timestamp kept');
+  assertEqual(data.boards[1].activity.length, 0, 'missing activity defaults to empty');
+});
+
 test('board starred flag is kept and defaulted when missing', () => {
   const data = normalizeAppData({
     boards: [

@@ -84,6 +84,17 @@ export interface ArchivedColumn {
   archivedAt: number;
 }
 
+/**
+ * One entry in a board's activity log. `kind` is an i18n key whose template is
+ * filled with `params`, so entries render in whichever language is active.
+ */
+export interface ActivityEntry {
+  id: string;
+  kind: string;
+  params: string[];
+  createdAt: number;
+}
+
 /** A board (workspace) containing ordered columns and a shared label set. */
 export interface Board {
   id: string;
@@ -99,6 +110,8 @@ export interface Board {
   background: string;
   /** Starred boards are listed before the others in the board selector. */
   starred: boolean;
+  /** Recent activity (newest first), capped at ACTIVITY_LIMIT entries. */
+  activity: ActivityEntry[];
   createdAt: number;
   updatedAt: number;
 }

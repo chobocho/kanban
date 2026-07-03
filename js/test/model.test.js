@@ -1,6 +1,6 @@
 // Unit tests for the pure board operations in src/model.ts.
 import { test, assert, assertEqual } from './harness.js';
-import { createDefaultData, createBoard, createColumn, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, getActiveBoard, addLabel, updateLabel, removeLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, addChecklistItem, updateChecklistItem, removeChecklistItem, checklistProgress, addComment, updateComment, removeComment, duplicateCard, sortColumnCards, duplicateColumn, moveAllCards, setBoardBackground, addAttachment, removeAttachment, createCardFromTemplate, toggleBoardStar, sortedBoards, } from '../src/model.js';
+import { createDefaultData, createBoard, createColumn, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, getActiveBoard, addLabel, updateLabel, removeLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, addChecklistItem, updateChecklistItem, removeChecklistItem, checklistProgress, addComment, updateComment, removeComment, duplicateCard, sortColumnCards, duplicateColumn, moveAllCards, setBoardBackground, addAttachment, removeAttachment, createCardFromTemplate, toggleBoardStar, sortedBoards, logActivity, ACTIVITY_LIMIT, } from '../src/model.js';
 test('createDefaultData has one board with three columns', () => {
     const data = createDefaultData();
     assertEqual(data.boards.length, 1, 'board count');
@@ -425,6 +425,20 @@ test('sortedBoards lists starred boards first, keeping order within groups', () 
     const names = sortedBoards(data).map((b) => b.name).join(',');
     assertEqual(names, 'B,D,A,C', 'starred first, insertion order preserved');
     assertEqual(data.boards.map((b) => b.name).join(','), 'A,B,C,D', 'stored order untouched');
+});
+test('logActivity keeps newest-first entries capped at the limit', () => {
+    const board = createBoard('b');
+    assertEqual(board.activity.length, 0, 'starts empty');
+    logActivity(board, 'activityCardAdd', ['first', 'To Do']);
+    logActivity(board, 'activityCardAdd', ['second', 'To Do']);
+    assertEqual(board.activity.length, 2, 'two entries');
+    assertEqual(board.activity[0].params[0], 'second', 'newest entry first');
+    assertEqual(board.activity[0].kind, 'activityCardAdd', 'kind stored');
+    for (let i = 0; i < ACTIVITY_LIMIT + 10; i++) {
+        logActivity(board, 'activityCardAdd', [`bulk ${i}`, 'To Do']);
+    }
+    assertEqual(board.activity.length, ACTIVITY_LIMIT, 'capped at the limit');
+    assertEqual(board.activity[0].params[0], `bulk ${ACTIVITY_LIMIT + 9}`, 'latest kept');
 });
 test('getActiveBoard returns the active board', () => {
     const data = createDefaultData();

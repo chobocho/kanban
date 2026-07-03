@@ -1092,6 +1092,27 @@ select.control {
   background: #ffd6cc;
 }
 
+/* --- Activity view --- */
+.activity-row {
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.activity-row:nth-child(odd) {
+  background: #f4f5f7;
+}
+
+.activity-text {
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.activity-when {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
 /* --- Archive view --- */
 .card-archive {
   width: min(560px, 100%);

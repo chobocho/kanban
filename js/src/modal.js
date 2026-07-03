@@ -746,6 +746,73 @@ export function openCardDetail(init, cb) {
         title.focus();
     });
 }
+/** Show the board's recent activity (newest first). Resolves on close. */
+export function openActivityLog(entries) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        const dialog = document.createElement('div');
+        dialog.className = 'modal-dialog card-archive';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        overlay.appendChild(dialog);
+        const heading = document.createElement('div');
+        heading.className = 'card-detail-label';
+        heading.textContent = t('activityLog');
+        dialog.appendChild(heading);
+        const listEl = document.createElement('div');
+        listEl.className = 'archive-list';
+        dialog.appendChild(listEl);
+        if (entries.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'archive-empty';
+            empty.textContent = t('activityEmpty');
+            listEl.appendChild(empty);
+        }
+        for (const entry of entries) {
+            const row = document.createElement('div');
+            row.className = 'activity-row';
+            const text = document.createElement('div');
+            text.className = 'activity-text';
+            text.textContent = entry.text;
+            const when = document.createElement('div');
+            when.className = 'activity-when';
+            when.textContent = formatDate(entry.when);
+            row.append(text, when);
+            listEl.appendChild(row);
+        }
+        let settled = false;
+        const close = () => {
+            if (settled)
+                return;
+            settled = true;
+            document.removeEventListener('keydown', onKey, true);
+            overlay.remove();
+            resolve();
+        };
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                close();
+            }
+        };
+        const actions = document.createElement('div');
+        actions.className = 'modal-actions';
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'modal-btn modal-ok';
+        closeBtn.textContent = t('close');
+        closeBtn.addEventListener('click', () => close());
+        actions.appendChild(closeBtn);
+        dialog.appendChild(actions);
+        overlay.addEventListener('pointerdown', (e) => {
+            if (e.target === overlay)
+                close();
+        });
+        document.addEventListener('keydown', onKey, true);
+        document.body.appendChild(overlay);
+        closeBtn.focus();
+    });
+}
 /**
  * Show the board's archive: archived lists and cards, each restorable or
  * permanently deletable (with confirmation). Resolves when the view closes.

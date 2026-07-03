@@ -3,6 +3,7 @@
 // JSON file is malformed, so every field is validated and repaired here.
 
 import {
+  ActivityEntry,
   AppData,
   ArchivedCard,
   Attachment,
@@ -146,6 +147,9 @@ function normalizeBoard(raw: unknown): Board {
     : [];
   board.background = asString(obj.background, '');
   board.starred = obj.starred === true;
+  board.activity = Array.isArray(obj.activity)
+    ? obj.activity.map(normalizeActivity).filter((a): a is ActivityEntry => a !== null)
+    : [];
   board.archivedColumns = Array.isArray(obj.archivedColumns)
     ? obj.archivedColumns
         .map(normalizeArchivedColumn)
@@ -162,6 +166,22 @@ function normalizeBoard(raw: unknown): Board {
   for (const entry of board.archived) clean(entry.card);
   for (const entry of board.archivedColumns) entry.column.cards.forEach(clean);
   return board;
+}
+
+/** An activity entry without a kind cannot be rendered, so it is dropped. */
+function normalizeActivity(raw: unknown): ActivityEntry | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  if (typeof obj.kind !== 'string' || obj.kind === '') return null;
+  const params = Array.isArray(obj.params)
+    ? obj.params.filter((p): p is string => typeof p === 'string')
+    : [];
+  return {
+    id: asString(obj.id, makeId('act')),
+    kind: obj.kind,
+    params,
+    createdAt: asNumber(obj.createdAt, Date.now()),
+  };
 }
 
 function normalizeLang(value: unknown): Language {

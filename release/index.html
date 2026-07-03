@@ -1099,6 +1099,27 @@ select.control {
   background: #ffd6cc;
 }
 
+/* --- Activity view --- */
+.activity-row {
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.activity-row:nth-child(odd) {
+  background: #f4f5f7;
+}
+
+.activity-text {
+  font-size: 14px;
+  word-break: break-word;
+}
+
+.activity-when {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
 /* --- Archive view --- */
 .card-archive {
   width: min(560px, 100%);
@@ -1403,6 +1424,9 @@ select.control {
           <button id="bgColorBtn" class="menu-item">
             <span class="menu-icon">🎨</span><span class="menu-label" data-i18n="background">배경색</span>
           </button>
+          <button id="activityBtn" class="menu-item">
+            <span class="menu-icon">📜</span><span class="menu-label" data-i18n="activityLog">활동 로그</span>
+          </button>
         </div>
 
         <div class="menu-section">
@@ -1467,9 +1491,9 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch } = __require("model");
 const { History } = __require("history");
-const { setLanguage, t } = __require("i18n");
+const { setLanguage, t, tf } = __require("i18n");
 const { emptyFilter, isFilterActive } = __require("filter");
 const { renderBoard, CARD_COLORS } = __require("render");
 const { DragController } = __require("dnd");
@@ -1477,9 +1501,14 @@ const { ZoomController } = __require("zoom");
 const { LayoutController } = __require("layout");
 const { downloadJson, readJsonFile } = __require("jsonio");
 const { exportBoardPng } = __require("png");
-const { customAlert, customConfirm, customPrompt, openCardDetail, openArchive, openColorPicker } = __require("modal");
+const { customAlert, customConfirm, customPrompt, openCardDetail, openArchive, openColorPicker, openActivityLog } = __require("modal");
 /** Maximum number of undo steps kept per board. */
 const MAX_HISTORY = 8;
+/** Shorten a card/list title for a compact activity-log line. */
+function snip(text) {
+    const oneLine = text.replace(/\s+/g, ' ').trim();
+    return oneLine.length > 40 ? `${oneLine.slice(0, 40)}…` : oneLine;
+}
 /** Darken a #rrggbb color by the given factor (0..1) for the toolbar shade. */
 function darken(hex, factor) {
     const match = /^#([0-9a-f]{6})$/i.exec(hex);
@@ -1542,8 +1571,22 @@ class KanbanApp {
         new DragController(this.columnsEl, {
             moveCard: (from, cardId, to, index) => {
                 const board = this.active();
-                if (board && moveCard(board, from, cardId, to, index))
+                if (!board)
+                    return;
+                const fromCol = board.columns.find((c) => c.id === from);
+                const toCol = board.columns.find((c) => c.id === to);
+                const card = fromCol?.cards.find((c) => c.id === cardId);
+                if (moveCard(board, from, cardId, to, index)) {
+                    // Reorders within a list are not activity; cross-list moves are.
+                    if (from !== to && card && fromCol && toCol) {
+                        logActivity(board, 'activityCardMove', [
+                            snip(card.text),
+                            snip(fromCol.title),
+                            snip(toCol.title),
+                        ]);
+                    }
                     this.commit();
+                }
             },
             moveColumn: (from, to) => {
                 const board = this.active();
@@ -1617,8 +1660,15 @@ class KanbanApp {
         return {
             addCard: (colId) => {
                 const board = this.active();
-                if (board && addCard(board, colId, t('newCardText')))
-                    this.commit();
+                if (!board)
+                    return;
+                const column = board.columns.find((c) => c.id === colId);
+                const card = addCard(board, colId, t('newCardText'));
+                if (!card)
+                    return;
+                if (column)
+                    logActivity(board, 'activityCardAdd', [snip(card.text), snip(column.title)]);
+                this.commit();
             },
             editCard: (colId, cardId, text) => {
                 const board = this.active();
@@ -1627,8 +1677,14 @@ class KanbanApp {
             },
             archiveCard: (colId, cardId) => {
                 const board = this.active();
-                if (board && archiveCard(board, colId, cardId))
+                if (!board)
+                    return;
+                const card = board.columns.find((c) => c.id === colId)?.cards.find((c) => c.id === cardId);
+                if (archiveCard(board, colId, cardId)) {
+                    if (card)
+                        logActivity(board, 'activityCardArchive', [snip(card.text)]);
                     this.commitArchive();
+                }
             },
             cycleCardColor: (colId, cardId) => {
                 const board = this.active();
@@ -1678,8 +1734,10 @@ class KanbanApp {
                             this.commit();
                     },
                     onArchive: () => {
-                        if (archiveCard(board, colId, cardId))
+                        if (archiveCard(board, colId, cardId)) {
+                            logActivity(board, 'activityCardArchive', [snip(card.text)]);
                             this.commitArchive();
+                        }
                     },
                     onToggleLabel: (labelId) => {
                         if (toggleCardLabel(board, colId, cardId, labelId))
@@ -1740,12 +1798,24 @@ class KanbanApp {
                             this.commit();
                     },
                     onCopy: () => {
-                        if (duplicateCard(board, colId, cardId))
+                        if (duplicateCard(board, colId, cardId)) {
+                            logActivity(board, 'activityCardCopy', [snip(card.text)]);
                             this.commit();
+                        }
                     },
                     onMove: (toColumnId, toIndex) => {
-                        if (moveCard(board, colId, cardId, toColumnId, toIndex))
+                        const fromCol = board.columns.find((c) => c.id === colId);
+                        const toCol = board.columns.find((c) => c.id === toColumnId);
+                        if (moveCard(board, colId, cardId, toColumnId, toIndex)) {
+                            if (colId !== toColumnId && fromCol && toCol) {
+                                logActivity(board, 'activityCardMove', [
+                                    snip(card.text),
+                                    snip(fromCol.title),
+                                    snip(toCol.title),
+                                ]);
+                            }
                             this.commit();
+                        }
                     },
                     onToggleTemplate: () => {
                         if (updateCard(board, colId, cardId, { isTemplate: !card.isTemplate })) {
@@ -1753,17 +1823,20 @@ class KanbanApp {
                         }
                     },
                     onCreateFromTemplate: () => {
-                        if (createCardFromTemplate(board, colId, cardId))
+                        if (createCardFromTemplate(board, colId, cardId)) {
+                            logActivity(board, 'activityCardCopy', [snip(card.text)]);
                             this.commit();
+                        }
                     },
                 });
             },
             addColumn: () => {
                 const board = this.active();
-                if (board) {
-                    addColumn(board, t('newColumnTitle'));
-                    this.commit();
-                }
+                if (!board)
+                    return;
+                const column = addColumn(board, t('newColumnTitle'));
+                logActivity(board, 'activityListAdd', [snip(column.title)]);
+                this.commit();
             },
             renameColumn: (colId, title) => {
                 const board = this.active();
@@ -1772,23 +1845,49 @@ class KanbanApp {
             },
             archiveColumn: (colId) => {
                 const board = this.active();
-                if (board && archiveColumn(board, colId))
+                if (!board)
+                    return;
+                const column = board.columns.find((c) => c.id === colId);
+                if (archiveColumn(board, colId)) {
+                    if (column)
+                        logActivity(board, 'activityListArchive', [snip(column.title)]);
                     this.commitArchive();
+                }
             },
             sortColumn: (colId, by) => {
                 const board = this.active();
-                if (board && sortColumnCards(board, colId, by))
+                if (!board)
+                    return;
+                const column = board.columns.find((c) => c.id === colId);
+                if (sortColumnCards(board, colId, by)) {
+                    if (column)
+                        logActivity(board, 'activitySort', [snip(column.title)]);
                     this.commit();
+                }
             },
             copyColumn: (colId) => {
                 const board = this.active();
-                if (board && duplicateColumn(board, colId))
+                if (!board)
+                    return;
+                const column = board.columns.find((c) => c.id === colId);
+                if (duplicateColumn(board, colId)) {
+                    if (column)
+                        logActivity(board, 'activityListCopy', [snip(column.title)]);
                     this.commit();
+                }
             },
             moveAllCards: (fromColId, toColId) => {
                 const board = this.active();
-                if (board && moveAllCards(board, fromColId, toColId))
+                if (!board)
+                    return;
+                const fromCol = board.columns.find((c) => c.id === fromColId);
+                const toCol = board.columns.find((c) => c.id === toColId);
+                if (moveAllCards(board, fromColId, toColId)) {
+                    if (fromCol && toCol) {
+                        logActivity(board, 'activityMoveAll', [snip(fromCol.title), snip(toCol.title)]);
+                    }
                     this.commit();
+                }
             },
         };
     }
@@ -1798,6 +1897,12 @@ class KanbanApp {
         this.byId('deleteBoardBtn').addEventListener('click', () => this.deleteBoard());
         this.byId('archiveBtn').addEventListener('click', () => this.openArchiveView());
         this.byId('bgColorBtn').addEventListener('click', () => this.pickBackground());
+        this.byId('activityBtn').addEventListener('click', () => {
+            const board = this.active();
+            if (!board)
+                return;
+            void openActivityLog(board.activity.map((e) => ({ text: tf(e.kind, e.params), when: e.createdAt })));
+        });
         this.boardSelect.addEventListener('change', () => {
             this.data.activeBoardId = this.boardSelect.value;
             this.commitReset();
@@ -2031,8 +2136,14 @@ class KanbanApp {
             },
             onRestoreColumn: (id) => {
                 const board = this.active();
-                if (board && restoreColumn(board, id))
+                if (!board)
+                    return;
+                const entry = board.archivedColumns.find((a) => a.column.id === id);
+                if (restoreColumn(board, id)) {
+                    if (entry)
+                        logActivity(board, 'activityListRestore', [snip(entry.column.title)]);
                     this.commitArchive();
+                }
             },
             onDeleteColumnForever: (id) => {
                 const board = this.active();
@@ -2041,8 +2152,14 @@ class KanbanApp {
             },
             onRestoreCard: (id) => {
                 const board = this.active();
-                if (board && restoreCard(board, id))
+                if (!board)
+                    return;
+                const entry = board.archived.find((a) => a.card.id === id);
+                if (restoreCard(board, id)) {
+                    if (entry)
+                        logActivity(board, 'activityCardRestore', [snip(entry.card.text)]);
                     this.commitArchive();
+                }
             },
             onDeleteCardForever: (id) => {
                 const board = this.active();
@@ -2634,6 +2751,19 @@ const translations = {
         checklist: '체크리스트',
         addChecklistItem: '추가',
         checklistItemPlaceholder: '항목을 입력하세요…',
+        activityLog: '활동 로그',
+        activityEmpty: '활동 내역이 없습니다',
+        activityCardAdd: '카드 "{0}"을(를) "{1}"에 추가',
+        activityCardMove: '카드 "{0}" 이동: "{1}" → "{2}"',
+        activityCardArchive: '카드 "{0}" 보관',
+        activityCardRestore: '카드 "{0}" 복원',
+        activityCardCopy: '카드 "{0}" 복사',
+        activityListAdd: '리스트 "{0}" 추가',
+        activityListArchive: '리스트 "{0}" 보관',
+        activityListRestore: '리스트 "{0}" 복원',
+        activityListCopy: '리스트 "{0}" 복사',
+        activityMoveAll: '"{0}"의 모든 카드를 "{1}"(으)로 이동',
+        activitySort: '리스트 "{0}" 정렬',
         background: '배경색',
         backgroundPrompt: '보드 배경색을 선택하세요',
         listMenu: '리스트 메뉴',
@@ -2734,6 +2864,19 @@ const translations = {
         checklist: 'Checklist',
         addChecklistItem: 'Add',
         checklistItemPlaceholder: 'Add an item…',
+        activityLog: 'Activity',
+        activityEmpty: 'No activity yet',
+        activityCardAdd: 'Added card "{0}" to "{1}"',
+        activityCardMove: 'Moved card "{0}" from "{1}" to "{2}"',
+        activityCardArchive: 'Archived card "{0}"',
+        activityCardRestore: 'Restored card "{0}"',
+        activityCardCopy: 'Copied card "{0}"',
+        activityListAdd: 'Added list "{0}"',
+        activityListArchive: 'Archived list "{0}"',
+        activityListRestore: 'Restored list "{0}"',
+        activityListCopy: 'Copied list "{0}"',
+        activityMoveAll: 'Moved all cards from "{0}" to "{1}"',
+        activitySort: 'Sorted list "{0}"',
         background: 'Background',
         backgroundPrompt: 'Pick a board background color',
         listMenu: 'List menu',
@@ -2827,10 +2970,20 @@ function getLanguage() {
 function t(key) {
     return translations[current][key] ?? translations.ko[key] ?? key;
 }
+/** Fill indexed placeholders ({0}, {1}, …) with params; missing ones go blank. */
+function formatTemplate(template, params) {
+    return template.replace(/\{(\d+)\}/g, (_, index) => params[Number(index)] ?? '');
+}
+/** Translate a key, then fill its placeholders with the given params. */
+function tf(key, params) {
+    return formatTemplate(t(key), params);
+}
 
 __exports.setLanguage = setLanguage;
 __exports.getLanguage = getLanguage;
 __exports.t = t;
+__exports.formatTemplate = formatTemplate;
+__exports.tf = tf;
 
 };
 __modules["id"] = function(__exports, __require){
@@ -3715,6 +3868,73 @@ function openCardDetail(init, cb) {
         title.focus();
     });
 }
+/** Show the board's recent activity (newest first). Resolves on close. */
+function openActivityLog(entries) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        const dialog = document.createElement('div');
+        dialog.className = 'modal-dialog card-archive';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        overlay.appendChild(dialog);
+        const heading = document.createElement('div');
+        heading.className = 'card-detail-label';
+        heading.textContent = t('activityLog');
+        dialog.appendChild(heading);
+        const listEl = document.createElement('div');
+        listEl.className = 'archive-list';
+        dialog.appendChild(listEl);
+        if (entries.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'archive-empty';
+            empty.textContent = t('activityEmpty');
+            listEl.appendChild(empty);
+        }
+        for (const entry of entries) {
+            const row = document.createElement('div');
+            row.className = 'activity-row';
+            const text = document.createElement('div');
+            text.className = 'activity-text';
+            text.textContent = entry.text;
+            const when = document.createElement('div');
+            when.className = 'activity-when';
+            when.textContent = formatDate(entry.when);
+            row.append(text, when);
+            listEl.appendChild(row);
+        }
+        let settled = false;
+        const close = () => {
+            if (settled)
+                return;
+            settled = true;
+            document.removeEventListener('keydown', onKey, true);
+            overlay.remove();
+            resolve();
+        };
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                close();
+            }
+        };
+        const actions = document.createElement('div');
+        actions.className = 'modal-actions';
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'modal-btn modal-ok';
+        closeBtn.textContent = t('close');
+        closeBtn.addEventListener('click', () => close());
+        actions.appendChild(closeBtn);
+        dialog.appendChild(actions);
+        overlay.addEventListener('pointerdown', (e) => {
+            if (e.target === overlay)
+                close();
+        });
+        document.addEventListener('keydown', onKey, true);
+        document.body.appendChild(overlay);
+        closeBtn.focus();
+    });
+}
 /**
  * Show the board's archive: archived lists and cards, each restorable or
  * permanently deletable (with confirmation). Resolves when the view closes.
@@ -3833,6 +4053,7 @@ __exports.customConfirm = customConfirm;
 __exports.customPrompt = customPrompt;
 __exports.openColorPicker = openColorPicker;
 __exports.openCardDetail = openCardDetail;
+__exports.openActivityLog = openActivityLog;
 __exports.openArchive = openArchive;
 
 };
@@ -3913,6 +4134,7 @@ function createBoard(name, columns = []) {
         archivedColumns: [],
         background: '',
         starred: false,
+        activity: [],
         createdAt: now,
         updatedAt: now,
     };
@@ -4354,6 +4576,19 @@ function moveCard(board, fromColumnId, cardId, toColumnId, toIndex) {
 function getActiveBoard(data) {
     return data.boards.find((b) => b.id === data.activeBoardId);
 }
+/** Maximum number of activity entries kept per board. */
+const ACTIVITY_LIMIT = 50;
+/**
+ * Record an activity entry (newest first). `kind` is the i18n key of the
+ * message template; `params` fill its placeholders at render time.
+ */
+function logActivity(board, kind, params) {
+    const entry = { id: makeId('act'), kind, params, createdAt: Date.now() };
+    board.activity.unshift(entry);
+    if (board.activity.length > ACTIVITY_LIMIT)
+        board.activity.length = ACTIVITY_LIMIT;
+    touch(board);
+}
 /** Flip a board's starred flag. */
 function toggleBoardStar(board) {
     board.starred = !board.starred;
@@ -4410,10 +4645,12 @@ __exports.removeLabel = removeLabel;
 __exports.toggleCardLabel = toggleCardLabel;
 __exports.moveCard = moveCard;
 __exports.getActiveBoard = getActiveBoard;
+__exports.logActivity = logActivity;
 __exports.toggleBoardStar = toggleBoardStar;
 __exports.sortedBoards = sortedBoards;
 __exports.LABEL_COLORS = LABEL_COLORS;
 __exports.BOARD_BACKGROUNDS = BOARD_BACKGROUNDS;
+__exports.ACTIVITY_LIMIT = ACTIVITY_LIMIT;
 
 };
 __modules["normalize"] = function(__exports, __require){
@@ -4542,6 +4779,9 @@ function normalizeBoard(raw) {
         : [];
     board.background = asString(obj.background, '');
     board.starred = obj.starred === true;
+    board.activity = Array.isArray(obj.activity)
+        ? obj.activity.map(normalizeActivity).filter((a) => a !== null)
+        : [];
     board.archivedColumns = Array.isArray(obj.archivedColumns)
         ? obj.archivedColumns
             .map(normalizeArchivedColumn)
@@ -4560,6 +4800,23 @@ function normalizeBoard(raw) {
     for (const entry of board.archivedColumns)
         entry.column.cards.forEach(clean);
     return board;
+}
+/** An activity entry without a kind cannot be rendered, so it is dropped. */
+function normalizeActivity(raw) {
+    if (!raw || typeof raw !== 'object')
+        return null;
+    const obj = raw;
+    if (typeof obj.kind !== 'string' || obj.kind === '')
+        return null;
+    const params = Array.isArray(obj.params)
+        ? obj.params.filter((p) => typeof p === 'string')
+        : [];
+    return {
+        id: asString(obj.id, makeId('act')),
+        kind: obj.kind,
+        params,
+        createdAt: asNumber(obj.createdAt, Date.now()),
+    };
 }
 function normalizeLang(value) {
     return value === 'en' ? 'en' : 'ko';

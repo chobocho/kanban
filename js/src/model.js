@@ -74,6 +74,7 @@ export function createBoard(name, columns = []) {
         archivedColumns: [],
         background: '',
         starred: false,
+        activity: [],
         createdAt: now,
         updatedAt: now,
     };
@@ -514,6 +515,19 @@ export function moveCard(board, fromColumnId, cardId, toColumnId, toIndex) {
 }
 export function getActiveBoard(data) {
     return data.boards.find((b) => b.id === data.activeBoardId);
+}
+/** Maximum number of activity entries kept per board. */
+export const ACTIVITY_LIMIT = 50;
+/**
+ * Record an activity entry (newest first). `kind` is the i18n key of the
+ * message template; `params` fill its placeholders at render time.
+ */
+export function logActivity(board, kind, params) {
+    const entry = { id: makeId('act'), kind, params, createdAt: Date.now() };
+    board.activity.unshift(entry);
+    if (board.activity.length > ACTIVITY_LIMIT)
+        board.activity.length = ACTIVITY_LIMIT;
+    touch(board);
 }
 /** Flip a board's starred flag. */
 export function toggleBoardStar(board) {

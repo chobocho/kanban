@@ -20,6 +20,19 @@ const translations = {
         checklist: '체크리스트',
         addChecklistItem: '추가',
         checklistItemPlaceholder: '항목을 입력하세요…',
+        activityLog: '활동 로그',
+        activityEmpty: '활동 내역이 없습니다',
+        activityCardAdd: '카드 "{0}"을(를) "{1}"에 추가',
+        activityCardMove: '카드 "{0}" 이동: "{1}" → "{2}"',
+        activityCardArchive: '카드 "{0}" 보관',
+        activityCardRestore: '카드 "{0}" 복원',
+        activityCardCopy: '카드 "{0}" 복사',
+        activityListAdd: '리스트 "{0}" 추가',
+        activityListArchive: '리스트 "{0}" 보관',
+        activityListRestore: '리스트 "{0}" 복원',
+        activityListCopy: '리스트 "{0}" 복사',
+        activityMoveAll: '"{0}"의 모든 카드를 "{1}"(으)로 이동',
+        activitySort: '리스트 "{0}" 정렬',
         background: '배경색',
         backgroundPrompt: '보드 배경색을 선택하세요',
         listMenu: '리스트 메뉴',
@@ -120,6 +133,19 @@ const translations = {
         checklist: 'Checklist',
         addChecklistItem: 'Add',
         checklistItemPlaceholder: 'Add an item…',
+        activityLog: 'Activity',
+        activityEmpty: 'No activity yet',
+        activityCardAdd: 'Added card "{0}" to "{1}"',
+        activityCardMove: 'Moved card "{0}" from "{1}" to "{2}"',
+        activityCardArchive: 'Archived card "{0}"',
+        activityCardRestore: 'Restored card "{0}"',
+        activityCardCopy: 'Copied card "{0}"',
+        activityListAdd: 'Added list "{0}"',
+        activityListArchive: 'Archived list "{0}"',
+        activityListRestore: 'Restored list "{0}"',
+        activityListCopy: 'Copied list "{0}"',
+        activityMoveAll: 'Moved all cards from "{0}" to "{1}"',
+        activitySort: 'Sorted list "{0}"',
         background: 'Background',
         backgroundPrompt: 'Pick a board background color',
         listMenu: 'List menu',
@@ -212,4 +238,12 @@ export function getLanguage() {
 /** Translate a key into the current language, falling back to the key itself. */
 export function t(key) {
     return translations[current][key] ?? translations.ko[key] ?? key;
+}
+/** Fill indexed placeholders ({0}, {1}, …) with params; missing ones go blank. */
+export function formatTemplate(template, params) {
+    return template.replace(/\{(\d+)\}/g, (_, index) => params[Number(index)] ?? '');
+}
+/** Translate a key, then fill its placeholders with the given params. */
+export function tf(key, params) {
+    return formatTemplate(t(key), params);
 }
