@@ -3,6 +3,7 @@
 // click, and use only the DOM (no external library).
 
 import { getLanguage, t } from './i18n.js';
+import { renderMarkdown } from './markdown.js';
 import { Attachment, ChecklistItem, Comment, Label } from './types.js';
 
 /** Attachments above this size are refused to keep the DB and exports sane. */
@@ -535,7 +536,26 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     desc.className = 'card-detail-desc';
     desc.value = init.description;
     desc.placeholder = t('descriptionPlaceholder');
-    dialog.appendChild(desc);
+
+    // A non-empty description opens as a rendered markdown preview; clicking
+    // it (anywhere but a link) swaps in the textarea. Save reads the textarea,
+    // which always carries the current value even while hidden.
+    const preview = document.createElement('div');
+    preview.className = 'card-detail-desc-preview';
+    preview.title = t('edit');
+    preview.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('a')) return; // follow links normally
+      preview.hidden = true;
+      desc.hidden = false;
+      desc.focus();
+    });
+    if (init.description.trim()) {
+      preview.appendChild(renderMarkdown(init.description));
+      desc.hidden = true;
+    } else {
+      preview.hidden = true;
+    }
+    dialog.append(preview, desc);
 
     // --- Checklist: progress bar + items, all applied immediately. ---
     addLabel(t('checklist'));

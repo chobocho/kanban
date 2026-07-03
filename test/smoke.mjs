@@ -390,6 +390,27 @@ try {
   const bulkAfter = await bulkCol.locator('.card').count();
   assert(bulkAfter === bulkBefore + 3, `bulk add creates one card per line (got ${bulkAfter})`);
 
+  // Markdown: a saved description renders as a preview; clicking it edits.
+  const mdCard = bulkCol.locator('.card').first(); // "alpha"
+  await mdCard.hover();
+  await mdCard.locator('.icon-btn[title="Open card details"]').click();
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  await page.locator('.card-detail-desc').fill('# Title\n- item one\n**bold**');
+  await page.locator('.card-detail .modal-ok').click();
+  await page.waitForTimeout(100);
+  await mdCard.hover();
+  await mdCard.locator('.icon-btn[title="Open card details"]').click();
+  await page.waitForSelector('.card-detail-desc-preview', { timeout: 3000 });
+  const mdH1 = await page.locator('.card-detail-desc-preview h1').textContent();
+  assert(mdH1 === 'Title', `markdown heading renders in the preview (got "${mdH1}")`);
+  const mdLi = await page.locator('.card-detail-desc-preview li').count();
+  assert(mdLi === 1, `markdown list renders in the preview (got ${mdLi})`);
+  await page.locator('.card-detail-desc-preview').click();
+  const descVisible = await page.locator('.card-detail-desc').isVisible();
+  assert(descVisible, 'clicking the preview switches to the editor');
+  await page.locator('.card-detail .modal-cancel').click();
+  await page.waitForTimeout(100);
+
   // Keyboard navigation: arrows move focus between cards, Enter opens detail.
   await bulkCol.locator('.card').first().focus();
   await page.keyboard.press('ArrowDown');

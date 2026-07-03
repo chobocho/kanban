@@ -2,6 +2,7 @@
 // They are promise-based, keyboard-accessible (Enter/Escape), close on backdrop
 // click, and use only the DOM (no external library).
 import { getLanguage, t } from './i18n.js';
+import { renderMarkdown } from './markdown.js';
 /** Attachments above this size are refused to keep the DB and exports sane. */
 const MAX_ATTACHMENT_BYTES = 1500000;
 function openModal(opts) {
@@ -392,7 +393,27 @@ export function openCardDetail(init, cb) {
         desc.className = 'card-detail-desc';
         desc.value = init.description;
         desc.placeholder = t('descriptionPlaceholder');
-        dialog.appendChild(desc);
+        // A non-empty description opens as a rendered markdown preview; clicking
+        // it (anywhere but a link) swaps in the textarea. Save reads the textarea,
+        // which always carries the current value even while hidden.
+        const preview = document.createElement('div');
+        preview.className = 'card-detail-desc-preview';
+        preview.title = t('edit');
+        preview.addEventListener('click', (e) => {
+            if (e.target.closest('a'))
+                return; // follow links normally
+            preview.hidden = true;
+            desc.hidden = false;
+            desc.focus();
+        });
+        if (init.description.trim()) {
+            preview.appendChild(renderMarkdown(init.description));
+            desc.hidden = true;
+        }
+        else {
+            preview.hidden = true;
+        }
+        dialog.append(preview, desc);
         // --- Checklist: progress bar + items, all applied immediately. ---
         addLabel(t('checklist'));
         const checklistBox = document.createElement('div');
