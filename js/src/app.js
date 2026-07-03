@@ -9,6 +9,7 @@ import { setLanguage, t, tf } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
 import { renderBoard, CARD_COLORS } from './render.js';
 import { DragController } from './dnd.js';
+import { KeyboardNavigator } from './keys.js';
 import { ZoomController } from './zoom.js';
 import { LayoutController } from './layout.js';
 import { downloadJson, readJsonFile } from './jsonio.js';
@@ -118,6 +119,7 @@ export class KanbanApp {
             // list incorrectly, so drag is suspended whenever a filter is active.
             isBlocked: () => this.zoom.isPinching() || isFilterActive(this.filter),
         });
+        new KeyboardNavigator(this.columnsEl, (colId, cardId) => this.handlers.openCard(colId, cardId));
         this.wireToolbar();
         this.resetHistory();
         // Flush any pending debounced save before the page is hidden/closed so that

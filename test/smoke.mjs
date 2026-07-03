@@ -390,6 +390,21 @@ try {
   const bulkAfter = await bulkCol.locator('.card').count();
   assert(bulkAfter === bulkBefore + 3, `bulk add creates one card per line (got ${bulkAfter})`);
 
+  // Keyboard navigation: arrows move focus between cards, Enter opens detail.
+  await bulkCol.locator('.card').first().focus();
+  await page.keyboard.press('ArrowDown');
+  const focusedText = await page.evaluate(
+    () => document.activeElement?.querySelector('.card-text')?.textContent,
+  );
+  assert(focusedText === 'beta', `ArrowDown focuses the next card (got "${focusedText}")`);
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  const kbTitle = await page.locator('.card-detail-title').inputValue();
+  assert(kbTitle === 'alpha', `Enter opens the focused card's detail (got "${kbTitle}")`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(100);
+
   // Theme: forcing dark mode flips the html data-theme attribute.
   await page.locator('#menuBtn').click();
   await page.selectOption('#themeSelect', 'dark');

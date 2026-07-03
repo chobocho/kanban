@@ -512,6 +512,11 @@ select.control {
   overflow: hidden;
 }
 
+.card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .card-stripe {
   position: absolute;
   left: 0;

@@ -149,6 +149,8 @@ function renderCard(
   const node = el('div', 'card');
   node.dataset.cardId = card.id;
   node.dataset.colId = column.id;
+  // Focusable for keyboard navigation (arrows move, Enter/Space opens).
+  node.tabIndex = 0;
   if (card.color) {
     const stripe = el('span', 'card-stripe');
     stripe.style.background = card.color;
