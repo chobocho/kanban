@@ -436,7 +436,7 @@ export function openCardDetail(init, cb) {
             barRow.className = 'checklist-progress-row';
             barRow.append(pct, bar);
             checklistBox.appendChild(barRow);
-            for (const item of items) {
+            items.forEach((item, at) => {
                 const row = document.createElement('div');
                 row.className = 'checklist-item';
                 const check = document.createElement('input');
@@ -454,6 +454,19 @@ export function openCardDetail(init, cb) {
                     text.classList.add('is-done');
                 // Commit a rename on blur/Enter, not on every keystroke.
                 text.addEventListener('change', () => cb.onRenameChecklistItem(item.id, text.value.trim()));
+                const moveBtn = (glyph, titleKey, direction) => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'checklist-item-del';
+                    btn.textContent = glyph;
+                    btn.title = t(titleKey);
+                    btn.disabled = direction === -1 ? at === 0 : at === items.length - 1;
+                    btn.addEventListener('click', () => {
+                        cb.onMoveChecklistItem(item.id, direction);
+                        renderChecklist();
+                    });
+                    return btn;
+                };
                 const del = document.createElement('button');
                 del.type = 'button';
                 del.className = 'checklist-item-del';
@@ -463,9 +476,9 @@ export function openCardDetail(init, cb) {
                     cb.onRemoveChecklistItem(item.id);
                     renderChecklist();
                 });
-                row.append(check, text, del);
+                row.append(check, text, moveBtn('🔼', 'moveUp', -1), moveBtn('🔽', 'moveDown', 1), del);
                 checklistBox.appendChild(row);
-            }
+            });
             const addRow = document.createElement('div');
             addRow.className = 'checklist-add';
             const addInput = document.createElement('input');

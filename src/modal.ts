@@ -320,6 +320,8 @@ export interface CardDetailCallbacks {
   onToggleChecklistItem(itemId: string): void;
   /** Rename a checklist item. */
   onRenameChecklistItem(itemId: string, text: string): void;
+  /** Move a checklist item one step up (-1) or down (+1). */
+  onMoveChecklistItem(itemId: string, direction: -1 | 1): void;
   /** Remove a checklist item. */
   onRemoveChecklistItem(itemId: string): void;
   /** Attach an image (already read into a data URL). */
@@ -582,7 +584,7 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
       barRow.append(pct, bar);
       checklistBox.appendChild(barRow);
 
-      for (const item of items) {
+      items.forEach((item, at) => {
         const row = document.createElement('div');
         row.className = 'checklist-item';
 
@@ -602,6 +604,20 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
         // Commit a rename on blur/Enter, not on every keystroke.
         text.addEventListener('change', () => cb.onRenameChecklistItem(item.id, text.value.trim()));
 
+        const moveBtn = (glyph: string, titleKey: string, direction: -1 | 1): HTMLElement => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'checklist-item-del';
+          btn.textContent = glyph;
+          btn.title = t(titleKey);
+          btn.disabled = direction === -1 ? at === 0 : at === items.length - 1;
+          btn.addEventListener('click', () => {
+            cb.onMoveChecklistItem(item.id, direction);
+            renderChecklist();
+          });
+          return btn;
+        };
+
         const del = document.createElement('button');
         del.type = 'button';
         del.className = 'checklist-item-del';
@@ -612,9 +628,9 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
           renderChecklist();
         });
 
-        row.append(check, text, del);
+        row.append(check, text, moveBtn('🔼', 'moveUp', -1), moveBtn('🔽', 'moveDown', 1), del);
         checklistBox.appendChild(row);
-      }
+      });
 
       const addRow = document.createElement('div');
       addRow.className = 'checklist-add';

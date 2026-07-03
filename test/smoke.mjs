@@ -153,6 +153,17 @@ try {
   await page.waitForTimeout(100);
   const items = await page.locator('.checklist-item').count();
   assert(items === 1, `checklist item is added (got ${items})`);
+  // Reorder: add a second item and move it above the first.
+  await page.locator('.checklist-add-input').fill('second step');
+  await page.locator('.checklist-add-btn').click();
+  await page.waitForTimeout(100);
+  await page.locator('.checklist-item').nth(1).locator('[title="Move up"]').click();
+  await page.waitForTimeout(100);
+  const firstItemText = await page
+    .locator('.checklist-item').first().locator('.checklist-item-text').inputValue();
+  assert(firstItemText === 'second step', `checklist item moves up (got "${firstItemText}")`);
+  await page.locator('.checklist-item').first().locator('[title="Delete"]').click();
+  await page.waitForTimeout(100);
   await page.locator('.card-detail .modal-cancel').click();
   await page.waitForTimeout(100);
   const checkBadge = await page.locator('.column').nth(1).locator('.card-check').textContent();

@@ -323,6 +323,20 @@ export function updateChecklistItem(board, columnId, cardId, itemId, patch) {
     touch(board);
     return true;
 }
+/** Move a checklist item one step up (-1) or down (+1). False at the edges. */
+export function moveChecklistItem(board, columnId, cardId, itemId, direction) {
+    const card = findCard(board, columnId, cardId);
+    if (!card)
+        return false;
+    const index = card.checklist.findIndex((i) => i.id === itemId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= card.checklist.length)
+        return false;
+    const [item] = card.checklist.splice(index, 1);
+    card.checklist.splice(target, 0, item);
+    touch(board);
+    return true;
+}
 /** Remove a checklist item from a card. */
 export function removeChecklistItem(board, columnId, cardId, itemId) {
     const card = findCard(board, columnId, cardId);

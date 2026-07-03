@@ -971,6 +971,15 @@ select.control {
   background: var(--hover-bg);
 }
 
+.checklist-item-del:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.checklist-item-del:disabled:hover {
+  background: transparent;
+}
+
 .checklist-add {
   display: flex;
   gap: 6px;

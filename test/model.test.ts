@@ -27,6 +27,7 @@ import {
   addChecklistItem,
   updateChecklistItem,
   removeChecklistItem,
+  moveChecklistItem,
   checklistProgress,
   addComment,
   updateComment,
@@ -578,6 +579,27 @@ test('importBoard appends, activates and avoids id collisions', () => {
   const again = importBoard(data, clone);
   assertEqual(data.boards.length, 3, 'second copy appended');
   assert(again.id !== imported.id, 'colliding id regenerated');
+});
+
+test('moveChecklistItem shifts an item and stops at the edges', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  addChecklistItem(board, colId, card.id, 'one');
+  addChecklistItem(board, colId, card.id, 'two');
+  addChecklistItem(board, colId, card.id, 'three');
+  const texts = (): string => card.checklist.map((i) => i.text).join(',');
+
+  const secondId = card.checklist[1].id;
+  assert(moveChecklistItem(board, colId, card.id, secondId, -1), 'move up ok');
+  assertEqual(texts(), 'two,one,three', 'moved above the first item');
+  assert(!moveChecklistItem(board, colId, card.id, secondId, -1), 'top edge rejected');
+
+  assert(moveChecklistItem(board, colId, card.id, secondId, 1), 'move down ok');
+  assert(moveChecklistItem(board, colId, card.id, secondId, 1), 'move down again ok');
+  assertEqual(texts(), 'one,three,two', 'moved to the end');
+  assert(!moveChecklistItem(board, colId, card.id, secondId, 1), 'bottom edge rejected');
+  assert(!moveChecklistItem(board, colId, card.id, 'missing', 1), 'unknown item rejected');
 });
 
 test('getActiveBoard returns the active board', () => {

@@ -978,6 +978,15 @@ select.control {
   background: var(--hover-bg);
 }
 
+.checklist-item-del:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.checklist-item-del:disabled:hover {
+  background: transparent;
+}
+
 .checklist-add {
   display: flex;
   gap: 6px;
@@ -1623,7 +1632,7 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCardsFromText, importBoard, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCardsFromText, importBoard, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch } = __require("model");
 const { History } = __require("history");
 const { setLanguage, t, tf } = __require("i18n");
 const { emptyFilter, isFilterActive } = __require("filter");
@@ -1918,6 +1927,10 @@ class KanbanApp {
                     },
                     onRemoveChecklistItem: (itemId) => {
                         if (removeChecklistItem(board, colId, cardId, itemId))
+                            this.commit();
+                    },
+                    onMoveChecklistItem: (itemId, direction) => {
+                        if (moveChecklistItem(board, colId, cardId, itemId, direction))
                             this.commit();
                     },
                     onAddAttachment: (name, dataUrl) => {
@@ -2943,6 +2956,8 @@ const translations = {
         labelColorPrompt: '라벨 색상을 선택하세요',
         deleteLabelConfirm: '이 라벨을 삭제할까요? 모든 카드에서 제거됩니다.',
         checklist: '체크리스트',
+        moveUp: '위로',
+        moveDown: '아래로',
         addChecklistItem: '추가',
         checklistItemPlaceholder: '항목을 입력하세요…',
         activityLog: '활동 로그',
@@ -3065,6 +3080,8 @@ const translations = {
         labelColorPrompt: 'Pick a label color',
         deleteLabelConfirm: 'Delete this label? It will be removed from every card.',
         checklist: 'Checklist',
+        moveUp: 'Move up',
+        moveDown: 'Move down',
         addChecklistItem: 'Add',
         checklistItemPlaceholder: 'Add an item…',
         activityLog: 'Activity',
@@ -4039,7 +4056,7 @@ function openCardDetail(init, cb) {
             barRow.className = 'checklist-progress-row';
             barRow.append(pct, bar);
             checklistBox.appendChild(barRow);
-            for (const item of items) {
+            items.forEach((item, at) => {
                 const row = document.createElement('div');
                 row.className = 'checklist-item';
                 const check = document.createElement('input');
@@ -4057,6 +4074,19 @@ function openCardDetail(init, cb) {
                     text.classList.add('is-done');
                 // Commit a rename on blur/Enter, not on every keystroke.
                 text.addEventListener('change', () => cb.onRenameChecklistItem(item.id, text.value.trim()));
+                const moveBtn = (glyph, titleKey, direction) => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'checklist-item-del';
+                    btn.textContent = glyph;
+                    btn.title = t(titleKey);
+                    btn.disabled = direction === -1 ? at === 0 : at === items.length - 1;
+                    btn.addEventListener('click', () => {
+                        cb.onMoveChecklistItem(item.id, direction);
+                        renderChecklist();
+                    });
+                    return btn;
+                };
                 const del = document.createElement('button');
                 del.type = 'button';
                 del.className = 'checklist-item-del';
@@ -4066,9 +4096,9 @@ function openCardDetail(init, cb) {
                     cb.onRemoveChecklistItem(item.id);
                     renderChecklist();
                 });
-                row.append(check, text, del);
+                row.append(check, text, moveBtn('🔼', 'moveUp', -1), moveBtn('🔽', 'moveDown', 1), del);
                 checklistBox.appendChild(row);
-            }
+            });
             const addRow = document.createElement('div');
             addRow.className = 'checklist-add';
             const addInput = document.createElement('input');
@@ -4944,6 +4974,20 @@ function updateChecklistItem(board, columnId, cardId, itemId, patch) {
     touch(board);
     return true;
 }
+/** Move a checklist item one step up (-1) or down (+1). False at the edges. */
+function moveChecklistItem(board, columnId, cardId, itemId, direction) {
+    const card = findCard(board, columnId, cardId);
+    if (!card)
+        return false;
+    const index = card.checklist.findIndex((i) => i.id === itemId);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= card.checklist.length)
+        return false;
+    const [item] = card.checklist.splice(index, 1);
+    card.checklist.splice(target, 0, item);
+    touch(board);
+    return true;
+}
 /** Remove a checklist item from a card. */
 function removeChecklistItem(board, columnId, cardId, itemId) {
     const card = findCard(board, columnId, cardId);
@@ -5220,6 +5264,7 @@ __exports.createCardFromTemplate = createCardFromTemplate;
 __exports.removeCard = removeCard;
 __exports.addChecklistItem = addChecklistItem;
 __exports.updateChecklistItem = updateChecklistItem;
+__exports.moveChecklistItem = moveChecklistItem;
 __exports.removeChecklistItem = removeChecklistItem;
 __exports.addAttachment = addAttachment;
 __exports.removeAttachment = removeAttachment;

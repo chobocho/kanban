@@ -28,6 +28,7 @@ import {
   addChecklistItem,
   updateChecklistItem,
   removeChecklistItem,
+  moveChecklistItem,
   addComment,
   updateComment,
   removeComment,
@@ -371,6 +372,9 @@ export class KanbanApp {
             },
             onRemoveChecklistItem: (itemId) => {
               if (removeChecklistItem(board, colId, cardId, itemId)) this.commit();
+            },
+            onMoveChecklistItem: (itemId, direction) => {
+              if (moveChecklistItem(board, colId, cardId, itemId, direction)) this.commit();
             },
             onAddAttachment: (name, dataUrl) => {
               if (addAttachment(board, colId, cardId, name, dataUrl)) this.commit();
