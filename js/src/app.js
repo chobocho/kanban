@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCardsFromText, importBoard, duplicateBoard, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklist, renameChecklist, removeChecklist, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, findColumn, findCard, snapshotColumns, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCardsFromText, importBoard, duplicateBoard, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklist, renameChecklist, removeChecklist, addChecklistItem, updateChecklistItem, toggleChecklistItem, removeChecklistItem, moveChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch, } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t, tf } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
@@ -91,25 +91,7 @@ export class KanbanApp {
         if (view)
             new LayoutController(surface, this.columnsEl, view);
         new DragController(this.columnsEl, {
-            moveCard: (from, cardId, to, index) => {
-                const board = this.active();
-                if (!board)
-                    return;
-                const fromCol = board.columns.find((c) => c.id === from);
-                const toCol = board.columns.find((c) => c.id === to);
-                const card = fromCol?.cards.find((c) => c.id === cardId);
-                if (moveCard(board, from, cardId, to, index)) {
-                    // Reorders within a list are not activity; cross-list moves are.
-                    if (from !== to && card && fromCol && toCol) {
-                        logActivity(board, 'activityCardMove', [
-                            snip(card.text),
-                            snip(fromCol.title),
-                            snip(toCol.title),
-                        ]);
-                    }
-                    this.commit();
-                }
-            },
+            moveCard: (from, cardId, to, index) => this.moveCardLogged(from, cardId, to, index),
             moveColumn: (from, to) => {
                 const board = this.active();
                 if (board && moveColumn(board, from, to))
@@ -179,13 +161,33 @@ export class KanbanApp {
     active() {
         return getActiveBoard(this.data);
     }
+    /** Move a card (drag or dialog) and record cross-list moves as activity. */
+    moveCardLogged(from, cardId, to, index) {
+        const board = this.active();
+        if (!board)
+            return;
+        const fromCol = findColumn(board, from);
+        const toCol = findColumn(board, to);
+        const card = findCard(board, from, cardId);
+        if (!moveCard(board, from, cardId, to, index))
+            return;
+        // Reorders within a list are not activity; cross-list moves are.
+        if (from !== to && card && fromCol && toCol) {
+            logActivity(board, 'activityCardMove', [
+                snip(card.text),
+                snip(fromCol.title),
+                snip(toCol.title),
+            ]);
+        }
+        this.commit();
+    }
     get handlers() {
         return {
             addCard: (colId) => {
                 const board = this.active();
                 if (!board)
                     return;
-                const column = board.columns.find((c) => c.id === colId);
+                const column = findColumn(board, colId);
                 const card = addCard(board, colId, t('newCardText'));
                 if (!card)
                     return;
@@ -202,7 +204,7 @@ export class KanbanApp {
                 const board = this.active();
                 if (!board)
                     return;
-                const card = board.columns.find((c) => c.id === colId)?.cards.find((c) => c.id === cardId);
+                const card = findCard(board, colId, cardId);
                 if (archiveCard(board, colId, cardId)) {
                     if (card)
                         logActivity(board, 'activityCardArchive', [snip(card.text)]);
@@ -213,8 +215,7 @@ export class KanbanApp {
                 const board = this.active();
                 if (!board)
                     return;
-                const column = board.columns.find((c) => c.id === colId);
-                const card = column?.cards.find((c) => c.id === cardId);
+                const card = findCard(board, colId, cardId);
                 if (!card)
                     return;
                 const next = CARD_COLORS[(CARD_COLORS.indexOf(card.color) + 1) % CARD_COLORS.length];
@@ -225,8 +226,7 @@ export class KanbanApp {
                 const board = this.active();
                 if (!board)
                     return;
-                const column = board.columns.find((c) => c.id === colId);
-                const card = column?.cards.find((c) => c.id === cardId);
+                const card = findCard(board, colId, cardId);
                 if (!card)
                     return;
                 void openCardDetail({
@@ -299,15 +299,8 @@ export class KanbanApp {
                             this.commit();
                     },
                     onToggleChecklistItem: (checklistId, itemId) => {
-                        const item = card.checklists
-                            .find((c) => c.id === checklistId)
-                            ?.items.find((i) => i.id === itemId);
-                        if (item &&
-                            updateChecklistItem(board, colId, cardId, checklistId, itemId, {
-                                done: !item.done,
-                            })) {
+                        if (toggleChecklistItem(board, colId, cardId, checklistId, itemId))
                             this.commit();
-                        }
                     },
                     onRenameChecklistItem: (checklistId, itemId, text) => {
                         if (updateChecklistItem(board, colId, cardId, checklistId, itemId, { text })) {
@@ -350,18 +343,7 @@ export class KanbanApp {
                         }
                     },
                     onMove: (toColumnId, toIndex) => {
-                        const fromCol = board.columns.find((c) => c.id === colId);
-                        const toCol = board.columns.find((c) => c.id === toColumnId);
-                        if (moveCard(board, colId, cardId, toColumnId, toIndex)) {
-                            if (colId !== toColumnId && fromCol && toCol) {
-                                logActivity(board, 'activityCardMove', [
-                                    snip(card.text),
-                                    snip(fromCol.title),
-                                    snip(toCol.title),
-                                ]);
-                            }
-                            this.commit();
-                        }
+                        this.moveCardLogged(colId, cardId, toColumnId, toIndex);
                     },
                     onToggleTemplate: () => {
                         if (updateCard(board, colId, cardId, { isTemplate: !card.isTemplate })) {
@@ -393,7 +375,7 @@ export class KanbanApp {
                 const board = this.active();
                 if (!board)
                     return;
-                const column = board.columns.find((c) => c.id === colId);
+                const column = findColumn(board, colId);
                 if (archiveColumn(board, colId)) {
                     if (column)
                         logActivity(board, 'activityListArchive', [snip(column.title)]);
@@ -404,7 +386,7 @@ export class KanbanApp {
                 const board = this.active();
                 if (!board)
                     return;
-                const column = board.columns.find((c) => c.id === colId);
+                const column = findColumn(board, colId);
                 if (sortColumnCards(board, colId, by)) {
                     if (column)
                         logActivity(board, 'activitySort', [snip(column.title)]);
@@ -415,7 +397,7 @@ export class KanbanApp {
                 const board = this.active();
                 if (!board)
                     return;
-                const column = board.columns.find((c) => c.id === colId);
+                const column = findColumn(board, colId);
                 if (duplicateColumn(board, colId)) {
                     if (column)
                         logActivity(board, 'activityListCopy', [snip(column.title)]);
@@ -424,7 +406,7 @@ export class KanbanApp {
             },
             addCardsBulk: (colId) => {
                 const board = this.active();
-                const column = board?.columns.find((c) => c.id === colId);
+                const column = board ? findColumn(board, colId) : undefined;
                 if (!board || !column)
                     return;
                 void customTextPrompt(t('addCardsBulkPrompt')).then((text) => {
@@ -441,8 +423,8 @@ export class KanbanApp {
                 const board = this.active();
                 if (!board)
                     return;
-                const fromCol = board.columns.find((c) => c.id === fromColId);
-                const toCol = board.columns.find((c) => c.id === toColId);
+                const fromCol = findColumn(board, fromColId);
+                const toCol = findColumn(board, toColId);
                 if (moveAllCards(board, fromColId, toColId)) {
                     if (fromCol && toCol) {
                         logActivity(board, 'activityMoveAll', [snip(fromCol.title), snip(toCol.title)]);
@@ -648,15 +630,11 @@ export class KanbanApp {
         // Language is a setting, not board content, so the history is preserved.
         this.refresh();
     }
-    /** Clone any JSON-serializable value (board snapshots are plain JSON). */
-    clone(value) {
-        return JSON.parse(JSON.stringify(value));
-    }
     /** Forget undo/redo history and re-baseline on the active board. */
     resetHistory() {
         this.history.clear();
         const board = this.active();
-        this.baseline = board ? this.clone(board.columns) : [];
+        this.baseline = board ? snapshotColumns(board.columns) : [];
         this.updateHistoryButtons();
     }
     updateHistoryButtons() {
@@ -668,11 +646,11 @@ export class KanbanApp {
         const board = this.active();
         if (!board)
             return;
-        const previous = this.history.undo(this.clone(board.columns));
+        const previous = this.history.undo(snapshotColumns(board.columns));
         if (!previous)
             return;
-        board.columns = this.clone(previous);
-        this.baseline = this.clone(previous);
+        board.columns = snapshotColumns(previous);
+        this.baseline = snapshotColumns(previous);
         touch(board);
         this.persist();
         this.render();
@@ -682,11 +660,11 @@ export class KanbanApp {
         const board = this.active();
         if (!board)
             return;
-        const next = this.history.redo(this.clone(board.columns));
+        const next = this.history.redo(snapshotColumns(board.columns));
         if (!next)
             return;
-        board.columns = this.clone(next);
-        this.baseline = this.clone(next);
+        board.columns = snapshotColumns(next);
+        this.baseline = snapshotColumns(next);
         touch(board);
         this.persist();
         this.render();
@@ -696,7 +674,7 @@ export class KanbanApp {
         const board = this.active();
         if (board) {
             this.history.record(this.baseline);
-            this.baseline = this.clone(board.columns);
+            this.baseline = snapshotColumns(board.columns);
         }
         this.persist();
         this.render();

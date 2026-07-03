@@ -310,6 +310,26 @@ export function removeCard(board, columnId, cardId) {
     touch(board);
     return true;
 }
+/**
+ * Exact deep copy of columns for undo snapshots. Unlike a JSON round-trip this
+ * shares immutable strings (notably multi-megabyte attachment data URLs) by
+ * reference, so snapshotting stays cheap however large the images are.
+ */
+export function snapshotColumns(columns) {
+    return columns.map((column) => ({
+        ...column,
+        cards: column.cards.map((card) => ({
+            ...card,
+            labelIds: [...card.labelIds],
+            checklists: card.checklists.map((cl) => ({
+                ...cl,
+                items: cl.items.map((item) => ({ ...item })),
+            })),
+            comments: card.comments.map((comment) => ({ ...comment })),
+            attachments: card.attachments.map((attachment) => ({ ...attachment })),
+        })),
+    }));
+}
 /** Look up one of a card's checklists. */
 function findChecklist(board, columnId, cardId, checklistId) {
     return findCard(board, columnId, cardId)?.checklists.find((c) => c.id === checklistId);
@@ -365,6 +385,15 @@ export function updateChecklistItem(board, columnId, cardId, checklistId, itemId
         item.text = patch.text;
     if (patch.done !== undefined)
         item.done = patch.done;
+    touch(board);
+    return true;
+}
+/** Flip a checklist item's done state. */
+export function toggleChecklistItem(board, columnId, cardId, checklistId, itemId) {
+    const item = findChecklist(board, columnId, cardId, checklistId)?.items.find((i) => i.id === itemId);
+    if (!item)
+        return false;
+    item.done = !item.done;
     touch(board);
     return true;
 }

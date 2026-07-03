@@ -160,6 +160,9 @@ function renderCard(
   // The first attachment doubles as the card's cover image (Trello-style).
   if (card.attachments.length > 0) {
     const cover = el('img', 'card-cover');
+    // Covers can be large data URLs; decode lazily so re-renders stay cheap.
+    cover.loading = 'lazy';
+    cover.decoding = 'async';
     cover.src = card.attachments[0].dataUrl;
     cover.alt = card.attachments[0].name;
     cover.draggable = false;
@@ -267,11 +270,6 @@ function renderColumnMenu(
     menu.hidden = true;
     document.removeEventListener('pointerdown', onOutside, true);
   };
-  toggle.addEventListener('click', () => {
-    menu.hidden = !menu.hidden;
-    if (!menu.hidden) document.addEventListener('pointerdown', onOutside, true);
-    else document.removeEventListener('pointerdown', onOutside, true);
-  });
 
   const addItem = (label: string, onPick: () => void): void => {
     const item = el('button', 'column-menu-item', label);
@@ -282,23 +280,34 @@ function renderColumnMenu(
     menu.appendChild(item);
   };
 
-  menu.appendChild(el('div', 'column-menu-title', t('sortBy')));
-  addItem(`🔤 ${t('sortByName')}`, () => handlers.sortColumn(column.id, 'name'));
-  addItem(`🕘 ${t('sortByCreated')}`, () => handlers.sortColumn(column.id, 'created'));
-  addItem(`🕒 ${t('sortByDue')}`, () => handlers.sortColumn(column.id, 'due'));
+  // The menu is rarely opened, so its (per-column × per-target) items are only
+  // built on first open instead of on every board render.
+  const buildItems = (): void => {
+    menu.appendChild(el('div', 'column-menu-title', t('sortBy')));
+    addItem(`🔤 ${t('sortByName')}`, () => handlers.sortColumn(column.id, 'name'));
+    addItem(`🕘 ${t('sortByCreated')}`, () => handlers.sortColumn(column.id, 'created'));
+    addItem(`🕒 ${t('sortByDue')}`, () => handlers.sortColumn(column.id, 'due'));
 
-  menu.appendChild(el('div', 'column-menu-title', t('actions')));
-  addItem(`📝 ${t('addCardsBulk')}`, () => handlers.addCardsBulk(column.id));
-  addItem(`📑 ${t('copyList')}`, () => handlers.copyColumn(column.id));
-  addItem(`🗄️ ${t('archive')}`, () => handlers.archiveColumn(column.id));
+    menu.appendChild(el('div', 'column-menu-title', t('actions')));
+    addItem(`📝 ${t('addCardsBulk')}`, () => handlers.addCardsBulk(column.id));
+    addItem(`📑 ${t('copyList')}`, () => handlers.copyColumn(column.id));
+    addItem(`🗄️ ${t('archive')}`, () => handlers.archiveColumn(column.id));
 
-  const others = allColumns.filter((c) => c.id !== column.id);
-  if (others.length > 0 && column.cards.length > 0) {
-    menu.appendChild(el('div', 'column-menu-title', t('moveAllCardsTo')));
-    for (const other of others) {
-      addItem(`➡️ ${other.title || ' '}`, () => handlers.moveAllCards(column.id, other.id));
+    const others = allColumns.filter((c) => c.id !== column.id);
+    if (others.length > 0 && column.cards.length > 0) {
+      menu.appendChild(el('div', 'column-menu-title', t('moveAllCardsTo')));
+      for (const other of others) {
+        addItem(`➡️ ${other.title || ' '}`, () => handlers.moveAllCards(column.id, other.id));
+      }
     }
-  }
+  };
+
+  toggle.addEventListener('click', () => {
+    if (menu.childElementCount === 0) buildItems();
+    menu.hidden = !menu.hidden;
+    if (!menu.hidden) document.addEventListener('pointerdown', onOutside, true);
+    else document.removeEventListener('pointerdown', onOutside, true);
+  });
   return wrap;
 }
 

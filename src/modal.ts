@@ -121,19 +121,76 @@ export function customPrompt(message: string, defaultValue = ''): Promise<string
 }
 
 /**
+ * Overlay + dialog scaffold shared by the promise-based modals. Wires Escape
+ * and outside-click to close, guards against double-close, and runs `onClosed`
+ * exactly once after the modal is removed. Callers build content into
+ * `dialog` and call `close()` (setting any result beforehand).
+ */
+function openShell(dialogClass: string, onClosed: () => void): { dialog: HTMLDivElement; close(): void } {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+
+  const dialog = document.createElement('div');
+  dialog.className = dialogClass ? `modal-dialog ${dialogClass}` : 'modal-dialog';
+  dialog.setAttribute('role', 'dialog');
+  dialog.setAttribute('aria-modal', 'true');
+  overlay.appendChild(dialog);
+
+  let settled = false;
+  const close = (): void => {
+    if (settled) return;
+    settled = true;
+    document.removeEventListener('keydown', onKey, true);
+    overlay.remove();
+    onClosed();
+  };
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+    }
+  };
+
+  overlay.addEventListener('pointerdown', (e) => {
+    if (e.target === overlay) close();
+  });
+  document.addEventListener('keydown', onKey, true);
+  document.body.appendChild(overlay);
+  return { dialog, close };
+}
+
+/** Build a row of color swatches; keeps the selected marker in sync itself. */
+function buildSwatchRow(
+  colors: readonly string[],
+  current: string,
+  onPick: (color: string) => void,
+): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'card-detail-colors';
+  for (const color of colors) {
+    const swatch = document.createElement('button');
+    swatch.className = 'card-detail-swatch';
+    swatch.style.background = color || 'transparent';
+    if (!color) swatch.classList.add('is-none'); // shows a "no color" hint
+    if (color === current) swatch.classList.add('is-selected');
+    swatch.addEventListener('click', () => {
+      row.querySelectorAll('.card-detail-swatch').forEach((s) => s.classList.remove('is-selected'));
+      swatch.classList.add('is-selected');
+      onPick(color);
+    });
+    row.appendChild(swatch);
+  }
+  return row;
+}
+
+/**
  * Multi-line prompt: a textarea with OK/cancel. Resolves with the entered text,
  * or null when cancelled. Enter inserts a newline; Escape cancels.
  */
 export function customTextPrompt(message: string, placeholder = ''): Promise<string | null> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-
-    const dialog = document.createElement('div');
-    dialog.className = 'modal-dialog';
-    dialog.setAttribute('role', 'dialog');
-    dialog.setAttribute('aria-modal', 'true');
-    overlay.appendChild(dialog);
+    let result: string | null = null;
+    const { dialog, close } = openShell('', () => resolve(result));
 
     const title = document.createElement('div');
     title.className = 'modal-message';
@@ -146,40 +203,22 @@ export function customTextPrompt(message: string, placeholder = ''): Promise<str
     input.rows = 6;
     dialog.appendChild(input);
 
-    let settled = false;
-    const close = (result: string | null): void => {
-      if (settled) return;
-      settled = true;
-      document.removeEventListener('keydown', onKey, true);
-      overlay.remove();
-      resolve(result);
-    };
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        close(null);
-      }
-    };
-
     const actions = document.createElement('div');
     actions.className = 'modal-actions';
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'modal-btn modal-cancel';
     cancelBtn.textContent = t('cancel');
-    cancelBtn.addEventListener('click', () => close(null));
+    cancelBtn.addEventListener('click', () => close());
     const okBtn = document.createElement('button');
     okBtn.className = 'modal-btn modal-ok';
     okBtn.textContent = t('ok');
-    okBtn.addEventListener('click', () => close(input.value));
+    okBtn.addEventListener('click', () => {
+      result = input.value;
+      close();
+    });
     actions.append(cancelBtn, okBtn);
     dialog.appendChild(actions);
 
-    overlay.addEventListener('pointerdown', (e) => {
-      if (e.target === overlay) close(null);
-    });
-    document.addEventListener('keydown', onKey, true);
-
-    document.body.appendChild(overlay);
     input.focus();
   });
 }
@@ -194,63 +233,30 @@ export function openColorPicker(
   current: string,
 ): Promise<string | null> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-
-    const dialog = document.createElement('div');
-    dialog.className = 'modal-dialog';
-    dialog.setAttribute('role', 'dialog');
-    dialog.setAttribute('aria-modal', 'true');
-    overlay.appendChild(dialog);
+    let result: string | null = null;
+    const { dialog, close } = openShell('', () => resolve(result));
 
     const title = document.createElement('div');
     title.className = 'modal-message';
     title.textContent = message;
     dialog.appendChild(title);
 
-    let settled = false;
-    const close = (result: string | null): void => {
-      if (settled) return;
-      settled = true;
-      document.removeEventListener('keydown', onKey, true);
-      overlay.remove();
-      resolve(result);
-    };
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        close(null);
-      }
-    };
-
-    const swatches = document.createElement('div');
-    swatches.className = 'card-detail-colors';
-    for (const color of colors) {
-      const swatch = document.createElement('button');
-      swatch.className = 'card-detail-swatch';
-      swatch.style.background = color || 'transparent';
-      if (!color) swatch.classList.add('is-none');
-      if (color === current) swatch.classList.add('is-selected');
-      swatch.addEventListener('click', () => close(color));
-      swatches.appendChild(swatch);
-    }
-    dialog.appendChild(swatches);
+    dialog.appendChild(
+      buildSwatchRow(colors, current, (color) => {
+        result = color;
+        close();
+      }),
+    );
 
     const actions = document.createElement('div');
     actions.className = 'modal-actions';
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'modal-btn modal-cancel';
     cancelBtn.textContent = t('cancel');
-    cancelBtn.addEventListener('click', () => close(null));
+    cancelBtn.addEventListener('click', () => close());
     actions.appendChild(cancelBtn);
     dialog.appendChild(actions);
 
-    overlay.addEventListener('pointerdown', (e) => {
-      if (e.target === overlay) close(null);
-    });
-    document.addEventListener('keydown', onKey, true);
-
-    document.body.appendChild(overlay);
     cancelBtn.focus();
   });
 }
@@ -379,14 +385,7 @@ function formatDate(ts: number): string {
  */
 export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): Promise<void> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-
-    const dialog = document.createElement('div');
-    dialog.className = 'modal-dialog card-detail';
-    dialog.setAttribute('role', 'dialog');
-    dialog.setAttribute('aria-modal', 'true');
-    overlay.appendChild(dialog);
+    const { dialog, close } = openShell('card-detail', () => resolve());
 
     const addLabel = (text: string): void => {
       const label = document.createElement('div');
@@ -903,24 +902,11 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
 
     addLabel(t('color'));
     let selectedColor = init.color;
-    const swatches = document.createElement('div');
-    swatches.className = 'card-detail-colors';
-    for (const color of init.colors) {
-      const swatch = document.createElement('button');
-      swatch.className = 'card-detail-swatch';
-      swatch.style.background = color || 'transparent';
-      if (!color) swatch.classList.add('is-none'); // shows a "no color" hint
-      if (color === selectedColor) swatch.classList.add('is-selected');
-      swatch.addEventListener('click', () => {
+    dialog.appendChild(
+      buildSwatchRow(init.colors, selectedColor, (color) => {
         selectedColor = color;
-        swatches
-          .querySelectorAll('.card-detail-swatch')
-          .forEach((s) => s.classList.remove('is-selected'));
-        swatch.classList.add('is-selected');
-      });
-      swatches.appendChild(swatch);
-    }
-    dialog.appendChild(swatches);
+      }),
+    );
 
     // --- Actions: copy the card, or move it to another list/position. ---
     addLabel(t('actions'));
@@ -1022,14 +1008,6 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     meta.textContent = `${t('created')}: ${formatDate(init.createdAt)}`;
     dialog.appendChild(meta);
 
-    let settled = false;
-    const close = (): void => {
-      if (settled) return;
-      settled = true;
-      document.removeEventListener('keydown', onKey, true);
-      overlay.remove();
-      resolve();
-    };
     const save = (): void => {
       const dueAt = fromLocalInputValue(dueInput.value);
       cb.onSave({
@@ -1041,13 +1019,6 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
         color: selectedColor,
       });
       close();
-    };
-
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        close();
-      }
     };
 
     const actions = document.createElement('div');
@@ -1074,12 +1045,6 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     actions.append(archiveBtn, cancelBtn, okBtn);
     dialog.appendChild(actions);
 
-    overlay.addEventListener('pointerdown', (e) => {
-      if (e.target === overlay) close();
-    });
-    document.addEventListener('keydown', onKey, true);
-
-    document.body.appendChild(overlay);
     title.focus();
   });
 }
@@ -1093,14 +1058,7 @@ export interface ActivityViewEntry {
 /** Show the board's recent activity (newest first). Resolves on close. */
 export function openActivityLog(entries: ActivityViewEntry[]): Promise<void> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-
-    const dialog = document.createElement('div');
-    dialog.className = 'modal-dialog card-archive';
-    dialog.setAttribute('role', 'dialog');
-    dialog.setAttribute('aria-modal', 'true');
-    overlay.appendChild(dialog);
+    const { dialog, close } = openShell('card-archive', () => resolve());
 
     const heading = document.createElement('div');
     heading.className = 'card-detail-label';
@@ -1130,21 +1088,6 @@ export function openActivityLog(entries: ActivityViewEntry[]): Promise<void> {
       listEl.appendChild(row);
     }
 
-    let settled = false;
-    const close = (): void => {
-      if (settled) return;
-      settled = true;
-      document.removeEventListener('keydown', onKey, true);
-      overlay.remove();
-      resolve();
-    };
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        close();
-      }
-    };
-
     const actions = document.createElement('div');
     actions.className = 'modal-actions';
     const closeBtn = document.createElement('button');
@@ -1154,12 +1097,6 @@ export function openActivityLog(entries: ActivityViewEntry[]): Promise<void> {
     actions.appendChild(closeBtn);
     dialog.appendChild(actions);
 
-    overlay.addEventListener('pointerdown', (e) => {
-      if (e.target === overlay) close();
-    });
-    document.addEventListener('keydown', onKey, true);
-
-    document.body.appendChild(overlay);
     closeBtn.focus();
   });
 }
@@ -1189,14 +1126,7 @@ export interface ArchiveCallbacks {
  */
 export function openArchive(cb: ArchiveCallbacks): Promise<void> {
   return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-
-    const dialog = document.createElement('div');
-    dialog.className = 'modal-dialog card-archive';
-    dialog.setAttribute('role', 'dialog');
-    dialog.setAttribute('aria-modal', 'true');
-    overlay.appendChild(dialog);
+    const { dialog, close } = openShell('card-archive', () => resolve());
 
     const heading = document.createElement('div');
     heading.className = 'card-detail-label';
@@ -1291,21 +1221,6 @@ export function openArchive(cb: ArchiveCallbacks): Promise<void> {
     };
     renderList();
 
-    let settled = false;
-    const close = (): void => {
-      if (settled) return;
-      settled = true;
-      document.removeEventListener('keydown', onKey, true);
-      overlay.remove();
-      resolve();
-    };
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        close();
-      }
-    };
-
     const actions = document.createElement('div');
     actions.className = 'modal-actions';
     const closeBtn = document.createElement('button');
@@ -1315,12 +1230,6 @@ export function openArchive(cb: ArchiveCallbacks): Promise<void> {
     actions.appendChild(closeBtn);
     dialog.appendChild(actions);
 
-    overlay.addEventListener('pointerdown', (e) => {
-      if (e.target === overlay) close();
-    });
-    document.addEventListener('keydown', onKey, true);
-
-    document.body.appendChild(overlay);
     closeBtn.focus();
   });
 }

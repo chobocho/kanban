@@ -30,6 +30,11 @@ function asNumber(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 }
 
+/** Timestamps that may legitimately be unset (start/due dates). */
+function asNullableNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 function normalizeLabel(raw: unknown): Label {
   const obj = (raw ?? {}) as Record<string, unknown>;
   return {
@@ -108,10 +113,8 @@ function normalizeCard(raw: unknown): Card {
     checklists: normalizeChecklists(obj),
     comments,
     attachments,
-    startAt:
-      typeof obj.startAt === 'number' && Number.isFinite(obj.startAt) ? obj.startAt : null,
-    dueAt:
-      typeof obj.dueAt === 'number' && Number.isFinite(obj.dueAt) ? obj.dueAt : null,
+    startAt: asNullableNumber(obj.startAt),
+    dueAt: asNullableNumber(obj.dueAt),
     dueDone: obj.dueDone === true,
     color: asString(obj.color, ''),
     isTemplate: obj.isTemplate === true,

@@ -1028,7 +1028,8 @@ select.control {
   border-color: var(--accent);
 }
 
-.checklist-add-btn {
+.checklist-add-btn,
+.comment-add-btn {
   flex: 0 0 auto;
   font: inherit;
   font-size: 14px;
@@ -1040,10 +1041,12 @@ select.control {
   cursor: pointer;
 }
 
-/* "Add label" / "add file" / "add checklist" buttons below their lists. */
+/* Soft (neutral) buttons in the card detail modal: add-label/file/checklist
+   and the copy/move/template actions. */
 .card-detail-label-add,
 .attachment-add-btn,
-.checklist-group-add {
+.checklist-group-add,
+.card-detail-op-btn {
   align-self: flex-start;
   font: inherit;
   font-size: 13px;
@@ -1056,7 +1059,8 @@ select.control {
 
 .card-detail-label-add:hover,
 .attachment-add-btn:hover,
-.checklist-group-add:hover {
+.checklist-group-add:hover,
+.card-detail-op-btn:hover {
   background: var(--hover-bg-strong);
 }
 
@@ -1068,17 +1072,8 @@ select.control {
 }
 
 .card-detail-op-btn {
-  font: inherit;
   font-size: 14px;
   padding: 7px 12px;
-  border: none;
-  border-radius: 6px;
-  background: var(--hover-bg);
-  cursor: pointer;
-}
-
-.card-detail-op-btn:hover {
-  background: var(--hover-bg-strong);
 }
 
 .card-detail-move {
@@ -1178,17 +1173,6 @@ select.control {
   border-color: var(--accent);
 }
 
-.comment-add-btn {
-  flex: 0 0 auto;
-  font: inherit;
-  font-size: 14px;
-  padding: 7px 12px;
-  border: none;
-  border-radius: 6px;
-  background: var(--accent);
-  color: #fff;
-  cursor: pointer;
-}
 
 .comment-item {
   display: flex;
@@ -1594,7 +1578,7 @@ select.control {
           </button>
           <div class="menu-row">
             <span class="menu-icon">🌓</span>
-            <select id="themeSelect" class="control menu-select" title="theme">
+            <select id="themeSelect" class="control menu-select" data-i18n-title="theme" title="테마">
               <option value="auto" data-i18n="themeAuto">시스템</option>
               <option value="light" data-i18n="themeLight">라이트</option>
               <option value="dark" data-i18n="themeDark">다크</option>
@@ -1658,7 +1642,7 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCardsFromText, importBoard, duplicateBoard, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklist, renameChecklist, removeChecklist, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, findColumn, findCard, snapshotColumns, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCardsFromText, importBoard, duplicateBoard, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklist, renameChecklist, removeChecklist, addChecklistItem, updateChecklistItem, toggleChecklistItem, removeChecklistItem, moveChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch } = __require("model");
 const { History } = __require("history");
 const { setLanguage, t, tf } = __require("i18n");
 const { emptyFilter, isFilterActive } = __require("filter");
@@ -1746,25 +1730,7 @@ class KanbanApp {
         if (view)
             new LayoutController(surface, this.columnsEl, view);
         new DragController(this.columnsEl, {
-            moveCard: (from, cardId, to, index) => {
-                const board = this.active();
-                if (!board)
-                    return;
-                const fromCol = board.columns.find((c) => c.id === from);
-                const toCol = board.columns.find((c) => c.id === to);
-                const card = fromCol?.cards.find((c) => c.id === cardId);
-                if (moveCard(board, from, cardId, to, index)) {
-                    // Reorders within a list are not activity; cross-list moves are.
-                    if (from !== to && card && fromCol && toCol) {
-                        logActivity(board, 'activityCardMove', [
-                            snip(card.text),
-                            snip(fromCol.title),
-                            snip(toCol.title),
-                        ]);
-                    }
-                    this.commit();
-                }
-            },
+            moveCard: (from, cardId, to, index) => this.moveCardLogged(from, cardId, to, index),
             moveColumn: (from, to) => {
                 const board = this.active();
                 if (board && moveColumn(board, from, to))
@@ -1834,13 +1800,33 @@ class KanbanApp {
     active() {
         return getActiveBoard(this.data);
     }
+    /** Move a card (drag or dialog) and record cross-list moves as activity. */
+    moveCardLogged(from, cardId, to, index) {
+        const board = this.active();
+        if (!board)
+            return;
+        const fromCol = findColumn(board, from);
+        const toCol = findColumn(board, to);
+        const card = findCard(board, from, cardId);
+        if (!moveCard(board, from, cardId, to, index))
+            return;
+        // Reorders within a list are not activity; cross-list moves are.
+        if (from !== to && card && fromCol && toCol) {
+            logActivity(board, 'activityCardMove', [
+                snip(card.text),
+                snip(fromCol.title),
+                snip(toCol.title),
+            ]);
+        }
+        this.commit();
+    }
     get handlers() {
         return {
             addCard: (colId) => {
                 const board = this.active();
                 if (!board)
                     return;
-                const column = board.columns.find((c) => c.id === colId);
+                const column = findColumn(board, colId);
                 const card = addCard(board, colId, t('newCardText'));
                 if (!card)
                     return;
@@ -1857,7 +1843,7 @@ class KanbanApp {
                 const board = this.active();
                 if (!board)
                     return;
-                const card = board.columns.find((c) => c.id === colId)?.cards.find((c) => c.id === cardId);
+                const card = findCard(board, colId, cardId);
                 if (archiveCard(board, colId, cardId)) {
                     if (card)
                         logActivity(board, 'activityCardArchive', [snip(card.text)]);
@@ -1868,8 +1854,7 @@ class KanbanApp {
                 const board = this.active();
                 if (!board)
                     return;
-                const column = board.columns.find((c) => c.id === colId);
-                const card = column?.cards.find((c) => c.id === cardId);
+                const card = findCard(board, colId, cardId);
                 if (!card)
                     return;
                 const next = CARD_COLORS[(CARD_COLORS.indexOf(card.color) + 1) % CARD_COLORS.length];
@@ -1880,8 +1865,7 @@ class KanbanApp {
                 const board = this.active();
                 if (!board)
                     return;
-                const column = board.columns.find((c) => c.id === colId);
-                const card = column?.cards.find((c) => c.id === cardId);
+                const card = findCard(board, colId, cardId);
                 if (!card)
                     return;
                 void openCardDetail({
@@ -1954,15 +1938,8 @@ class KanbanApp {
                             this.commit();
                     },
                     onToggleChecklistItem: (checklistId, itemId) => {
-                        const item = card.checklists
-                            .find((c) => c.id === checklistId)
-                            ?.items.find((i) => i.id === itemId);
-                        if (item &&
-                            updateChecklistItem(board, colId, cardId, checklistId, itemId, {
-                                done: !item.done,
-                            })) {
+                        if (toggleChecklistItem(board, colId, cardId, checklistId, itemId))
                             this.commit();
-                        }
                     },
                     onRenameChecklistItem: (checklistId, itemId, text) => {
                         if (updateChecklistItem(board, colId, cardId, checklistId, itemId, { text })) {
@@ -2005,18 +1982,7 @@ class KanbanApp {
                         }
                     },
                     onMove: (toColumnId, toIndex) => {
-                        const fromCol = board.columns.find((c) => c.id === colId);
-                        const toCol = board.columns.find((c) => c.id === toColumnId);
-                        if (moveCard(board, colId, cardId, toColumnId, toIndex)) {
-                            if (colId !== toColumnId && fromCol && toCol) {
-                                logActivity(board, 'activityCardMove', [
-                                    snip(card.text),
-                                    snip(fromCol.title),
-                                    snip(toCol.title),
-                                ]);
-                            }
-                            this.commit();
-                        }
+                        this.moveCardLogged(colId, cardId, toColumnId, toIndex);
                     },
                     onToggleTemplate: () => {
                         if (updateCard(board, colId, cardId, { isTemplate: !card.isTemplate })) {
@@ -2048,7 +2014,7 @@ class KanbanApp {
                 const board = this.active();
                 if (!board)
                     return;
-                const column = board.columns.find((c) => c.id === colId);
+                const column = findColumn(board, colId);
                 if (archiveColumn(board, colId)) {
                     if (column)
                         logActivity(board, 'activityListArchive', [snip(column.title)]);
@@ -2059,7 +2025,7 @@ class KanbanApp {
                 const board = this.active();
                 if (!board)
                     return;
-                const column = board.columns.find((c) => c.id === colId);
+                const column = findColumn(board, colId);
                 if (sortColumnCards(board, colId, by)) {
                     if (column)
                         logActivity(board, 'activitySort', [snip(column.title)]);
@@ -2070,7 +2036,7 @@ class KanbanApp {
                 const board = this.active();
                 if (!board)
                     return;
-                const column = board.columns.find((c) => c.id === colId);
+                const column = findColumn(board, colId);
                 if (duplicateColumn(board, colId)) {
                     if (column)
                         logActivity(board, 'activityListCopy', [snip(column.title)]);
@@ -2079,7 +2045,7 @@ class KanbanApp {
             },
             addCardsBulk: (colId) => {
                 const board = this.active();
-                const column = board?.columns.find((c) => c.id === colId);
+                const column = board ? findColumn(board, colId) : undefined;
                 if (!board || !column)
                     return;
                 void customTextPrompt(t('addCardsBulkPrompt')).then((text) => {
@@ -2096,8 +2062,8 @@ class KanbanApp {
                 const board = this.active();
                 if (!board)
                     return;
-                const fromCol = board.columns.find((c) => c.id === fromColId);
-                const toCol = board.columns.find((c) => c.id === toColId);
+                const fromCol = findColumn(board, fromColId);
+                const toCol = findColumn(board, toColId);
                 if (moveAllCards(board, fromColId, toColId)) {
                     if (fromCol && toCol) {
                         logActivity(board, 'activityMoveAll', [snip(fromCol.title), snip(toCol.title)]);
@@ -2303,15 +2269,11 @@ class KanbanApp {
         // Language is a setting, not board content, so the history is preserved.
         this.refresh();
     }
-    /** Clone any JSON-serializable value (board snapshots are plain JSON). */
-    clone(value) {
-        return JSON.parse(JSON.stringify(value));
-    }
     /** Forget undo/redo history and re-baseline on the active board. */
     resetHistory() {
         this.history.clear();
         const board = this.active();
-        this.baseline = board ? this.clone(board.columns) : [];
+        this.baseline = board ? snapshotColumns(board.columns) : [];
         this.updateHistoryButtons();
     }
     updateHistoryButtons() {
@@ -2323,11 +2285,11 @@ class KanbanApp {
         const board = this.active();
         if (!board)
             return;
-        const previous = this.history.undo(this.clone(board.columns));
+        const previous = this.history.undo(snapshotColumns(board.columns));
         if (!previous)
             return;
-        board.columns = this.clone(previous);
-        this.baseline = this.clone(previous);
+        board.columns = snapshotColumns(previous);
+        this.baseline = snapshotColumns(previous);
         touch(board);
         this.persist();
         this.render();
@@ -2337,11 +2299,11 @@ class KanbanApp {
         const board = this.active();
         if (!board)
             return;
-        const next = this.history.redo(this.clone(board.columns));
+        const next = this.history.redo(snapshotColumns(board.columns));
         if (!next)
             return;
-        board.columns = this.clone(next);
-        this.baseline = this.clone(next);
+        board.columns = snapshotColumns(next);
+        this.baseline = snapshotColumns(next);
         touch(board);
         this.persist();
         this.render();
@@ -2351,7 +2313,7 @@ class KanbanApp {
         const board = this.active();
         if (board) {
             this.history.record(this.baseline);
-            this.baseline = this.clone(board.columns);
+            this.baseline = snapshotColumns(board.columns);
         }
         this.persist();
         this.render();
@@ -3302,9 +3264,8 @@ __modules["jsonio"] = function(__exports, __require){
 // Importing always runs through normalization so a malformed file cannot break
 // the app.
 const { normalizeAppData, normalizeBoard } = __require("normalize");
-/** Download the entire app state as a JSON file. */
-function downloadJson(data, filename = 'kanban-data.json') {
-    const text = JSON.stringify(data, null, 2);
+/** Trigger a browser download of `text` as a JSON file named `filename`. */
+function downloadTextFile(text, filename) {
     const blob = new Blob([text], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -3315,18 +3276,22 @@ function downloadJson(data, filename = 'kanban-data.json') {
     a.remove();
     URL.revokeObjectURL(url);
 }
+/** Read a File chosen by the user and resolve to its text content. */
+function readTextFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(file);
+    });
+}
+/** Download the entire app state as a JSON file. */
+function downloadJson(data, filename = 'kanban-data.json') {
+    downloadTextFile(JSON.stringify(data, null, 2), filename);
+}
 /** Download one board (Trello-style per-board export) as a JSON file. */
 function downloadBoardJson(board) {
-    const text = JSON.stringify({ kanbanBoard: 1, board }, null, 2);
-    const blob = new Blob([text], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${board.name || 'board'}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    downloadTextFile(JSON.stringify({ kanbanBoard: 1, board }, null, 2), `${board.name || 'board'}.json`);
 }
 /**
  * Parse a single-board JSON export (wrapped `{ board: … }` or a bare board
@@ -3345,19 +3310,7 @@ function parseBoardJson(text) {
 }
 /** Read a File chosen by the user and resolve to a valid single Board. */
 function readBoardJsonFile(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            try {
-                resolve(parseBoardJson(String(reader.result)));
-            }
-            catch (err) {
-                reject(err);
-            }
-        };
-        reader.onerror = () => reject(reader.error);
-        reader.readAsText(file);
-    });
+    return readTextFile(file).then(parseBoardJson);
 }
 /** Parse JSON text into a valid AppData. Throws if the text is not JSON. */
 function parseJson(text) {
@@ -3366,19 +3319,7 @@ function parseJson(text) {
 }
 /** Read a File chosen by the user and resolve to a valid AppData. */
 function readJsonFile(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            try {
-                resolve(parseJson(String(reader.result)));
-            }
-            catch (err) {
-                reject(err);
-            }
-        };
-        reader.onerror = () => reject(reader.error);
-        reader.readAsText(file);
-    });
+    return readTextFile(file).then(parseJson);
 }
 
 __exports.downloadJson = downloadJson;
@@ -3782,18 +3723,71 @@ function customPrompt(message, defaultValue = '') {
     return openModal({ kind: 'prompt', message, defaultValue }).then((r) => typeof r === 'string' ? r : null);
 }
 /**
+ * Overlay + dialog scaffold shared by the promise-based modals. Wires Escape
+ * and outside-click to close, guards against double-close, and runs `onClosed`
+ * exactly once after the modal is removed. Callers build content into
+ * `dialog` and call `close()` (setting any result beforehand).
+ */
+function openShell(dialogClass, onClosed) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    const dialog = document.createElement('div');
+    dialog.className = dialogClass ? `modal-dialog ${dialogClass}` : 'modal-dialog';
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    overlay.appendChild(dialog);
+    let settled = false;
+    const close = () => {
+        if (settled)
+            return;
+        settled = true;
+        document.removeEventListener('keydown', onKey, true);
+        overlay.remove();
+        onClosed();
+    };
+    const onKey = (e) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            close();
+        }
+    };
+    overlay.addEventListener('pointerdown', (e) => {
+        if (e.target === overlay)
+            close();
+    });
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(overlay);
+    return { dialog, close };
+}
+/** Build a row of color swatches; keeps the selected marker in sync itself. */
+function buildSwatchRow(colors, current, onPick) {
+    const row = document.createElement('div');
+    row.className = 'card-detail-colors';
+    for (const color of colors) {
+        const swatch = document.createElement('button');
+        swatch.className = 'card-detail-swatch';
+        swatch.style.background = color || 'transparent';
+        if (!color)
+            swatch.classList.add('is-none'); // shows a "no color" hint
+        if (color === current)
+            swatch.classList.add('is-selected');
+        swatch.addEventListener('click', () => {
+            row.querySelectorAll('.card-detail-swatch').forEach((s) => s.classList.remove('is-selected'));
+            swatch.classList.add('is-selected');
+            onPick(color);
+        });
+        row.appendChild(swatch);
+    }
+    return row;
+}
+/**
  * Multi-line prompt: a textarea with OK/cancel. Resolves with the entered text,
  * or null when cancelled. Enter inserts a newline; Escape cancels.
  */
 function customTextPrompt(message, placeholder = '') {
     return new Promise((resolve) => {
-        const overlay = document.createElement('div');
-        overlay.className = 'modal-overlay';
-        const dialog = document.createElement('div');
-        dialog.className = 'modal-dialog';
-        dialog.setAttribute('role', 'dialog');
-        dialog.setAttribute('aria-modal', 'true');
-        overlay.appendChild(dialog);
+        let result = null;
+        const { dialog, close } = openShell('', () => resolve(result));
         const title = document.createElement('div');
         title.className = 'modal-message';
         title.textContent = message;
@@ -3803,39 +3797,21 @@ function customTextPrompt(message, placeholder = '') {
         input.placeholder = placeholder;
         input.rows = 6;
         dialog.appendChild(input);
-        let settled = false;
-        const close = (result) => {
-            if (settled)
-                return;
-            settled = true;
-            document.removeEventListener('keydown', onKey, true);
-            overlay.remove();
-            resolve(result);
-        };
-        const onKey = (e) => {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                close(null);
-            }
-        };
         const actions = document.createElement('div');
         actions.className = 'modal-actions';
         const cancelBtn = document.createElement('button');
         cancelBtn.className = 'modal-btn modal-cancel';
         cancelBtn.textContent = t('cancel');
-        cancelBtn.addEventListener('click', () => close(null));
+        cancelBtn.addEventListener('click', () => close());
         const okBtn = document.createElement('button');
         okBtn.className = 'modal-btn modal-ok';
         okBtn.textContent = t('ok');
-        okBtn.addEventListener('click', () => close(input.value));
+        okBtn.addEventListener('click', () => {
+            result = input.value;
+            close();
+        });
         actions.append(cancelBtn, okBtn);
         dialog.appendChild(actions);
-        overlay.addEventListener('pointerdown', (e) => {
-            if (e.target === overlay)
-                close(null);
-        });
-        document.addEventListener('keydown', onKey, true);
-        document.body.appendChild(overlay);
         input.focus();
     });
 }
@@ -3845,60 +3821,24 @@ function customTextPrompt(message, placeholder = '') {
  */
 function openColorPicker(message, colors, current) {
     return new Promise((resolve) => {
-        const overlay = document.createElement('div');
-        overlay.className = 'modal-overlay';
-        const dialog = document.createElement('div');
-        dialog.className = 'modal-dialog';
-        dialog.setAttribute('role', 'dialog');
-        dialog.setAttribute('aria-modal', 'true');
-        overlay.appendChild(dialog);
+        let result = null;
+        const { dialog, close } = openShell('', () => resolve(result));
         const title = document.createElement('div');
         title.className = 'modal-message';
         title.textContent = message;
         dialog.appendChild(title);
-        let settled = false;
-        const close = (result) => {
-            if (settled)
-                return;
-            settled = true;
-            document.removeEventListener('keydown', onKey, true);
-            overlay.remove();
-            resolve(result);
-        };
-        const onKey = (e) => {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                close(null);
-            }
-        };
-        const swatches = document.createElement('div');
-        swatches.className = 'card-detail-colors';
-        for (const color of colors) {
-            const swatch = document.createElement('button');
-            swatch.className = 'card-detail-swatch';
-            swatch.style.background = color || 'transparent';
-            if (!color)
-                swatch.classList.add('is-none');
-            if (color === current)
-                swatch.classList.add('is-selected');
-            swatch.addEventListener('click', () => close(color));
-            swatches.appendChild(swatch);
-        }
-        dialog.appendChild(swatches);
+        dialog.appendChild(buildSwatchRow(colors, current, (color) => {
+            result = color;
+            close();
+        }));
         const actions = document.createElement('div');
         actions.className = 'modal-actions';
         const cancelBtn = document.createElement('button');
         cancelBtn.className = 'modal-btn modal-cancel';
         cancelBtn.textContent = t('cancel');
-        cancelBtn.addEventListener('click', () => close(null));
+        cancelBtn.addEventListener('click', () => close());
         actions.appendChild(cancelBtn);
         dialog.appendChild(actions);
-        overlay.addEventListener('pointerdown', (e) => {
-            if (e.target === overlay)
-                close(null);
-        });
-        document.addEventListener('keydown', onKey, true);
-        document.body.appendChild(overlay);
         cancelBtn.focus();
     });
 }
@@ -3927,13 +3867,7 @@ function formatDate(ts) {
  */
 function openCardDetail(init, cb) {
     return new Promise((resolve) => {
-        const overlay = document.createElement('div');
-        overlay.className = 'modal-overlay';
-        const dialog = document.createElement('div');
-        dialog.className = 'modal-dialog card-detail';
-        dialog.setAttribute('role', 'dialog');
-        dialog.setAttribute('aria-modal', 'true');
-        overlay.appendChild(dialog);
+        const { dialog, close } = openShell('card-detail', () => resolve());
         const addLabel = (text) => {
             const label = document.createElement('div');
             label.className = 'card-detail-label';
@@ -4408,26 +4342,9 @@ function openCardDetail(init, cb) {
         renderComments();
         addLabel(t('color'));
         let selectedColor = init.color;
-        const swatches = document.createElement('div');
-        swatches.className = 'card-detail-colors';
-        for (const color of init.colors) {
-            const swatch = document.createElement('button');
-            swatch.className = 'card-detail-swatch';
-            swatch.style.background = color || 'transparent';
-            if (!color)
-                swatch.classList.add('is-none'); // shows a "no color" hint
-            if (color === selectedColor)
-                swatch.classList.add('is-selected');
-            swatch.addEventListener('click', () => {
-                selectedColor = color;
-                swatches
-                    .querySelectorAll('.card-detail-swatch')
-                    .forEach((s) => s.classList.remove('is-selected'));
-                swatch.classList.add('is-selected');
-            });
-            swatches.appendChild(swatch);
-        }
-        dialog.appendChild(swatches);
+        dialog.appendChild(buildSwatchRow(init.colors, selectedColor, (color) => {
+            selectedColor = color;
+        }));
         // --- Actions: copy the card, or move it to another list/position. ---
         addLabel(t('actions'));
         const opsBox = document.createElement('div');
@@ -4516,15 +4433,6 @@ function openCardDetail(init, cb) {
         meta.className = 'card-detail-meta';
         meta.textContent = `${t('created')}: ${formatDate(init.createdAt)}`;
         dialog.appendChild(meta);
-        let settled = false;
-        const close = () => {
-            if (settled)
-                return;
-            settled = true;
-            document.removeEventListener('keydown', onKey, true);
-            overlay.remove();
-            resolve();
-        };
         const save = () => {
             const dueAt = fromLocalInputValue(dueInput.value);
             cb.onSave({
@@ -4536,12 +4444,6 @@ function openCardDetail(init, cb) {
                 color: selectedColor,
             });
             close();
-        };
-        const onKey = (e) => {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                close();
-            }
         };
         const actions = document.createElement('div');
         actions.className = 'modal-actions';
@@ -4562,25 +4464,13 @@ function openCardDetail(init, cb) {
         okBtn.addEventListener('click', () => save());
         actions.append(archiveBtn, cancelBtn, okBtn);
         dialog.appendChild(actions);
-        overlay.addEventListener('pointerdown', (e) => {
-            if (e.target === overlay)
-                close();
-        });
-        document.addEventListener('keydown', onKey, true);
-        document.body.appendChild(overlay);
         title.focus();
     });
 }
 /** Show the board's recent activity (newest first). Resolves on close. */
 function openActivityLog(entries) {
     return new Promise((resolve) => {
-        const overlay = document.createElement('div');
-        overlay.className = 'modal-overlay';
-        const dialog = document.createElement('div');
-        dialog.className = 'modal-dialog card-archive';
-        dialog.setAttribute('role', 'dialog');
-        dialog.setAttribute('aria-modal', 'true');
-        overlay.appendChild(dialog);
+        const { dialog, close } = openShell('card-archive', () => resolve());
         const heading = document.createElement('div');
         heading.className = 'card-detail-label';
         heading.textContent = t('activityLog');
@@ -4606,21 +4496,6 @@ function openActivityLog(entries) {
             row.append(text, when);
             listEl.appendChild(row);
         }
-        let settled = false;
-        const close = () => {
-            if (settled)
-                return;
-            settled = true;
-            document.removeEventListener('keydown', onKey, true);
-            overlay.remove();
-            resolve();
-        };
-        const onKey = (e) => {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                close();
-            }
-        };
         const actions = document.createElement('div');
         actions.className = 'modal-actions';
         const closeBtn = document.createElement('button');
@@ -4629,12 +4504,6 @@ function openActivityLog(entries) {
         closeBtn.addEventListener('click', () => close());
         actions.appendChild(closeBtn);
         dialog.appendChild(actions);
-        overlay.addEventListener('pointerdown', (e) => {
-            if (e.target === overlay)
-                close();
-        });
-        document.addEventListener('keydown', onKey, true);
-        document.body.appendChild(overlay);
         closeBtn.focus();
     });
 }
@@ -4644,13 +4513,7 @@ function openActivityLog(entries) {
  */
 function openArchive(cb) {
     return new Promise((resolve) => {
-        const overlay = document.createElement('div');
-        overlay.className = 'modal-overlay';
-        const dialog = document.createElement('div');
-        dialog.className = 'modal-dialog card-archive';
-        dialog.setAttribute('role', 'dialog');
-        dialog.setAttribute('aria-modal', 'true');
-        overlay.appendChild(dialog);
+        const { dialog, close } = openShell('card-archive', () => resolve());
         const heading = document.createElement('div');
         heading.className = 'card-detail-label';
         heading.textContent = t('archiveView');
@@ -4718,21 +4581,6 @@ function openArchive(cb) {
             renderSection(t('archivedCards'), cards, 'deleteForeverConfirm', cb.onRestoreCard, cb.onDeleteCardForever);
         };
         renderList();
-        let settled = false;
-        const close = () => {
-            if (settled)
-                return;
-            settled = true;
-            document.removeEventListener('keydown', onKey, true);
-            overlay.remove();
-            resolve();
-        };
-        const onKey = (e) => {
-            if (e.key === 'Escape') {
-                e.preventDefault();
-                close();
-            }
-        };
         const actions = document.createElement('div');
         actions.className = 'modal-actions';
         const closeBtn = document.createElement('button');
@@ -4741,12 +4589,6 @@ function openArchive(cb) {
         closeBtn.addEventListener('click', () => close());
         actions.appendChild(closeBtn);
         dialog.appendChild(actions);
-        overlay.addEventListener('pointerdown', (e) => {
-            if (e.target === overlay)
-                close();
-        });
-        document.addEventListener('keydown', onKey, true);
-        document.body.appendChild(overlay);
         closeBtn.focus();
     });
 }
@@ -5074,6 +4916,26 @@ function removeCard(board, columnId, cardId) {
     touch(board);
     return true;
 }
+/**
+ * Exact deep copy of columns for undo snapshots. Unlike a JSON round-trip this
+ * shares immutable strings (notably multi-megabyte attachment data URLs) by
+ * reference, so snapshotting stays cheap however large the images are.
+ */
+function snapshotColumns(columns) {
+    return columns.map((column) => ({
+        ...column,
+        cards: column.cards.map((card) => ({
+            ...card,
+            labelIds: [...card.labelIds],
+            checklists: card.checklists.map((cl) => ({
+                ...cl,
+                items: cl.items.map((item) => ({ ...item })),
+            })),
+            comments: card.comments.map((comment) => ({ ...comment })),
+            attachments: card.attachments.map((attachment) => ({ ...attachment })),
+        })),
+    }));
+}
 /** Look up one of a card's checklists. */
 function findChecklist(board, columnId, cardId, checklistId) {
     return findCard(board, columnId, cardId)?.checklists.find((c) => c.id === checklistId);
@@ -5129,6 +4991,15 @@ function updateChecklistItem(board, columnId, cardId, checklistId, itemId, patch
         item.text = patch.text;
     if (patch.done !== undefined)
         item.done = patch.done;
+    touch(board);
+    return true;
+}
+/** Flip a checklist item's done state. */
+function toggleChecklistItem(board, columnId, cardId, checklistId, itemId) {
+    const item = findChecklist(board, columnId, cardId, checklistId)?.items.find((i) => i.id === itemId);
+    if (!item)
+        return false;
+    item.done = !item.done;
     touch(board);
     return true;
 }
@@ -5440,11 +5311,13 @@ __exports.addCardsFromText = addCardsFromText;
 __exports.duplicateCard = duplicateCard;
 __exports.createCardFromTemplate = createCardFromTemplate;
 __exports.removeCard = removeCard;
+__exports.snapshotColumns = snapshotColumns;
 __exports.addChecklist = addChecklist;
 __exports.renameChecklist = renameChecklist;
 __exports.removeChecklist = removeChecklist;
 __exports.addChecklistItem = addChecklistItem;
 __exports.updateChecklistItem = updateChecklistItem;
+__exports.toggleChecklistItem = toggleChecklistItem;
 __exports.moveChecklistItem = moveChecklistItem;
 __exports.removeChecklistItem = removeChecklistItem;
 __exports.addAttachment = addAttachment;
@@ -5486,6 +5359,10 @@ function asString(value, fallback) {
 }
 function asNumber(value, fallback) {
     return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+/** Timestamps that may legitimately be unset (start/due dates). */
+function asNullableNumber(value) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 function normalizeLabel(raw) {
     const obj = (raw ?? {});
@@ -5562,8 +5439,8 @@ function normalizeCard(raw) {
         checklists: normalizeChecklists(obj),
         comments,
         attachments,
-        startAt: typeof obj.startAt === 'number' && Number.isFinite(obj.startAt) ? obj.startAt : null,
-        dueAt: typeof obj.dueAt === 'number' && Number.isFinite(obj.dueAt) ? obj.dueAt : null,
+        startAt: asNullableNumber(obj.startAt),
+        dueAt: asNullableNumber(obj.dueAt),
         dueDone: obj.dueDone === true,
         color: asString(obj.color, ''),
         isTemplate: obj.isTemplate === true,
@@ -5960,6 +5837,9 @@ function renderCard(card, column, labels, handlers) {
     // The first attachment doubles as the card's cover image (Trello-style).
     if (card.attachments.length > 0) {
         const cover = el('img', 'card-cover');
+        // Covers can be large data URLs; decode lazily so re-renders stay cheap.
+        cover.loading = 'lazy';
+        cover.decoding = 'async';
         cover.src = card.attachments[0].dataUrl;
         cover.alt = card.attachments[0].name;
         cover.draggable = false;
@@ -6061,13 +5941,6 @@ function renderColumnMenu(column, allColumns, handlers) {
         menu.hidden = true;
         document.removeEventListener('pointerdown', onOutside, true);
     };
-    toggle.addEventListener('click', () => {
-        menu.hidden = !menu.hidden;
-        if (!menu.hidden)
-            document.addEventListener('pointerdown', onOutside, true);
-        else
-            document.removeEventListener('pointerdown', onOutside, true);
-    });
     const addItem = (label, onPick) => {
         const item = el('button', 'column-menu-item', label);
         item.addEventListener('click', () => {
@@ -6076,21 +5949,34 @@ function renderColumnMenu(column, allColumns, handlers) {
         });
         menu.appendChild(item);
     };
-    menu.appendChild(el('div', 'column-menu-title', t('sortBy')));
-    addItem(`🔤 ${t('sortByName')}`, () => handlers.sortColumn(column.id, 'name'));
-    addItem(`🕘 ${t('sortByCreated')}`, () => handlers.sortColumn(column.id, 'created'));
-    addItem(`🕒 ${t('sortByDue')}`, () => handlers.sortColumn(column.id, 'due'));
-    menu.appendChild(el('div', 'column-menu-title', t('actions')));
-    addItem(`📝 ${t('addCardsBulk')}`, () => handlers.addCardsBulk(column.id));
-    addItem(`📑 ${t('copyList')}`, () => handlers.copyColumn(column.id));
-    addItem(`🗄️ ${t('archive')}`, () => handlers.archiveColumn(column.id));
-    const others = allColumns.filter((c) => c.id !== column.id);
-    if (others.length > 0 && column.cards.length > 0) {
-        menu.appendChild(el('div', 'column-menu-title', t('moveAllCardsTo')));
-        for (const other of others) {
-            addItem(`➡️ ${other.title || ' '}`, () => handlers.moveAllCards(column.id, other.id));
+    // The menu is rarely opened, so its (per-column × per-target) items are only
+    // built on first open instead of on every board render.
+    const buildItems = () => {
+        menu.appendChild(el('div', 'column-menu-title', t('sortBy')));
+        addItem(`🔤 ${t('sortByName')}`, () => handlers.sortColumn(column.id, 'name'));
+        addItem(`🕘 ${t('sortByCreated')}`, () => handlers.sortColumn(column.id, 'created'));
+        addItem(`🕒 ${t('sortByDue')}`, () => handlers.sortColumn(column.id, 'due'));
+        menu.appendChild(el('div', 'column-menu-title', t('actions')));
+        addItem(`📝 ${t('addCardsBulk')}`, () => handlers.addCardsBulk(column.id));
+        addItem(`📑 ${t('copyList')}`, () => handlers.copyColumn(column.id));
+        addItem(`🗄️ ${t('archive')}`, () => handlers.archiveColumn(column.id));
+        const others = allColumns.filter((c) => c.id !== column.id);
+        if (others.length > 0 && column.cards.length > 0) {
+            menu.appendChild(el('div', 'column-menu-title', t('moveAllCardsTo')));
+            for (const other of others) {
+                addItem(`➡️ ${other.title || ' '}`, () => handlers.moveAllCards(column.id, other.id));
+            }
         }
-    }
+    };
+    toggle.addEventListener('click', () => {
+        if (menu.childElementCount === 0)
+            buildItems();
+        menu.hidden = !menu.hidden;
+        if (!menu.hidden)
+            document.addEventListener('pointerdown', onOutside, true);
+        else
+            document.removeEventListener('pointerdown', onOutside, true);
+    });
     return wrap;
 }
 function renderColumn(column, index, allColumns, labels, filter, now, handlers) {

@@ -1021,7 +1021,8 @@ select.control {
   border-color: var(--accent);
 }
 
-.checklist-add-btn {
+.checklist-add-btn,
+.comment-add-btn {
   flex: 0 0 auto;
   font: inherit;
   font-size: 14px;
@@ -1033,10 +1034,12 @@ select.control {
   cursor: pointer;
 }
 
-/* "Add label" / "add file" / "add checklist" buttons below their lists. */
+/* Soft (neutral) buttons in the card detail modal: add-label/file/checklist
+   and the copy/move/template actions. */
 .card-detail-label-add,
 .attachment-add-btn,
-.checklist-group-add {
+.checklist-group-add,
+.card-detail-op-btn {
   align-self: flex-start;
   font: inherit;
   font-size: 13px;
@@ -1049,7 +1052,8 @@ select.control {
 
 .card-detail-label-add:hover,
 .attachment-add-btn:hover,
-.checklist-group-add:hover {
+.checklist-group-add:hover,
+.card-detail-op-btn:hover {
   background: var(--hover-bg-strong);
 }
 
@@ -1061,17 +1065,8 @@ select.control {
 }
 
 .card-detail-op-btn {
-  font: inherit;
   font-size: 14px;
   padding: 7px 12px;
-  border: none;
-  border-radius: 6px;
-  background: var(--hover-bg);
-  cursor: pointer;
-}
-
-.card-detail-op-btn:hover {
-  background: var(--hover-bg-strong);
 }
 
 .card-detail-move {
@@ -1171,17 +1166,6 @@ select.control {
   border-color: var(--accent);
 }
 
-.comment-add-btn {
-  flex: 0 0 auto;
-  font: inherit;
-  font-size: 14px;
-  padding: 7px 12px;
-  border: none;
-  border-radius: 6px;
-  background: var(--accent);
-  color: #fff;
-  cursor: pointer;
-}
 
 .comment-item {
   display: flex;

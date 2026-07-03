@@ -28,6 +28,8 @@ import {
   renameChecklist,
   removeChecklist,
   addChecklistItem,
+  toggleChecklistItem,
+  snapshotColumns,
   updateChecklistItem,
   removeChecklistItem,
   moveChecklistItem,
@@ -335,6 +337,49 @@ test('checklist items add, toggle, rename, remove and report progress', () => {
   assert(removeChecklistItem(board, colId, card.id, cl.id, firstId), 'remove ok');
   assertEqual(cl.items.length, 1, 'one left');
   assert(!removeChecklistItem(board, colId, card.id, cl.id, 'missing'), 'unknown item rejected');
+});
+
+test('toggleChecklistItem flips the done state', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  const cl = addChecklist(board, colId, card.id, 'Steps')!;
+  addChecklistItem(board, colId, card.id, cl.id, 'step');
+  const itemId = cl.items[0].id;
+
+  assert(toggleChecklistItem(board, colId, card.id, cl.id, itemId), 'toggle on ok');
+  assertEqual(cl.items[0].done, true, 'now done');
+  assert(toggleChecklistItem(board, colId, card.id, cl.id, itemId), 'toggle off ok');
+  assertEqual(cl.items[0].done, false, 'back to open');
+  assert(!toggleChecklistItem(board, colId, card.id, cl.id, 'missing'), 'unknown item rejected');
+});
+
+test('snapshotColumns deep-copies structure but shares attachment strings', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  const cl = addChecklist(board, colId, card.id, 'Steps')!;
+  addChecklistItem(board, colId, card.id, cl.id, 'step');
+  addComment(board, colId, card.id, 'note');
+  addAttachment(board, colId, card.id, 'pic.png', 'data:image/png;base64,AAAA');
+
+  const snap = snapshotColumns(board.columns);
+  assertEqual(snap[0].cards[0].text, 'a', 'content copied');
+  assert(snap[0] !== board.columns[0], 'column object is a copy');
+  assert(snap[0].cards[0] !== card, 'card object is a copy');
+  assert(snap[0].cards[0].checklists[0].items[0] !== cl.items[0], 'items are copies');
+  assert(
+    snap[0].cards[0].attachments[0].dataUrl === card.attachments[0].dataUrl,
+    'attachment data URL string is shared, not re-serialized',
+  );
+
+  // Mutating the live board must not affect the snapshot.
+  card.text = 'changed';
+  cl.items[0].done = true;
+  card.labelIds.push('x');
+  assertEqual(snap[0].cards[0].text, 'a', 'snapshot text isolated');
+  assertEqual(snap[0].cards[0].checklists[0].items[0].done, false, 'snapshot item isolated');
+  assertEqual(snap[0].cards[0].labelIds.length, 0, 'snapshot labelIds isolated');
 });
 
 test('multiple checklists: rename, delete and aggregated progress', () => {

@@ -2,9 +2,8 @@
 // Importing always runs through normalization so a malformed file cannot break
 // the app.
 import { normalizeAppData, normalizeBoard } from './normalize.js';
-/** Download the entire app state as a JSON file. */
-export function downloadJson(data, filename = 'kanban-data.json') {
-    const text = JSON.stringify(data, null, 2);
+/** Trigger a browser download of `text` as a JSON file named `filename`. */
+function downloadTextFile(text, filename) {
     const blob = new Blob([text], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -15,18 +14,22 @@ export function downloadJson(data, filename = 'kanban-data.json') {
     a.remove();
     URL.revokeObjectURL(url);
 }
+/** Read a File chosen by the user and resolve to its text content. */
+function readTextFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(file);
+    });
+}
+/** Download the entire app state as a JSON file. */
+export function downloadJson(data, filename = 'kanban-data.json') {
+    downloadTextFile(JSON.stringify(data, null, 2), filename);
+}
 /** Download one board (Trello-style per-board export) as a JSON file. */
 export function downloadBoardJson(board) {
-    const text = JSON.stringify({ kanbanBoard: 1, board }, null, 2);
-    const blob = new Blob([text], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${board.name || 'board'}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    downloadTextFile(JSON.stringify({ kanbanBoard: 1, board }, null, 2), `${board.name || 'board'}.json`);
 }
 /**
  * Parse a single-board JSON export (wrapped `{ board: … }` or a bare board
@@ -45,19 +48,7 @@ export function parseBoardJson(text) {
 }
 /** Read a File chosen by the user and resolve to a valid single Board. */
 export function readBoardJsonFile(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            try {
-                resolve(parseBoardJson(String(reader.result)));
-            }
-            catch (err) {
-                reject(err);
-            }
-        };
-        reader.onerror = () => reject(reader.error);
-        reader.readAsText(file);
-    });
+    return readTextFile(file).then(parseBoardJson);
 }
 /** Parse JSON text into a valid AppData. Throws if the text is not JSON. */
 export function parseJson(text) {
@@ -66,17 +57,5 @@ export function parseJson(text) {
 }
 /** Read a File chosen by the user and resolve to a valid AppData. */
 export function readJsonFile(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            try {
-                resolve(parseJson(String(reader.result)));
-            }
-            catch (err) {
-                reject(err);
-            }
-        };
-        reader.onerror = () => reject(reader.error);
-        reader.readAsText(file);
-    });
+    return readTextFile(file).then(parseJson);
 }
