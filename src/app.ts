@@ -15,6 +15,7 @@ import {
   sortColumnCards,
   duplicateColumn,
   moveAllCards,
+  addCardsFromText,
   addCard,
   updateCard,
   moveCard,
@@ -59,6 +60,7 @@ import {
   customAlert,
   customConfirm,
   customPrompt,
+  customTextPrompt,
   openCardDetail,
   openArchive,
   openColorPicker,
@@ -450,6 +452,18 @@ export class KanbanApp {
           if (column) logActivity(board, 'activityListCopy', [snip(column.title)]);
           this.commit();
         }
+      },
+      addCardsBulk: (colId) => {
+        const board = this.active();
+        const column = board?.columns.find((c) => c.id === colId);
+        if (!board || !column) return;
+        void customTextPrompt(t('addCardsBulkPrompt')).then((text) => {
+          if (text === null) return;
+          const made = addCardsFromText(board, colId, text);
+          if (made.length === 0) return;
+          logActivity(board, 'activityBulkAdd', [String(made.length), snip(column.title)]);
+          this.commit();
+        });
       },
       moveAllCards: (fromColId, toColId) => {
         const board = this.active();

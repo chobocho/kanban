@@ -242,6 +242,25 @@ export function updateCard(board, columnId, cardId, patch) {
     touch(board);
     return true;
 }
+/**
+ * Create one card per non-empty line of `text`, appended in order (Trello's
+ * multi-line paste). Returns the created cards; empty when nothing was made.
+ */
+export function addCardsFromText(board, columnId, text) {
+    const column = findColumn(board, columnId);
+    if (!column)
+        return [];
+    const lines = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line !== '');
+    const cards = lines.map((line) => createCard(line));
+    if (cards.length === 0)
+        return [];
+    column.cards.push(...cards);
+    touch(board);
+    return cards;
+}
 /** Insert a copy of a card right after the original (Trello's "copy card"). */
 export function duplicateCard(board, columnId, cardId) {
     const column = findColumn(board, columnId);

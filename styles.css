@@ -703,6 +703,11 @@ select.control {
   border-radius: 6px;
 }
 
+.modal-textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
 .modal-input:focus {
   outline: none;
   border-color: var(--accent);

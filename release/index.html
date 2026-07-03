@@ -710,6 +710,11 @@ select.control {
   border-radius: 6px;
 }
 
+.modal-textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
 .modal-input:focus {
   outline: none;
   border-color: var(--accent);
@@ -1540,7 +1545,7 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCardsFromText, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch } = __require("model");
 const { History } = __require("history");
 const { setLanguage, t, tf } = __require("i18n");
 const { emptyFilter, isFilterActive } = __require("filter");
@@ -1550,7 +1555,7 @@ const { ZoomController } = __require("zoom");
 const { LayoutController } = __require("layout");
 const { downloadJson, readJsonFile } = __require("jsonio");
 const { exportBoardPng } = __require("png");
-const { customAlert, customConfirm, customPrompt, openCardDetail, openArchive, openColorPicker, openActivityLog } = __require("modal");
+const { customAlert, customConfirm, customPrompt, customTextPrompt, openCardDetail, openArchive, openColorPicker, openActivityLog } = __require("modal");
 /** Maximum number of undo steps kept per board. */
 const MAX_HISTORY = 8;
 /** Shorten a card/list title for a compact activity-log line. */
@@ -1933,6 +1938,21 @@ class KanbanApp {
                         logActivity(board, 'activityListCopy', [snip(column.title)]);
                     this.commit();
                 }
+            },
+            addCardsBulk: (colId) => {
+                const board = this.active();
+                const column = board?.columns.find((c) => c.id === colId);
+                if (!board || !column)
+                    return;
+                void customTextPrompt(t('addCardsBulkPrompt')).then((text) => {
+                    if (text === null)
+                        return;
+                    const made = addCardsFromText(board, colId, text);
+                    if (made.length === 0)
+                        return;
+                    logActivity(board, 'activityBulkAdd', [String(made.length), snip(column.title)]);
+                    this.commit();
+                });
             },
             moveAllCards: (fromColId, toColId) => {
                 const board = this.active();
@@ -2840,6 +2860,9 @@ const translations = {
         background: '배경색',
         backgroundPrompt: '보드 배경색을 선택하세요',
         listMenu: '리스트 메뉴',
+        addCardsBulk: '여러 카드 추가',
+        addCardsBulkPrompt: '한 줄에 카드 하나씩 입력하세요',
+        activityBulkAdd: '카드 {0}개를 "{1}"에 추가',
         sortBy: '정렬',
         sortByName: '이름순',
         sortByCreated: '생성일순 (최신 먼저)',
@@ -2957,6 +2980,9 @@ const translations = {
         background: 'Background',
         backgroundPrompt: 'Pick a board background color',
         listMenu: 'List menu',
+        addCardsBulk: 'Add multiple cards',
+        addCardsBulkPrompt: 'Enter one card per line',
+        activityBulkAdd: 'Added {0} cards to "{1}"',
         sortBy: 'Sort by',
         sortByName: 'Name',
         sortByCreated: 'Date created (newest first)',
@@ -3296,6 +3322,64 @@ function customConfirm(message) {
 /** Custom replacement for window.prompt. Resolves null if cancelled. */
 function customPrompt(message, defaultValue = '') {
     return openModal({ kind: 'prompt', message, defaultValue }).then((r) => typeof r === 'string' ? r : null);
+}
+/**
+ * Multi-line prompt: a textarea with OK/cancel. Resolves with the entered text,
+ * or null when cancelled. Enter inserts a newline; Escape cancels.
+ */
+function customTextPrompt(message, placeholder = '') {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        const dialog = document.createElement('div');
+        dialog.className = 'modal-dialog';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        overlay.appendChild(dialog);
+        const title = document.createElement('div');
+        title.className = 'modal-message';
+        title.textContent = message;
+        dialog.appendChild(title);
+        const input = document.createElement('textarea');
+        input.className = 'modal-input modal-textarea';
+        input.placeholder = placeholder;
+        input.rows = 6;
+        dialog.appendChild(input);
+        let settled = false;
+        const close = (result) => {
+            if (settled)
+                return;
+            settled = true;
+            document.removeEventListener('keydown', onKey, true);
+            overlay.remove();
+            resolve(result);
+        };
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                close(null);
+            }
+        };
+        const actions = document.createElement('div');
+        actions.className = 'modal-actions';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'modal-btn modal-cancel';
+        cancelBtn.textContent = t('cancel');
+        cancelBtn.addEventListener('click', () => close(null));
+        const okBtn = document.createElement('button');
+        okBtn.className = 'modal-btn modal-ok';
+        okBtn.textContent = t('ok');
+        okBtn.addEventListener('click', () => close(input.value));
+        actions.append(cancelBtn, okBtn);
+        dialog.appendChild(actions);
+        overlay.addEventListener('pointerdown', (e) => {
+            if (e.target === overlay)
+                close(null);
+        });
+        document.addEventListener('keydown', onKey, true);
+        document.body.appendChild(overlay);
+        input.focus();
+    });
 }
 /**
  * Show a swatch palette and resolve with the picked color, or null when
@@ -4132,6 +4216,7 @@ function openArchive(cb) {
 __exports.customAlert = customAlert;
 __exports.customConfirm = customConfirm;
 __exports.customPrompt = customPrompt;
+__exports.customTextPrompt = customTextPrompt;
 __exports.openColorPicker = openColorPicker;
 __exports.openCardDetail = openCardDetail;
 __exports.openActivityLog = openActivityLog;
@@ -4382,6 +4467,25 @@ function updateCard(board, columnId, cardId, patch) {
         card.isTemplate = patch.isTemplate;
     touch(board);
     return true;
+}
+/**
+ * Create one card per non-empty line of `text`, appended in order (Trello's
+ * multi-line paste). Returns the created cards; empty when nothing was made.
+ */
+function addCardsFromText(board, columnId, text) {
+    const column = findColumn(board, columnId);
+    if (!column)
+        return [];
+    const lines = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line !== '');
+    const cards = lines.map((line) => createCard(line));
+    if (cards.length === 0)
+        return [];
+    column.cards.push(...cards);
+    touch(board);
+    return cards;
 }
 /** Insert a copy of a card right after the original (Trello's "copy card"). */
 function duplicateCard(board, columnId, cardId) {
@@ -4703,6 +4807,7 @@ __exports.duplicateColumn = duplicateColumn;
 __exports.moveAllCards = moveAllCards;
 __exports.addCard = addCard;
 __exports.updateCard = updateCard;
+__exports.addCardsFromText = addCardsFromText;
 __exports.duplicateCard = duplicateCard;
 __exports.createCardFromTemplate = createCardFromTemplate;
 __exports.removeCard = removeCard;
@@ -5320,6 +5425,7 @@ function renderColumnMenu(column, allColumns, handlers) {
     addItem(`🕘 ${t('sortByCreated')}`, () => handlers.sortColumn(column.id, 'created'));
     addItem(`🕒 ${t('sortByDue')}`, () => handlers.sortColumn(column.id, 'due'));
     menu.appendChild(el('div', 'column-menu-title', t('actions')));
+    addItem(`📝 ${t('addCardsBulk')}`, () => handlers.addCardsBulk(column.id));
     addItem(`📑 ${t('copyList')}`, () => handlers.copyColumn(column.id));
     addItem(`🗄️ ${t('archive')}`, () => handlers.archiveColumn(column.id));
     const others = allColumns.filter((c) => c.id !== column.id);

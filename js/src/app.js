@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCardsFromText, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch, } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t, tf } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
@@ -13,7 +13,7 @@ import { ZoomController } from './zoom.js';
 import { LayoutController } from './layout.js';
 import { downloadJson, readJsonFile } from './jsonio.js';
 import { exportBoardPng } from './png.js';
-import { customAlert, customConfirm, customPrompt, openCardDetail, openArchive, openColorPicker, openActivityLog, } from './modal.js';
+import { customAlert, customConfirm, customPrompt, customTextPrompt, openCardDetail, openArchive, openColorPicker, openActivityLog, } from './modal.js';
 /** Maximum number of undo steps kept per board. */
 const MAX_HISTORY = 8;
 /** Shorten a card/list title for a compact activity-log line. */
@@ -396,6 +396,21 @@ export class KanbanApp {
                         logActivity(board, 'activityListCopy', [snip(column.title)]);
                     this.commit();
                 }
+            },
+            addCardsBulk: (colId) => {
+                const board = this.active();
+                const column = board?.columns.find((c) => c.id === colId);
+                if (!board || !column)
+                    return;
+                void customTextPrompt(t('addCardsBulkPrompt')).then((text) => {
+                    if (text === null)
+                        return;
+                    const made = addCardsFromText(board, colId, text);
+                    if (made.length === 0)
+                        return;
+                    logActivity(board, 'activityBulkAdd', [String(made.length), snip(column.title)]);
+                    this.commit();
+                });
             },
             moveAllCards: (fromColId, toColId) => {
                 const board = this.active();

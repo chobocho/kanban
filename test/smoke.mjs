@@ -378,6 +378,18 @@ try {
   await page.locator('.card-archive .modal-ok').click();
   await page.waitForTimeout(100);
 
+  // Bulk add: one card per line via the list menu's multi-line prompt.
+  const bulkCol = page.locator('.column').nth(3); // "Done" list, still empty
+  const bulkBefore = await bulkCol.locator('.card').count();
+  await bulkCol.locator('.column-menu-btn').click();
+  await bulkCol.locator('.column-menu-item', { hasText: 'Add multiple cards' }).click();
+  await page.waitForSelector('.modal-textarea', { timeout: 3000 });
+  await page.locator('.modal-textarea').fill('alpha\nbeta\n\n  gamma  ');
+  await page.locator('.modal-overlay').last().locator('.modal-ok').click();
+  await page.waitForTimeout(100);
+  const bulkAfter = await bulkCol.locator('.card').count();
+  assert(bulkAfter === bulkBefore + 3, `bulk add creates one card per line (got ${bulkAfter})`);
+
   // Theme: forcing dark mode flips the html data-theme attribute.
   await page.locator('#menuBtn').click();
   await page.selectOption('#themeSelect', 'dark');

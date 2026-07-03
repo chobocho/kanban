@@ -19,6 +19,7 @@ export interface RenderHandlers {
   sortColumn(colId: string, by: CardSortKey): void;
   copyColumn(colId: string): void;
   moveAllCards(fromColId: string, toColId: string): void;
+  addCardsBulk(colId: string): void;
 }
 
 /** Card accent colors cycled by the palette button (empty = no accent). */
@@ -285,6 +286,7 @@ function renderColumnMenu(
   addItem(`🕒 ${t('sortByDue')}`, () => handlers.sortColumn(column.id, 'due'));
 
   menu.appendChild(el('div', 'column-menu-title', t('actions')));
+  addItem(`📝 ${t('addCardsBulk')}`, () => handlers.addCardsBulk(column.id));
   addItem(`📑 ${t('copyList')}`, () => handlers.copyColumn(column.id));
   addItem(`🗄️ ${t('archive')}`, () => handlers.archiveColumn(column.id));
 

@@ -241,6 +241,7 @@ function renderColumnMenu(column, allColumns, handlers) {
     addItem(`🕘 ${t('sortByCreated')}`, () => handlers.sortColumn(column.id, 'created'));
     addItem(`🕒 ${t('sortByDue')}`, () => handlers.sortColumn(column.id, 'due'));
     menu.appendChild(el('div', 'column-menu-title', t('actions')));
+    addItem(`📝 ${t('addCardsBulk')}`, () => handlers.addCardsBulk(column.id));
     addItem(`📑 ${t('copyList')}`, () => handlers.copyColumn(column.id));
     addItem(`🗄️ ${t('archive')}`, () => handlers.archiveColumn(column.id));
     const others = allColumns.filter((c) => c.id !== column.id);

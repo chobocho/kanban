@@ -43,6 +43,7 @@ import {
   sortedBoards,
   logActivity,
   ACTIVITY_LIMIT,
+  addCardsFromText,
 } from '../src/model.js';
 
 test('createDefaultData has one board with three columns', () => {
@@ -529,6 +530,22 @@ test('sortedBoards lists starred boards first, keeping order within groups', () 
   const names = sortedBoards(data).map((b) => b.name).join(',');
   assertEqual(names, 'B,D,A,C', 'starred first, insertion order preserved');
   assertEqual(data.boards.map((b) => b.name).join(','), 'A,B,C,D', 'stored order untouched');
+});
+
+test('addCardsFromText makes one card per non-empty line', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  addCard(board, colId, 'existing');
+
+  const cards = addCardsFromText(board, colId, 'one\r\n  two  \n\n   \nthree\n');
+  assertEqual(cards.length, 3, 'three cards created');
+  assertEqual(
+    board.columns[0].cards.map((c) => c.text).join(','),
+    'existing,one,two,three',
+    'appended in order, trimmed, blanks skipped',
+  );
+  assertEqual(addCardsFromText(board, colId, '   \n \n').length, 0, 'blank text makes nothing');
+  assertEqual(addCardsFromText(board, 'missing', 'x').length, 0, 'unknown column makes nothing');
 });
 
 test('logActivity keeps newest-first entries capped at the limit', () => {

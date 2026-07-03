@@ -95,6 +95,64 @@ export function customPrompt(message, defaultValue = '') {
     return openModal({ kind: 'prompt', message, defaultValue }).then((r) => typeof r === 'string' ? r : null);
 }
 /**
+ * Multi-line prompt: a textarea with OK/cancel. Resolves with the entered text,
+ * or null when cancelled. Enter inserts a newline; Escape cancels.
+ */
+export function customTextPrompt(message, placeholder = '') {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        const dialog = document.createElement('div');
+        dialog.className = 'modal-dialog';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        overlay.appendChild(dialog);
+        const title = document.createElement('div');
+        title.className = 'modal-message';
+        title.textContent = message;
+        dialog.appendChild(title);
+        const input = document.createElement('textarea');
+        input.className = 'modal-input modal-textarea';
+        input.placeholder = placeholder;
+        input.rows = 6;
+        dialog.appendChild(input);
+        let settled = false;
+        const close = (result) => {
+            if (settled)
+                return;
+            settled = true;
+            document.removeEventListener('keydown', onKey, true);
+            overlay.remove();
+            resolve(result);
+        };
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                close(null);
+            }
+        };
+        const actions = document.createElement('div');
+        actions.className = 'modal-actions';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'modal-btn modal-cancel';
+        cancelBtn.textContent = t('cancel');
+        cancelBtn.addEventListener('click', () => close(null));
+        const okBtn = document.createElement('button');
+        okBtn.className = 'modal-btn modal-ok';
+        okBtn.textContent = t('ok');
+        okBtn.addEventListener('click', () => close(input.value));
+        actions.append(cancelBtn, okBtn);
+        dialog.appendChild(actions);
+        overlay.addEventListener('pointerdown', (e) => {
+            if (e.target === overlay)
+                close(null);
+        });
+        document.addEventListener('keydown', onKey, true);
+        document.body.appendChild(overlay);
+        input.focus();
+    });
+}
+/**
  * Show a swatch palette and resolve with the picked color, or null when
  * cancelled. An empty-string color renders as a "no color / default" swatch.
  */

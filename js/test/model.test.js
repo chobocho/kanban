@@ -1,6 +1,6 @@
 // Unit tests for the pure board operations in src/model.ts.
 import { test, assert, assertEqual } from './harness.js';
-import { createDefaultData, createBoard, createColumn, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, getActiveBoard, addLabel, updateLabel, removeLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, addChecklistItem, updateChecklistItem, removeChecklistItem, checklistProgress, addComment, updateComment, removeComment, duplicateCard, sortColumnCards, duplicateColumn, moveAllCards, setBoardBackground, addAttachment, removeAttachment, createCardFromTemplate, toggleBoardStar, sortedBoards, logActivity, ACTIVITY_LIMIT, } from '../src/model.js';
+import { createDefaultData, createBoard, createColumn, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, getActiveBoard, addLabel, updateLabel, removeLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, addChecklistItem, updateChecklistItem, removeChecklistItem, checklistProgress, addComment, updateComment, removeComment, duplicateCard, sortColumnCards, duplicateColumn, moveAllCards, setBoardBackground, addAttachment, removeAttachment, createCardFromTemplate, toggleBoardStar, sortedBoards, logActivity, ACTIVITY_LIMIT, addCardsFromText, } from '../src/model.js';
 test('createDefaultData has one board with three columns', () => {
     const data = createDefaultData();
     assertEqual(data.boards.length, 1, 'board count');
@@ -425,6 +425,16 @@ test('sortedBoards lists starred boards first, keeping order within groups', () 
     const names = sortedBoards(data).map((b) => b.name).join(',');
     assertEqual(names, 'B,D,A,C', 'starred first, insertion order preserved');
     assertEqual(data.boards.map((b) => b.name).join(','), 'A,B,C,D', 'stored order untouched');
+});
+test('addCardsFromText makes one card per non-empty line', () => {
+    const board = createBoard('b', [createColumn('A')]);
+    const colId = board.columns[0].id;
+    addCard(board, colId, 'existing');
+    const cards = addCardsFromText(board, colId, 'one\r\n  two  \n\n   \nthree\n');
+    assertEqual(cards.length, 3, 'three cards created');
+    assertEqual(board.columns[0].cards.map((c) => c.text).join(','), 'existing,one,two,three', 'appended in order, trimmed, blanks skipped');
+    assertEqual(addCardsFromText(board, colId, '   \n \n').length, 0, 'blank text makes nothing');
+    assertEqual(addCardsFromText(board, 'missing', 'x').length, 0, 'unknown column makes nothing');
 });
 test('logActivity keeps newest-first entries capped at the limit', () => {
     const board = createBoard('b');
