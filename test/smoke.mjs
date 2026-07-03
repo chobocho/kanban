@@ -297,6 +297,27 @@ try {
   const afterCopy = await page.locator('.column').nth(2).locator('.card').count();
   assert(afterCopy === 3, `copy card duplicates the card (got ${afterCopy})`);
 
+  // Attachments: upload a tiny PNG, see the list row, cover image and badge.
+  await commentCard.hover();
+  await commentCard.locator('.icon-btn[title="Open card details"]').click();
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  const pngBuf = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  await page
+    .locator('.card-detail-attachments input[type=file]')
+    .setInputFiles({ name: 'dot.png', mimeType: 'image/png', buffer: pngBuf });
+  await page.waitForTimeout(200);
+  const attRows = await page.locator('.attachment-item').count();
+  assert(attRows === 1, `attachment appears in the modal list (got ${attRows})`);
+  await page.locator('.card-detail .modal-cancel').click();
+  await page.waitForTimeout(100);
+  const coverCount = await commentCard.locator('.card-cover').count();
+  assert(coverCount === 1, `first attachment shows as the card cover (got ${coverCount})`);
+  const attBadge = await commentCard.locator('.card-badge', { hasText: '📎' }).count();
+  assert(attBadge === 1, `attachment badge appears on the card (got ${attBadge})`);
+
   // Label management: create a label (name + color), then delete it again.
   await commentCard.hover();
   await commentCard.locator('.icon-btn[title="Open card details"]').click();

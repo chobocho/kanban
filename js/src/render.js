@@ -117,6 +117,14 @@ function renderCard(card, column, labels, handlers) {
         stripe.style.background = card.color;
         node.appendChild(stripe);
     }
+    // The first attachment doubles as the card's cover image (Trello-style).
+    if (card.attachments.length > 0) {
+        const cover = el('img', 'card-cover');
+        cover.src = card.attachments[0].dataUrl;
+        cover.alt = card.attachments[0].name;
+        cover.draggable = false;
+        node.appendChild(cover);
+    }
     // Assigned labels render as colored chips above the card text.
     const cardLabels = card.labelIds.map((id) => labels.get(id)).filter((l) => !!l);
     if (cardLabels.length > 0) {
@@ -156,6 +164,11 @@ function renderCard(card, column, labels, handlers) {
         const note = el('span', 'card-badge', '📝');
         note.title = t('description');
         badges.appendChild(note);
+    }
+    if (card.attachments.length > 0) {
+        const att = el('span', 'card-badge', `📎 ${card.attachments.length}`);
+        att.title = t('attachments');
+        badges.appendChild(att);
     }
     if (card.comments.length > 0) {
         const cmt = el('span', 'card-badge', `💬 ${card.comments.length}`);

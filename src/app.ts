@@ -29,6 +29,8 @@ import {
   addComment,
   updateComment,
   removeComment,
+  addAttachment,
+  removeAttachment,
   duplicateCard,
   archiveCard,
   restoreCard,
@@ -266,6 +268,7 @@ export class KanbanApp {
             assignedLabelIds: card.labelIds.slice(),
             checklist: card.checklist,
             comments: card.comments,
+            attachments: card.attachments,
             columnId: colId,
             columns: board.columns.map((c) => ({
               id: c.id,
@@ -310,6 +313,12 @@ export class KanbanApp {
             },
             onRemoveChecklistItem: (itemId) => {
               if (removeChecklistItem(board, colId, cardId, itemId)) this.commit();
+            },
+            onAddAttachment: (name, dataUrl) => {
+              if (addAttachment(board, colId, cardId, name, dataUrl)) this.commit();
+            },
+            onRemoveAttachment: (attachmentId) => {
+              if (removeAttachment(board, colId, cardId, attachmentId)) this.commit();
             },
             onAddComment: (text) => {
               if (addComment(board, colId, cardId, text)) this.commit();

@@ -1,7 +1,7 @@
 // Pure board operations. These functions contain the core business logic and
 // are intentionally free of any DOM or storage concerns so they can be unit
 // tested in isolation (see test/model.test.ts).
-import { SCHEMA_VERSION } from './types.js';
+import { SCHEMA_VERSION, } from './types.js';
 import { makeId } from './id.js';
 /** Default label palette seeded on every new board (Trello-like colors). */
 export const LABEL_COLORS = ['#61bd4f', '#f2d600', '#ff9f1a', '#eb5a46', '#c377e0', '#0079bf'];
@@ -22,6 +22,7 @@ export function createCard(text) {
         labelIds: [],
         checklist: [],
         comments: [],
+        attachments: [],
         startAt: null,
         dueAt: null,
         dueDone: false,
@@ -167,6 +168,12 @@ export function duplicateColumn(board, columnId) {
             labelIds: card.labelIds.slice(),
             checklist: card.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
             comments: [],
+            attachments: card.attachments.map((a) => ({
+                id: makeId('att'),
+                name: a.name,
+                dataUrl: a.dataUrl,
+                createdAt: a.createdAt,
+            })),
             startAt: card.startAt,
             dueAt: card.dueAt,
             dueDone: card.dueDone,
@@ -243,6 +250,12 @@ export function duplicateCard(board, columnId, cardId) {
         labelIds: source.labelIds.slice(),
         checklist: source.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
         comments: [],
+        attachments: source.attachments.map((a) => ({
+            id: makeId('att'),
+            name: a.name,
+            dataUrl: a.dataUrl,
+            createdAt: a.createdAt,
+        })),
         startAt: source.startAt,
         dueAt: source.dueAt,
         dueDone: source.dueDone,
@@ -296,6 +309,28 @@ export function removeChecklistItem(board, columnId, cardId, itemId) {
     if (index < 0)
         return false;
     card.checklist.splice(index, 1);
+    touch(board);
+    return true;
+}
+/** Attach an image (as a data URL) to a card. Rejects an empty data URL. */
+export function addAttachment(board, columnId, cardId, name, dataUrl) {
+    const card = findCard(board, columnId, cardId);
+    if (!card || !dataUrl)
+        return null;
+    const attachment = { id: makeId('att'), name, dataUrl, createdAt: Date.now() };
+    card.attachments.push(attachment);
+    touch(board);
+    return attachment;
+}
+/** Delete an attachment from a card. */
+export function removeAttachment(board, columnId, cardId, attachmentId) {
+    const card = findCard(board, columnId, cardId);
+    if (!card)
+        return false;
+    const index = card.attachments.findIndex((a) => a.id === attachmentId);
+    if (index < 0)
+        return false;
+    card.attachments.splice(index, 1);
     touch(board);
     return true;
 }

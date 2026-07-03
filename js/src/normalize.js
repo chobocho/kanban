@@ -34,6 +34,20 @@ function normalizeComment(raw) {
         createdAt: asNumber(obj.createdAt, Date.now()),
     };
 }
+/** An attachment without image data is useless, so such entries are dropped. */
+function normalizeAttachment(raw) {
+    if (!raw || typeof raw !== 'object')
+        return null;
+    const obj = raw;
+    if (typeof obj.dataUrl !== 'string' || obj.dataUrl === '')
+        return null;
+    return {
+        id: asString(obj.id, makeId('att')),
+        name: asString(obj.name, ''),
+        dataUrl: obj.dataUrl,
+        createdAt: asNumber(obj.createdAt, Date.now()),
+    };
+}
 function normalizeCard(raw) {
     const obj = (raw ?? {});
     const labelIds = Array.isArray(obj.labelIds)
@@ -43,6 +57,9 @@ function normalizeCard(raw) {
         ? obj.checklist.map(normalizeChecklistItem)
         : [];
     const comments = Array.isArray(obj.comments) ? obj.comments.map(normalizeComment) : [];
+    const attachments = Array.isArray(obj.attachments)
+        ? obj.attachments.map(normalizeAttachment).filter((a) => a !== null)
+        : [];
     return {
         id: asString(obj.id, makeId('card')),
         text: asString(obj.text, ''),
@@ -50,6 +67,7 @@ function normalizeCard(raw) {
         labelIds,
         checklist,
         comments,
+        attachments,
         startAt: typeof obj.startAt === 'number' && Number.isFinite(obj.startAt) ? obj.startAt : null,
         dueAt: typeof obj.dueAt === 'number' && Number.isFinite(obj.dueAt) ? obj.dueAt : null,
         dueDone: obj.dueDone === true,

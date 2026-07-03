@@ -15,6 +15,7 @@ function card(patch: Partial<Card>): Card {
     labelIds: [],
     checklist: [],
     comments: [],
+    attachments: [],
     startAt: null,
     dueAt: null,
     dueDone: false,

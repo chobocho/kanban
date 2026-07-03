@@ -3,7 +3,10 @@
 // click, and use only the DOM (no external library).
 
 import { getLanguage, t } from './i18n.js';
-import { ChecklistItem, Comment, Label } from './types.js';
+import { Attachment, ChecklistItem, Comment, Label } from './types.js';
+
+/** Attachments above this size are refused to keep the DB and exports sane. */
+const MAX_ATTACHMENT_BYTES = 1_500_000;
 
 type ModalKind = 'alert' | 'confirm' | 'prompt';
 type ModalResult = string | boolean | null;
@@ -211,6 +214,8 @@ export interface CardDetailInit {
   checklist: ChecklistItem[];
   /** The card's comments, newest first (live reference; re-read after each edit). */
   comments: Comment[];
+  /** The card's image attachments (live reference; re-read after each edit). */
+  attachments: Attachment[];
   /** Id of the column the card currently lives in. */
   columnId: string;
   /** All board columns, offered as move targets. */
@@ -250,6 +255,10 @@ export interface CardDetailCallbacks {
   onRenameChecklistItem(itemId: string, text: string): void;
   /** Remove a checklist item. */
   onRemoveChecklistItem(itemId: string): void;
+  /** Attach an image (already read into a data URL). */
+  onAddAttachment(name: string, dataUrl: string): void;
+  /** Delete an attachment. */
+  onRemoveAttachment(attachmentId: string): void;
   /** Add a comment (prepended, newest first). */
   onAddComment(text: string): void;
   /** Replace a comment's text. */
@@ -547,6 +556,88 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
       checklistBox.appendChild(addRow);
     };
     renderChecklist();
+
+    // --- Attachments: image files stored inline as data URLs. ---
+    addLabel(t('attachments'));
+    const attachBox = document.createElement('div');
+    attachBox.className = 'card-detail-attachments';
+    dialog.appendChild(attachBox);
+
+    const renderAttachments = (): void => {
+      attachBox.replaceChildren();
+
+      for (const att of init.attachments) {
+        const row = document.createElement('div');
+        row.className = 'attachment-item';
+
+        const thumb = document.createElement('img');
+        thumb.className = 'attachment-thumb';
+        thumb.src = att.dataUrl;
+        thumb.alt = att.name;
+        thumb.draggable = false;
+
+        const info = document.createElement('div');
+        info.className = 'attachment-info';
+        const name = document.createElement('div');
+        name.className = 'attachment-name';
+        name.textContent = att.name || ' ';
+        const date = document.createElement('div');
+        date.className = 'attachment-date';
+        date.textContent = formatDate(att.createdAt);
+        info.append(name, date);
+
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'comment-btn';
+        del.textContent = '🗑️';
+        del.title = t('delete');
+        del.addEventListener('click', () => {
+          void customConfirm(t('deleteAttachmentConfirm')).then((ok) => {
+            if (!ok) return;
+            cb.onRemoveAttachment(att.id);
+            renderAttachments();
+          });
+        });
+
+        row.append(thumb, info, del);
+        attachBox.appendChild(row);
+      }
+
+      // Hidden file input driven by a visible button; images only, size-capped.
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'image/*';
+      fileInput.hidden = true;
+      fileInput.addEventListener('change', () => {
+        const file = fileInput.files?.[0];
+        fileInput.value = '';
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+          void customAlert(t('attachmentNotImage'));
+          return;
+        }
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          void customAlert(t('attachmentTooLarge'));
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            cb.onAddAttachment(file.name, reader.result);
+            renderAttachments();
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+
+      const addBtn = document.createElement('button');
+      addBtn.type = 'button';
+      addBtn.className = 'attachment-add-btn';
+      addBtn.textContent = `📎 ${t('addAttachment')}`;
+      addBtn.addEventListener('click', () => fileInput.click());
+      attachBox.append(fileInput, addBtn);
+    };
+    renderAttachments();
 
     // --- Comments: newest first, add via textarea, edit in place, delete. ---
     addLabel(t('comments'));

@@ -893,8 +893,9 @@ select.control {
   cursor: pointer;
 }
 
-/* "Add label" button below the label rows in the card detail modal. */
-.card-detail-label-add {
+/* "Add label" / "add file" buttons below their lists in the card detail modal. */
+.card-detail-label-add,
+.attachment-add-btn {
   align-self: flex-start;
   font: inherit;
   font-size: 13px;
@@ -905,7 +906,8 @@ select.control {
   cursor: pointer;
 }
 
-.card-detail-label-add:hover {
+.card-detail-label-add:hover,
+.attachment-add-btn:hover {
   background: #dfe1e6;
 }
 
@@ -940,6 +942,56 @@ select.control {
 .card-detail-move-select {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* Attachments inside the card detail modal. */
+.card-detail-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border-radius: 6px;
+  background: #f4f5f7;
+}
+
+.attachment-thumb {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #dfe1e6;
+}
+
+.attachment-info {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.attachment-name {
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.attachment-date {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Cover image on the card front (the first attachment). */
+.card-cover {
+  display: block;
+  width: 100%;
+  max-height: 140px;
+  object-fit: cover;
+  border-radius: var(--radius) var(--radius) 0 0;
+  pointer-events: none;
 }
 
 /* Comments inside the card detail modal. */
@@ -1407,7 +1459,7 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, touch } = __require("model");
 const { History } = __require("history");
 const { setLanguage, t } = __require("i18n");
 const { emptyFilter, isFilterActive } = __require("filter");
@@ -1603,6 +1655,7 @@ class KanbanApp {
                     assignedLabelIds: card.labelIds.slice(),
                     checklist: card.checklist,
                     comments: card.comments,
+                    attachments: card.attachments,
                     columnId: colId,
                     columns: board.columns.map((c) => ({
                         id: c.id,
@@ -1654,6 +1707,14 @@ class KanbanApp {
                     },
                     onRemoveChecklistItem: (itemId) => {
                         if (removeChecklistItem(board, colId, cardId, itemId))
+                            this.commit();
+                    },
+                    onAddAttachment: (name, dataUrl) => {
+                        if (addAttachment(board, colId, cardId, name, dataUrl))
+                            this.commit();
+                    },
+                    onRemoveAttachment: (attachmentId) => {
+                        if (removeAttachment(board, colId, cardId, attachmentId))
                             this.commit();
                     },
                     onAddComment: (text) => {
@@ -2559,6 +2620,11 @@ const translations = {
         list: '리스트',
         position: '위치',
         move: '이동',
+        attachments: '첨부파일',
+        addAttachment: '파일 추가',
+        attachmentTooLarge: '파일이 너무 큽니다 (최대 1.5MB)',
+        attachmentNotImage: '이미지 파일만 첨부할 수 있습니다',
+        deleteAttachmentConfirm: '이 첨부파일을 삭제할까요?',
         comments: '코멘트',
         addComment: '작성',
         commentPlaceholder: '코멘트를 입력하세요…',
@@ -2649,6 +2715,11 @@ const translations = {
         list: 'List',
         position: 'Position',
         move: 'Move',
+        attachments: 'Attachments',
+        addAttachment: 'Add file',
+        attachmentTooLarge: 'File is too large (max 1.5MB)',
+        attachmentNotImage: 'Only image files can be attached',
+        deleteAttachmentConfirm: 'Delete this attachment?',
         comments: 'Comments',
         addComment: 'Add',
         commentPlaceholder: 'Write a comment…',
@@ -2861,6 +2932,8 @@ __modules["modal"] = function(__exports, __require){
 // They are promise-based, keyboard-accessible (Enter/Escape), close on backdrop
 // click, and use only the DOM (no external library).
 const { getLanguage, t } = __require("i18n");
+/** Attachments above this size are refused to keep the DB and exports sane. */
+const MAX_ATTACHMENT_BYTES = 1500000;
 function openModal(opts) {
     return new Promise((resolve) => {
         const overlay = document.createElement('div');
@@ -3275,6 +3348,81 @@ function openCardDetail(init, cb) {
             checklistBox.appendChild(addRow);
         };
         renderChecklist();
+        // --- Attachments: image files stored inline as data URLs. ---
+        addLabel(t('attachments'));
+        const attachBox = document.createElement('div');
+        attachBox.className = 'card-detail-attachments';
+        dialog.appendChild(attachBox);
+        const renderAttachments = () => {
+            attachBox.replaceChildren();
+            for (const att of init.attachments) {
+                const row = document.createElement('div');
+                row.className = 'attachment-item';
+                const thumb = document.createElement('img');
+                thumb.className = 'attachment-thumb';
+                thumb.src = att.dataUrl;
+                thumb.alt = att.name;
+                thumb.draggable = false;
+                const info = document.createElement('div');
+                info.className = 'attachment-info';
+                const name = document.createElement('div');
+                name.className = 'attachment-name';
+                name.textContent = att.name || ' ';
+                const date = document.createElement('div');
+                date.className = 'attachment-date';
+                date.textContent = formatDate(att.createdAt);
+                info.append(name, date);
+                const del = document.createElement('button');
+                del.type = 'button';
+                del.className = 'comment-btn';
+                del.textContent = '🗑️';
+                del.title = t('delete');
+                del.addEventListener('click', () => {
+                    void customConfirm(t('deleteAttachmentConfirm')).then((ok) => {
+                        if (!ok)
+                            return;
+                        cb.onRemoveAttachment(att.id);
+                        renderAttachments();
+                    });
+                });
+                row.append(thumb, info, del);
+                attachBox.appendChild(row);
+            }
+            // Hidden file input driven by a visible button; images only, size-capped.
+            const fileInput = document.createElement('input');
+            fileInput.type = 'file';
+            fileInput.accept = 'image/*';
+            fileInput.hidden = true;
+            fileInput.addEventListener('change', () => {
+                const file = fileInput.files?.[0];
+                fileInput.value = '';
+                if (!file)
+                    return;
+                if (!file.type.startsWith('image/')) {
+                    void customAlert(t('attachmentNotImage'));
+                    return;
+                }
+                if (file.size > MAX_ATTACHMENT_BYTES) {
+                    void customAlert(t('attachmentTooLarge'));
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                    if (typeof reader.result === 'string') {
+                        cb.onAddAttachment(file.name, reader.result);
+                        renderAttachments();
+                    }
+                };
+                reader.readAsDataURL(file);
+            });
+            const addBtn = document.createElement('button');
+            addBtn.type = 'button';
+            addBtn.className = 'attachment-add-btn';
+            addBtn.textContent = `📎 ${t('addAttachment')}`;
+            addBtn.addEventListener('click', () => fileInput.click());
+            attachBox.append(fileInput, addBtn);
+        };
+        renderAttachments();
         // --- Comments: newest first, add via textarea, edit in place, delete. ---
         addLabel(t('comments'));
         const commentsBox = document.createElement('div');
@@ -3654,6 +3802,7 @@ function createCard(text) {
         labelIds: [],
         checklist: [],
         comments: [],
+        attachments: [],
         startAt: null,
         dueAt: null,
         dueDone: false,
@@ -3799,6 +3948,12 @@ function duplicateColumn(board, columnId) {
             labelIds: card.labelIds.slice(),
             checklist: card.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
             comments: [],
+            attachments: card.attachments.map((a) => ({
+                id: makeId('att'),
+                name: a.name,
+                dataUrl: a.dataUrl,
+                createdAt: a.createdAt,
+            })),
             startAt: card.startAt,
             dueAt: card.dueAt,
             dueDone: card.dueDone,
@@ -3875,6 +4030,12 @@ function duplicateCard(board, columnId, cardId) {
         labelIds: source.labelIds.slice(),
         checklist: source.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
         comments: [],
+        attachments: source.attachments.map((a) => ({
+            id: makeId('att'),
+            name: a.name,
+            dataUrl: a.dataUrl,
+            createdAt: a.createdAt,
+        })),
         startAt: source.startAt,
         dueAt: source.dueAt,
         dueDone: source.dueDone,
@@ -3928,6 +4089,28 @@ function removeChecklistItem(board, columnId, cardId, itemId) {
     if (index < 0)
         return false;
     card.checklist.splice(index, 1);
+    touch(board);
+    return true;
+}
+/** Attach an image (as a data URL) to a card. Rejects an empty data URL. */
+function addAttachment(board, columnId, cardId, name, dataUrl) {
+    const card = findCard(board, columnId, cardId);
+    if (!card || !dataUrl)
+        return null;
+    const attachment = { id: makeId('att'), name, dataUrl, createdAt: Date.now() };
+    card.attachments.push(attachment);
+    touch(board);
+    return attachment;
+}
+/** Delete an attachment from a card. */
+function removeAttachment(board, columnId, cardId, attachmentId) {
+    const card = findCard(board, columnId, cardId);
+    if (!card)
+        return false;
+    const index = card.attachments.findIndex((a) => a.id === attachmentId);
+    if (index < 0)
+        return false;
+    card.attachments.splice(index, 1);
     touch(board);
     return true;
 }
@@ -4135,6 +4318,8 @@ __exports.removeCard = removeCard;
 __exports.addChecklistItem = addChecklistItem;
 __exports.updateChecklistItem = updateChecklistItem;
 __exports.removeChecklistItem = removeChecklistItem;
+__exports.addAttachment = addAttachment;
+__exports.removeAttachment = removeAttachment;
 __exports.addComment = addComment;
 __exports.updateComment = updateComment;
 __exports.removeComment = removeComment;
@@ -4191,6 +4376,20 @@ function normalizeComment(raw) {
         createdAt: asNumber(obj.createdAt, Date.now()),
     };
 }
+/** An attachment without image data is useless, so such entries are dropped. */
+function normalizeAttachment(raw) {
+    if (!raw || typeof raw !== 'object')
+        return null;
+    const obj = raw;
+    if (typeof obj.dataUrl !== 'string' || obj.dataUrl === '')
+        return null;
+    return {
+        id: asString(obj.id, makeId('att')),
+        name: asString(obj.name, ''),
+        dataUrl: obj.dataUrl,
+        createdAt: asNumber(obj.createdAt, Date.now()),
+    };
+}
 function normalizeCard(raw) {
     const obj = (raw ?? {});
     const labelIds = Array.isArray(obj.labelIds)
@@ -4200,6 +4399,9 @@ function normalizeCard(raw) {
         ? obj.checklist.map(normalizeChecklistItem)
         : [];
     const comments = Array.isArray(obj.comments) ? obj.comments.map(normalizeComment) : [];
+    const attachments = Array.isArray(obj.attachments)
+        ? obj.attachments.map(normalizeAttachment).filter((a) => a !== null)
+        : [];
     return {
         id: asString(obj.id, makeId('card')),
         text: asString(obj.text, ''),
@@ -4207,6 +4409,7 @@ function normalizeCard(raw) {
         labelIds,
         checklist,
         comments,
+        attachments,
         startAt: typeof obj.startAt === 'number' && Number.isFinite(obj.startAt) ? obj.startAt : null,
         dueAt: typeof obj.dueAt === 'number' && Number.isFinite(obj.dueAt) ? obj.dueAt : null,
         dueDone: obj.dueDone === true,
@@ -4572,6 +4775,14 @@ function renderCard(card, column, labels, handlers) {
         stripe.style.background = card.color;
         node.appendChild(stripe);
     }
+    // The first attachment doubles as the card's cover image (Trello-style).
+    if (card.attachments.length > 0) {
+        const cover = el('img', 'card-cover');
+        cover.src = card.attachments[0].dataUrl;
+        cover.alt = card.attachments[0].name;
+        cover.draggable = false;
+        node.appendChild(cover);
+    }
     // Assigned labels render as colored chips above the card text.
     const cardLabels = card.labelIds.map((id) => labels.get(id)).filter((l) => !!l);
     if (cardLabels.length > 0) {
@@ -4611,6 +4822,11 @@ function renderCard(card, column, labels, handlers) {
         const note = el('span', 'card-badge', '📝');
         note.title = t('description');
         badges.appendChild(note);
+    }
+    if (card.attachments.length > 0) {
+        const att = el('span', 'card-badge', `📎 ${card.attachments.length}`);
+        att.title = t('attachments');
+        badges.appendChild(att);
     }
     if (card.comments.length > 0) {
         const cmt = el('span', 'card-badge', `💬 ${card.comments.length}`);

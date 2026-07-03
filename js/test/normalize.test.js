@@ -81,6 +81,36 @@ test('board background is kept and defaulted when missing', () => {
     assertEqual(data.boards[0].background, '#519839', 'stored background kept');
     assertEqual(data.boards[1].background, '', 'missing background defaults to empty');
 });
+test('attachments are kept, junk dropped, and defaulted when missing', () => {
+    const data = normalizeAppData({
+        boards: [
+            {
+                id: 'b1',
+                name: 'A',
+                columns: [
+                    {
+                        title: 'C',
+                        cards: [
+                            {
+                                text: 'x',
+                                attachments: [
+                                    { id: 'a1', name: 'pic.png', dataUrl: 'data:image/png;base64,AA', createdAt: 3 },
+                                    { id: 'a2', name: 'broken' }, // no dataUrl -> dropped
+                                    'junk',
+                                ],
+                            },
+                            { text: 'y' },
+                        ],
+                    },
+                ],
+            },
+        ],
+    });
+    const [withAtt, without] = data.boards[0].columns[0].cards;
+    assertEqual(withAtt.attachments.length, 1, 'only the valid attachment kept');
+    assertEqual(withAtt.attachments[0].name, 'pic.png', 'name kept');
+    assertEqual(without.attachments.length, 0, 'missing attachments default to empty');
+});
 test('comments are kept and defaulted when missing', () => {
     const data = normalizeAppData({
         boards: [

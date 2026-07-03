@@ -2,7 +2,16 @@
 // are intentionally free of any DOM or storage concerns so they can be unit
 // tested in isolation (see test/model.test.ts).
 
-import { AppData, Board, Card, ChecklistItem, Column, Label, SCHEMA_VERSION } from './types.js';
+import {
+  AppData,
+  Attachment,
+  Board,
+  Card,
+  ChecklistItem,
+  Column,
+  Label,
+  SCHEMA_VERSION,
+} from './types.js';
 import { makeId } from './id.js';
 
 /** Default label palette seeded on every new board (Trello-like colors). */
@@ -27,6 +36,7 @@ export function createCard(text: string): Card {
     labelIds: [],
     checklist: [],
     comments: [],
+    attachments: [],
     startAt: null,
     dueAt: null,
     dueDone: false,
@@ -184,6 +194,12 @@ export function duplicateColumn(board: Board, columnId: string): Column | null {
       labelIds: card.labelIds.slice(),
       checklist: card.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
       comments: [],
+      attachments: card.attachments.map((a) => ({
+        id: makeId('att'),
+        name: a.name,
+        dataUrl: a.dataUrl,
+        createdAt: a.createdAt,
+      })),
       startAt: card.startAt,
       dueAt: card.dueAt,
       dueDone: card.dueDone,
@@ -256,6 +272,12 @@ export function duplicateCard(board: Board, columnId: string, cardId: string): C
     labelIds: source.labelIds.slice(),
     checklist: source.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
     comments: [],
+    attachments: source.attachments.map((a) => ({
+      id: makeId('att'),
+      name: a.name,
+      dataUrl: a.dataUrl,
+      createdAt: a.createdAt,
+    })),
     startAt: source.startAt,
     dueAt: source.dueAt,
     dueDone: source.dueDone,
@@ -321,6 +343,38 @@ export function removeChecklistItem(
   const index = card.checklist.findIndex((i) => i.id === itemId);
   if (index < 0) return false;
   card.checklist.splice(index, 1);
+  touch(board);
+  return true;
+}
+
+/** Attach an image (as a data URL) to a card. Rejects an empty data URL. */
+export function addAttachment(
+  board: Board,
+  columnId: string,
+  cardId: string,
+  name: string,
+  dataUrl: string,
+): Attachment | null {
+  const card = findCard(board, columnId, cardId);
+  if (!card || !dataUrl) return null;
+  const attachment: Attachment = { id: makeId('att'), name, dataUrl, createdAt: Date.now() };
+  card.attachments.push(attachment);
+  touch(board);
+  return attachment;
+}
+
+/** Delete an attachment from a card. */
+export function removeAttachment(
+  board: Board,
+  columnId: string,
+  cardId: string,
+  attachmentId: string,
+): boolean {
+  const card = findCard(board, columnId, cardId);
+  if (!card) return false;
+  const index = card.attachments.findIndex((a) => a.id === attachmentId);
+  if (index < 0) return false;
+  card.attachments.splice(index, 1);
   touch(board);
   return true;
 }

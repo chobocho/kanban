@@ -36,6 +36,8 @@ import {
   duplicateColumn,
   moveAllCards,
   setBoardBackground,
+  addAttachment,
+  removeAttachment,
 } from '../src/model.js';
 
 test('createDefaultData has one board with three columns', () => {
@@ -431,6 +433,35 @@ test('moveAllCards appends every card to the target list', () => {
   assertEqual(board.columns[1].cards.map((c) => c.text).join(','), 'x,c1,c2', 'appended in order');
   assert(!moveAllCards(board, a, a), 'same column rejected');
   assert(!moveAllCards(board, 'missing', b), 'unknown source rejected');
+});
+
+test('attachments add, remove and reject an empty data url', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  assertEqual(card.attachments.length, 0, 'starts empty');
+
+  const att = addAttachment(board, colId, card.id, 'pic.png', 'data:image/png;base64,AAAA');
+  assert(att !== null, 'add ok');
+  assertEqual(card.attachments.length, 1, 'one attachment');
+  assertEqual(card.attachments[0].name, 'pic.png', 'name stored');
+  assertEqual(addAttachment(board, colId, card.id, 'x', ''), null, 'empty data url rejected');
+  assertEqual(addAttachment(board, 'missing', card.id, 'x', 'data:'), null, 'unknown column rejected');
+
+  assert(removeAttachment(board, colId, card.id, att!.id), 'remove ok');
+  assertEqual(card.attachments.length, 0, 'empty again');
+  assert(!removeAttachment(board, colId, card.id, 'missing'), 'unknown attachment rejected');
+});
+
+test('duplicateCard copies attachments with fresh ids', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  addAttachment(board, colId, card.id, 'pic.png', 'data:image/png;base64,AAAA');
+  const copy = duplicateCard(board, colId, card.id)!;
+  assertEqual(copy.attachments.length, 1, 'attachment copied');
+  assertEqual(copy.attachments[0].dataUrl, 'data:image/png;base64,AAAA', 'data copied');
+  assert(copy.attachments[0].id !== card.attachments[0].id, 'fresh attachment id');
 });
 
 test('setBoardBackground sets, clears and skips no-op changes', () => {

@@ -24,6 +24,16 @@ export interface Comment {
   createdAt: number;
 }
 
+/** An image attached to a card, stored inline as a data URL (offline-safe). */
+export interface Attachment {
+  id: string;
+  /** Original file name, shown in the attachment list. */
+  name: string;
+  /** The image content as a base64 data URL. */
+  dataUrl: string;
+  createdAt: number;
+}
+
 /** A single card belonging to a column. */
 export interface Card {
   id: string;
@@ -36,6 +46,8 @@ export interface Card {
   checklist: ChecklistItem[];
   /** Comments (newest first) shown on the card's back. */
   comments: Comment[];
+  /** Image attachments; the first one doubles as the card's cover. */
+  attachments: Attachment[];
   /** Start date as a timestamp (ms), or null when none is set. */
   startAt: number | null;
   /** Due date as a timestamp (ms), or null when none is set. */

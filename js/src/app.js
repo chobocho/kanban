@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, touch, } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
@@ -199,6 +199,7 @@ export class KanbanApp {
                     assignedLabelIds: card.labelIds.slice(),
                     checklist: card.checklist,
                     comments: card.comments,
+                    attachments: card.attachments,
                     columnId: colId,
                     columns: board.columns.map((c) => ({
                         id: c.id,
@@ -250,6 +251,14 @@ export class KanbanApp {
                     },
                     onRemoveChecklistItem: (itemId) => {
                         if (removeChecklistItem(board, colId, cardId, itemId))
+                            this.commit();
+                    },
+                    onAddAttachment: (name, dataUrl) => {
+                        if (addAttachment(board, colId, cardId, name, dataUrl))
+                            this.commit();
+                    },
+                    onRemoveAttachment: (attachmentId) => {
+                        if (removeAttachment(board, colId, cardId, attachmentId))
                             this.commit();
                     },
                     onAddComment: (text) => {
