@@ -39,6 +39,8 @@ import {
   addAttachment,
   removeAttachment,
   createCardFromTemplate,
+  toggleBoardStar,
+  sortedBoards,
 } from '../src/model.js';
 
 test('createDefaultData has one board with three columns', () => {
@@ -506,6 +508,25 @@ test('setBoardBackground sets, clears and skips no-op changes', () => {
   assert(!setBoardBackground(board, '#0079bf'), 'same color is a no-op');
   assert(setBoardBackground(board, ''), 'clear ok');
   assertEqual(board.background, '', 'back to default');
+});
+
+test('toggleBoardStar flips the starred flag', () => {
+  const board = createBoard('b');
+  assertEqual(board.starred, false, 'new board is not starred');
+  toggleBoardStar(board);
+  assertEqual(board.starred, true, 'starred after toggle');
+  toggleBoardStar(board);
+  assertEqual(board.starred, false, 'unstarred after second toggle');
+});
+
+test('sortedBoards lists starred boards first, keeping order within groups', () => {
+  const data = createDefaultData();
+  data.boards = [createBoard('A'), createBoard('B'), createBoard('C'), createBoard('D')];
+  toggleBoardStar(data.boards[1]); // B
+  toggleBoardStar(data.boards[3]); // D
+  const names = sortedBoards(data).map((b) => b.name).join(',');
+  assertEqual(names, 'B,D,A,C', 'starred first, insertion order preserved');
+  assertEqual(data.boards.map((b) => b.name).join(','), 'A,B,C,D', 'stored order untouched');
 });
 
 test('getActiveBoard returns the active board', () => {

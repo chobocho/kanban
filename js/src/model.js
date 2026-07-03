@@ -73,6 +73,7 @@ export function createBoard(name, columns = []) {
         archived: [],
         archivedColumns: [],
         background: '',
+        starred: false,
         createdAt: now,
         updatedAt: now,
     };
@@ -513,4 +514,16 @@ export function moveCard(board, fromColumnId, cardId, toColumnId, toIndex) {
 }
 export function getActiveBoard(data) {
     return data.boards.find((b) => b.id === data.activeBoardId);
+}
+/** Flip a board's starred flag. */
+export function toggleBoardStar(board) {
+    board.starred = !board.starred;
+    touch(board);
+}
+/**
+ * Boards for display: starred ones first, insertion order kept within each
+ * group. The stored order is never mutated.
+ */
+export function sortedBoards(data) {
+    return [...data.boards.filter((b) => b.starred), ...data.boards.filter((b) => !b.starred)];
 }

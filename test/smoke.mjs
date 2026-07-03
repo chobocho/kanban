@@ -367,6 +367,14 @@ try {
   const bgVar = await page.evaluate(() => document.documentElement.style.getPropertyValue('--bg'));
   assert(bgVar === '#0079bf', `board background applies a theme color (got "${bgVar}")`);
 
+  // Board star: starring moves the board to the front of the selector.
+  await page.locator('#starBtn').click();
+  await page.waitForTimeout(100);
+  const starTxt = (await page.locator('#starBtn').textContent()).trim();
+  assert(starTxt === '⭐', `star button reflects the starred state (got "${starTxt}")`);
+  const firstOpt = await page.locator('#boardSelect option').first().textContent();
+  assert(firstOpt === '⭐ Project X', `starred board is listed first (got "${firstOpt}")`);
+
   assert(errors.length === 0, `no runtime errors (${JSON.stringify(errors)})`);
 
   // --- Touch drag-and-drop (foldable / phone) ---------------------------------

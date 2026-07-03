@@ -90,6 +90,17 @@ test('board background is kept and defaulted when missing', () => {
   assertEqual(data.boards[1].background, '', 'missing background defaults to empty');
 });
 
+test('board starred flag is kept and defaulted when missing', () => {
+  const data = normalizeAppData({
+    boards: [
+      { id: 'b1', name: 'A', columns: [], starred: true },
+      { id: 'b2', name: 'B', columns: [] },
+    ],
+  });
+  assertEqual(data.boards[0].starred, true, 'stored star kept');
+  assertEqual(data.boards[1].starred, false, 'missing star defaults to false');
+});
+
 test('attachments are kept, junk dropped, and defaulted when missing', () => {
   const data = normalizeAppData({
     boards: [

@@ -1367,6 +1367,7 @@ select.control {
     <div class="toolbar-group">
       <label class="visually-hidden" for="boardSelect" data-i18n="boards">보드</label>
       <select id="boardSelect" class="control" title="boards"></select>
+      <button id="starBtn" class="control icon-control" data-i18n-title="starBoard">☆</button>
     </div>
 
     <div class="toolbar-group">
@@ -1466,7 +1467,7 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, touch } = __require("model");
 const { History } = __require("history");
 const { setLanguage, t } = __require("i18n");
 const { emptyFilter, isFilterActive } = __require("filter");
@@ -1505,6 +1506,7 @@ class KanbanApp {
         this.columnsEl = this.byId('columns');
         this.surfaceEl = this.byId('boardSurface');
         this.boardSelect = this.byId('boardSelect');
+        this.starBtn = this.byId('starBtn');
         this.langSelect = this.byId('langSelect');
         this.undoBtn = this.byId('undoBtn');
         this.redoBtn = this.byId('redoBtn');
@@ -1799,6 +1801,14 @@ class KanbanApp {
         this.boardSelect.addEventListener('change', () => {
             this.data.activeBoardId = this.boardSelect.value;
             this.commitReset();
+        });
+        this.starBtn.addEventListener('click', () => {
+            const board = this.active();
+            if (!board)
+                return;
+            toggleBoardStar(board);
+            // Stars are board metadata, outside the undo scope (cards/lists).
+            this.refresh();
         });
         this.langSelect.addEventListener('change', () => {
             this.setLang(this.langSelect.value);
@@ -2161,13 +2171,15 @@ class KanbanApp {
     }
     refreshBoardSelect() {
         this.boardSelect.replaceChildren();
-        for (const board of this.data.boards) {
+        // Starred boards come first and carry a star marker in their name.
+        for (const board of sortedBoards(this.data)) {
             const option = this.doc.createElement('option');
             option.value = board.id;
-            option.textContent = board.name;
+            option.textContent = (board.starred ? '⭐ ' : '') + board.name;
             this.boardSelect.appendChild(option);
         }
         this.boardSelect.value = this.data.activeBoardId ?? '';
+        this.starBtn.textContent = this.active()?.starred ? '⭐' : '☆';
         this.langSelect.value = this.data.settings.lang;
     }
     /** Update all static labels marked with data-i18n / data-i18n-title. */
@@ -2680,6 +2692,7 @@ const translations = {
         deleteBoardConfirm: '이 보드를 삭제할까요?',
         renameColumn: '리스트 이름',
         boards: '보드',
+        starBoard: '보드 즐겨찾기',
         menu: '메뉴',
         view: '보기',
         data: '데이터',
@@ -2779,6 +2792,7 @@ const translations = {
         deleteBoardConfirm: 'Delete this board?',
         renameColumn: 'List title',
         boards: 'Boards',
+        starBoard: 'Star board',
         menu: 'Menu',
         view: 'View',
         data: 'Data',
@@ -3898,6 +3912,7 @@ function createBoard(name, columns = []) {
         archived: [],
         archivedColumns: [],
         background: '',
+        starred: false,
         createdAt: now,
         updatedAt: now,
     };
@@ -4339,6 +4354,18 @@ function moveCard(board, fromColumnId, cardId, toColumnId, toIndex) {
 function getActiveBoard(data) {
     return data.boards.find((b) => b.id === data.activeBoardId);
 }
+/** Flip a board's starred flag. */
+function toggleBoardStar(board) {
+    board.starred = !board.starred;
+    touch(board);
+}
+/**
+ * Boards for display: starred ones first, insertion order kept within each
+ * group. The stored order is never mutated.
+ */
+function sortedBoards(data) {
+    return [...data.boards.filter((b) => b.starred), ...data.boards.filter((b) => !b.starred)];
+}
 
 __exports.createLabel = createLabel;
 __exports.defaultLabels = defaultLabels;
@@ -4383,6 +4410,8 @@ __exports.removeLabel = removeLabel;
 __exports.toggleCardLabel = toggleCardLabel;
 __exports.moveCard = moveCard;
 __exports.getActiveBoard = getActiveBoard;
+__exports.toggleBoardStar = toggleBoardStar;
+__exports.sortedBoards = sortedBoards;
 __exports.LABEL_COLORS = LABEL_COLORS;
 __exports.BOARD_BACKGROUNDS = BOARD_BACKGROUNDS;
 
@@ -4512,6 +4541,7 @@ function normalizeBoard(raw) {
         ? obj.archived.map(normalizeArchived).filter((a) => a !== null)
         : [];
     board.background = asString(obj.background, '');
+    board.starred = obj.starred === true;
     board.archivedColumns = Array.isArray(obj.archivedColumns)
         ? obj.archivedColumns
             .map(normalizeArchivedColumn)

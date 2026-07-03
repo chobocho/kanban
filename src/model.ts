@@ -90,6 +90,7 @@ export function createBoard(name: string, columns: Column[] = []): Board {
     archived: [],
     archivedColumns: [],
     background: '',
+    starred: false,
     createdAt: now,
     updatedAt: now,
   };
@@ -581,4 +582,18 @@ export function moveCard(
 
 export function getActiveBoard(data: AppData): Board | undefined {
   return data.boards.find((b) => b.id === data.activeBoardId);
+}
+
+/** Flip a board's starred flag. */
+export function toggleBoardStar(board: Board): void {
+  board.starred = !board.starred;
+  touch(board);
+}
+
+/**
+ * Boards for display: starred ones first, insertion order kept within each
+ * group. The stored order is never mutated.
+ */
+export function sortedBoards(data: AppData): Board[] {
+  return [...data.boards.filter((b) => b.starred), ...data.boards.filter((b) => !b.starred)];
 }

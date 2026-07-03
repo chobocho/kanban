@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, touch, } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
@@ -42,6 +42,7 @@ export class KanbanApp {
         this.columnsEl = this.byId('columns');
         this.surfaceEl = this.byId('boardSurface');
         this.boardSelect = this.byId('boardSelect');
+        this.starBtn = this.byId('starBtn');
         this.langSelect = this.byId('langSelect');
         this.undoBtn = this.byId('undoBtn');
         this.redoBtn = this.byId('redoBtn');
@@ -336,6 +337,14 @@ export class KanbanApp {
         this.boardSelect.addEventListener('change', () => {
             this.data.activeBoardId = this.boardSelect.value;
             this.commitReset();
+        });
+        this.starBtn.addEventListener('click', () => {
+            const board = this.active();
+            if (!board)
+                return;
+            toggleBoardStar(board);
+            // Stars are board metadata, outside the undo scope (cards/lists).
+            this.refresh();
         });
         this.langSelect.addEventListener('change', () => {
             this.setLang(this.langSelect.value);
@@ -698,13 +707,15 @@ export class KanbanApp {
     }
     refreshBoardSelect() {
         this.boardSelect.replaceChildren();
-        for (const board of this.data.boards) {
+        // Starred boards come first and carry a star marker in their name.
+        for (const board of sortedBoards(this.data)) {
             const option = this.doc.createElement('option');
             option.value = board.id;
-            option.textContent = board.name;
+            option.textContent = (board.starred ? '⭐ ' : '') + board.name;
             this.boardSelect.appendChild(option);
         }
         this.boardSelect.value = this.data.activeBoardId ?? '';
+        this.starBtn.textContent = this.active()?.starred ? '⭐' : '☆';
         this.langSelect.value = this.data.settings.lang;
     }
     /** Update all static labels marked with data-i18n / data-i18n-title. */

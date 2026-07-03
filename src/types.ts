@@ -97,6 +97,8 @@ export interface Board {
   archivedColumns: ArchivedColumn[];
   /** Board background color (hex). Empty means the default theme color. */
   background: string;
+  /** Starred boards are listed before the others in the board selector. */
+  starred: boolean;
   createdAt: number;
   updatedAt: number;
 }

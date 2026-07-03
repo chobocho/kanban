@@ -41,6 +41,8 @@ import {
   deleteArchivedColumn,
   setBoardBackground,
   BOARD_BACKGROUNDS,
+  toggleBoardStar,
+  sortedBoards,
   touch,
 } from './model.js';
 import { History } from './history.js';
@@ -93,6 +95,7 @@ export class KanbanApp {
   private readonly columnsEl: HTMLElement;
   private readonly surfaceEl: HTMLElement;
   private readonly boardSelect: HTMLSelectElement;
+  private readonly starBtn: HTMLButtonElement;
   private readonly langSelect: HTMLSelectElement;
   private readonly undoBtn: HTMLButtonElement;
   private readonly redoBtn: HTMLButtonElement;
@@ -107,6 +110,7 @@ export class KanbanApp {
     this.columnsEl = this.byId('columns');
     this.surfaceEl = this.byId('boardSurface');
     this.boardSelect = this.byId('boardSelect') as HTMLSelectElement;
+    this.starBtn = this.byId('starBtn') as HTMLButtonElement;
     this.langSelect = this.byId('langSelect') as HTMLSelectElement;
     this.undoBtn = this.byId('undoBtn') as HTMLButtonElement;
     this.redoBtn = this.byId('redoBtn') as HTMLButtonElement;
@@ -387,6 +391,13 @@ export class KanbanApp {
     this.boardSelect.addEventListener('change', () => {
       this.data.activeBoardId = this.boardSelect.value;
       this.commitReset();
+    });
+    this.starBtn.addEventListener('click', () => {
+      const board = this.active();
+      if (!board) return;
+      toggleBoardStar(board);
+      // Stars are board metadata, outside the undo scope (cards/lists).
+      this.refresh();
     });
 
     this.langSelect.addEventListener('change', () => {
@@ -749,13 +760,15 @@ export class KanbanApp {
 
   private refreshBoardSelect(): void {
     this.boardSelect.replaceChildren();
-    for (const board of this.data.boards) {
+    // Starred boards come first and carry a star marker in their name.
+    for (const board of sortedBoards(this.data)) {
       const option = this.doc.createElement('option');
       option.value = board.id;
-      option.textContent = board.name;
+      option.textContent = (board.starred ? '⭐ ' : '') + board.name;
       this.boardSelect.appendChild(option);
     }
     this.boardSelect.value = this.data.activeBoardId ?? '';
+    this.starBtn.textContent = this.active()?.starred ? '⭐' : '☆';
     this.langSelect.value = this.data.settings.lang;
   }
 

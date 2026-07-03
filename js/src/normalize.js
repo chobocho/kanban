@@ -122,6 +122,7 @@ function normalizeBoard(raw) {
         ? obj.archived.map(normalizeArchived).filter((a) => a !== null)
         : [];
     board.background = asString(obj.background, '');
+    board.starred = obj.starred === true;
     board.archivedColumns = Array.isArray(obj.archivedColumns)
         ? obj.archivedColumns
             .map(normalizeArchivedColumn)
