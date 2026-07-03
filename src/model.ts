@@ -49,6 +49,7 @@ export function createBoard(name: string, columns: Column[] = []): Board {
     labels: defaultLabels(),
     archived: [],
     archivedColumns: [],
+    background: '',
     createdAt: now,
     updatedAt: now,
   };
@@ -67,6 +68,27 @@ export function createDefaultData(): AppData {
     activeBoardId: board.id,
     settings: { lang: 'ko', zoom: 1 },
   };
+}
+
+/** Trello-like board background palette (empty = default theme color). */
+export const BOARD_BACKGROUNDS = [
+  '',
+  '#0079bf',
+  '#d29034',
+  '#519839',
+  '#b04632',
+  '#89609e',
+  '#cd5a91',
+  '#00aecc',
+  '#838c91',
+];
+
+/** Change the board's background color. Returns false when nothing changed. */
+export function setBoardBackground(board: Board, color: string): boolean {
+  if (board.background === color) return false;
+  board.background = color;
+  touch(board);
+  return true;
 }
 
 /** Mark a board as modified now. */

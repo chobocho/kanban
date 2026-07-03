@@ -116,6 +116,77 @@ export function customPrompt(message: string, defaultValue = ''): Promise<string
   );
 }
 
+/**
+ * Show a swatch palette and resolve with the picked color, or null when
+ * cancelled. An empty-string color renders as a "no color / default" swatch.
+ */
+export function openColorPicker(
+  message: string,
+  colors: readonly string[],
+  current: string,
+): Promise<string | null> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+
+    const dialog = document.createElement('div');
+    dialog.className = 'modal-dialog';
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
+    overlay.appendChild(dialog);
+
+    const title = document.createElement('div');
+    title.className = 'modal-message';
+    title.textContent = message;
+    dialog.appendChild(title);
+
+    let settled = false;
+    const close = (result: string | null): void => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener('keydown', onKey, true);
+      overlay.remove();
+      resolve(result);
+    };
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        close(null);
+      }
+    };
+
+    const swatches = document.createElement('div');
+    swatches.className = 'card-detail-colors';
+    for (const color of colors) {
+      const swatch = document.createElement('button');
+      swatch.className = 'card-detail-swatch';
+      swatch.style.background = color || 'transparent';
+      if (!color) swatch.classList.add('is-none');
+      if (color === current) swatch.classList.add('is-selected');
+      swatch.addEventListener('click', () => close(color));
+      swatches.appendChild(swatch);
+    }
+    dialog.appendChild(swatches);
+
+    const actions = document.createElement('div');
+    actions.className = 'modal-actions';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'modal-btn modal-cancel';
+    cancelBtn.textContent = t('cancel');
+    cancelBtn.addEventListener('click', () => close(null));
+    actions.appendChild(cancelBtn);
+    dialog.appendChild(actions);
+
+    overlay.addEventListener('pointerdown', (e) => {
+      if (e.target === overlay) close(null);
+    });
+    document.addEventListener('keydown', onKey, true);
+
+    document.body.appendChild(overlay);
+    cancelBtn.focus();
+  });
+}
+
 /** Initial state shown by the card detail modal. */
 export interface CardDetailInit {
   text: string;

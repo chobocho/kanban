@@ -79,6 +79,17 @@ test('valid archived cards are kept and junk entries dropped', () => {
   assertEqual(data.boards[0].archived[0].columnId, 'c1', 'origin column kept');
 });
 
+test('board background is kept and defaulted when missing', () => {
+  const data = normalizeAppData({
+    boards: [
+      { id: 'b1', name: 'A', columns: [], background: '#519839' },
+      { id: 'b2', name: 'B', columns: [] },
+    ],
+  });
+  assertEqual(data.boards[0].background, '#519839', 'stored background kept');
+  assertEqual(data.boards[1].background, '', 'missing background defaults to empty');
+});
+
 test('comments are kept and defaulted when missing', () => {
   const data = normalizeAppData({
     boards: [

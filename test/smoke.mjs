@@ -292,6 +292,15 @@ try {
   const afterCopy = await page.locator('.column').nth(2).locator('.card').count();
   assert(afterCopy === 3, `copy card duplicates the card (got ${afterCopy})`);
 
+  // Board background: picking a palette color updates the theme variable.
+  await page.locator('#menuBtn').click();
+  await page.locator('#bgColorBtn').click();
+  await page.waitForSelector('.card-detail-colors', { timeout: 3000 });
+  await page.locator('.card-detail-swatch').nth(1).click();
+  await page.waitForTimeout(100);
+  const bgVar = await page.evaluate(() => document.documentElement.style.getPropertyValue('--bg'));
+  assert(bgVar === '#0079bf', `board background applies a theme color (got "${bgVar}")`);
+
   assert(errors.length === 0, `no runtime errors (${JSON.stringify(errors)})`);
 
   // --- Touch drag-and-drop (foldable / phone) ---------------------------------

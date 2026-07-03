@@ -74,8 +74,8 @@ export function renderBoardToCanvas(board, scale = 2) {
     canvas.height = Math.ceil(height * scale);
     const ctx = canvas.getContext('2d');
     ctx.scale(scale, scale);
-    // Background.
-    ctx.fillStyle = '#0d6efd';
+    // Background: the board's own color, or the app's default theme color.
+    ctx.fillStyle = board.background || '#0d6efd';
     ctx.fillRect(0, 0, width, height);
     // Board title.
     ctx.fillStyle = '#ffffff';

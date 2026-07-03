@@ -33,6 +33,8 @@ import {
   archiveColumn,
   restoreColumn,
   deleteArchivedColumn,
+  setBoardBackground,
+  BOARD_BACKGROUNDS,
   touch,
 } from './model.js';
 import { History } from './history.js';
@@ -44,10 +46,29 @@ import { ZoomController } from './zoom.js';
 import { LayoutController } from './layout.js';
 import { downloadJson, readJsonFile } from './jsonio.js';
 import { exportBoardPng } from './png.js';
-import { customAlert, customConfirm, customPrompt, openCardDetail, openArchive } from './modal.js';
+import {
+  customAlert,
+  customConfirm,
+  customPrompt,
+  openCardDetail,
+  openArchive,
+  openColorPicker,
+} from './modal.js';
 
 /** Maximum number of undo steps kept per board. */
 const MAX_HISTORY = 8;
+
+/** Darken a #rrggbb color by the given factor (0..1) for the toolbar shade. */
+function darken(hex: string, factor: number): string {
+  const match = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!match) return hex;
+  const num = parseInt(match[1], 16);
+  const scale = (v: number): number => Math.round(v * factor);
+  const r = scale((num >> 16) & 0xff);
+  const g = scale((num >> 8) & 0xff);
+  const b = scale(num & 0xff);
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
 
 export class KanbanApp {
   private data!: AppData;
@@ -328,6 +349,7 @@ export class KanbanApp {
     this.byId('renameBoardBtn').addEventListener('click', () => this.renameBoard());
     this.byId('deleteBoardBtn').addEventListener('click', () => this.deleteBoard());
     this.byId('archiveBtn').addEventListener('click', () => this.openArchiveView());
+    this.byId('bgColorBtn').addEventListener('click', () => this.pickBackground());
     this.boardSelect.addEventListener('change', () => {
       this.data.activeBoardId = this.boardSelect.value;
       this.commitReset();
@@ -424,6 +446,29 @@ export class KanbanApp {
     }
     this.data.activeBoardId = this.data.boards[0].id;
     this.commitReset();
+  }
+
+  /** Let the user pick the board's background from the Trello-like palette. */
+  private async pickBackground(): Promise<void> {
+    const board = this.active();
+    if (!board) return;
+    const color = await openColorPicker(t('backgroundPrompt'), BOARD_BACKGROUNDS, board.background);
+    if (color === null) return;
+    // Background is board decoration, outside the undo scope (cards/lists).
+    if (setBoardBackground(board, color)) this.refresh();
+  }
+
+  /** Apply the active board's background to the page theme variables. */
+  private applyBackground(): void {
+    const rootStyle = this.doc.documentElement.style;
+    const background = this.active()?.background ?? '';
+    if (background) {
+      rootStyle.setProperty('--bg', background);
+      rootStyle.setProperty('--toolbar-bg', darken(background, 0.85));
+    } else {
+      rootStyle.removeProperty('--bg');
+      rootStyle.removeProperty('--toolbar-bg');
+    }
   }
 
   private setLang(lang: Language): void {
@@ -577,6 +622,7 @@ export class KanbanApp {
     if (board) renderBoard(this.columnsEl, board, this.filter, this.handlers);
     this.surfaceEl.scrollLeft = scrollLeft;
     this.surfaceEl.scrollTop = scrollTop;
+    this.applyBackground();
     this.refreshBoardSelect();
     this.refreshLabels();
     this.refreshFilterUi();

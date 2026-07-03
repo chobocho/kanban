@@ -35,6 +35,7 @@ import {
   sortColumnCards,
   duplicateColumn,
   moveAllCards,
+  setBoardBackground,
 } from '../src/model.js';
 
 test('createDefaultData has one board with three columns', () => {
@@ -403,6 +404,16 @@ test('moveAllCards appends every card to the target list', () => {
   assertEqual(board.columns[1].cards.map((c) => c.text).join(','), 'x,c1,c2', 'appended in order');
   assert(!moveAllCards(board, a, a), 'same column rejected');
   assert(!moveAllCards(board, 'missing', b), 'unknown source rejected');
+});
+
+test('setBoardBackground sets, clears and skips no-op changes', () => {
+  const board = createBoard('b');
+  assertEqual(board.background, '', 'new board has the default background');
+  assert(setBoardBackground(board, '#0079bf'), 'set ok');
+  assertEqual(board.background, '#0079bf', 'background stored');
+  assert(!setBoardBackground(board, '#0079bf'), 'same color is a no-op');
+  assert(setBoardBackground(board, ''), 'clear ok');
+  assertEqual(board.background, '', 'back to default');
 });
 
 test('getActiveBoard returns the active board', () => {

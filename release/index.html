@@ -1324,6 +1324,9 @@ select.control {
           <button id="archiveBtn" class="menu-item">
             <span class="menu-icon">🗄️</span><span class="menu-label" data-i18n="archiveView">보관함</span>
           </button>
+          <button id="bgColorBtn" class="menu-item">
+            <span class="menu-icon">🎨</span><span class="menu-label" data-i18n="background">배경색</span>
+          </button>
         </div>
 
         <div class="menu-section">
@@ -1388,7 +1391,7 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, updateLabel, toggleCardLabel, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, touch } = __require("model");
 const { History } = __require("history");
 const { setLanguage, t } = __require("i18n");
 const { emptyFilter, isFilterActive } = __require("filter");
@@ -1398,9 +1401,21 @@ const { ZoomController } = __require("zoom");
 const { LayoutController } = __require("layout");
 const { downloadJson, readJsonFile } = __require("jsonio");
 const { exportBoardPng } = __require("png");
-const { customAlert, customConfirm, customPrompt, openCardDetail, openArchive } = __require("modal");
+const { customAlert, customConfirm, customPrompt, openCardDetail, openArchive, openColorPicker } = __require("modal");
 /** Maximum number of undo steps kept per board. */
 const MAX_HISTORY = 8;
+/** Darken a #rrggbb color by the given factor (0..1) for the toolbar shade. */
+function darken(hex, factor) {
+    const match = /^#([0-9a-f]{6})$/i.exec(hex);
+    if (!match)
+        return hex;
+    const num = parseInt(match[1], 16);
+    const scale = (v) => Math.round(v * factor);
+    const r = scale((num >> 16) & 0xff);
+    const g = scale((num >> 8) & 0xff);
+    const b = scale(num & 0xff);
+    return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+}
 class KanbanApp {
     constructor(doc) {
         this.doc = doc;
@@ -1672,6 +1687,7 @@ class KanbanApp {
         this.byId('renameBoardBtn').addEventListener('click', () => this.renameBoard());
         this.byId('deleteBoardBtn').addEventListener('click', () => this.deleteBoard());
         this.byId('archiveBtn').addEventListener('click', () => this.openArchiveView());
+        this.byId('bgColorBtn').addEventListener('click', () => this.pickBackground());
         this.boardSelect.addEventListener('change', () => {
             this.data.activeBoardId = this.boardSelect.value;
             this.commitReset();
@@ -1769,6 +1785,31 @@ class KanbanApp {
         }
         this.data.activeBoardId = this.data.boards[0].id;
         this.commitReset();
+    }
+    /** Let the user pick the board's background from the Trello-like palette. */
+    async pickBackground() {
+        const board = this.active();
+        if (!board)
+            return;
+        const color = await openColorPicker(t('backgroundPrompt'), BOARD_BACKGROUNDS, board.background);
+        if (color === null)
+            return;
+        // Background is board decoration, outside the undo scope (cards/lists).
+        if (setBoardBackground(board, color))
+            this.refresh();
+    }
+    /** Apply the active board's background to the page theme variables. */
+    applyBackground() {
+        const rootStyle = this.doc.documentElement.style;
+        const background = this.active()?.background ?? '';
+        if (background) {
+            rootStyle.setProperty('--bg', background);
+            rootStyle.setProperty('--toolbar-bg', darken(background, 0.85));
+        }
+        else {
+            rootStyle.removeProperty('--bg');
+            rootStyle.removeProperty('--toolbar-bg');
+        }
     }
     setLang(lang) {
         this.data.settings.lang = lang;
@@ -1923,6 +1964,7 @@ class KanbanApp {
             renderBoard(this.columnsEl, board, this.filter, this.handlers);
         this.surfaceEl.scrollLeft = scrollLeft;
         this.surfaceEl.scrollTop = scrollTop;
+        this.applyBackground();
         this.refreshBoardSelect();
         this.refreshLabels();
         this.refreshFilterUi();
@@ -2469,6 +2511,8 @@ const translations = {
         checklist: '체크리스트',
         addChecklistItem: '추가',
         checklistItemPlaceholder: '항목을 입력하세요…',
+        background: '배경색',
+        backgroundPrompt: '보드 배경색을 선택하세요',
         listMenu: '리스트 메뉴',
         sortBy: '정렬',
         sortByName: '이름순',
@@ -2553,6 +2597,8 @@ const translations = {
         checklist: 'Checklist',
         addChecklistItem: 'Add',
         checklistItemPlaceholder: 'Add an item…',
+        background: 'Background',
+        backgroundPrompt: 'Pick a board background color',
         listMenu: 'List menu',
         sortBy: 'Sort by',
         sortByName: 'Name',
@@ -2866,6 +2912,69 @@ function customConfirm(message) {
 /** Custom replacement for window.prompt. Resolves null if cancelled. */
 function customPrompt(message, defaultValue = '') {
     return openModal({ kind: 'prompt', message, defaultValue }).then((r) => typeof r === 'string' ? r : null);
+}
+/**
+ * Show a swatch palette and resolve with the picked color, or null when
+ * cancelled. An empty-string color renders as a "no color / default" swatch.
+ */
+function openColorPicker(message, colors, current) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        const dialog = document.createElement('div');
+        dialog.className = 'modal-dialog';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        overlay.appendChild(dialog);
+        const title = document.createElement('div');
+        title.className = 'modal-message';
+        title.textContent = message;
+        dialog.appendChild(title);
+        let settled = false;
+        const close = (result) => {
+            if (settled)
+                return;
+            settled = true;
+            document.removeEventListener('keydown', onKey, true);
+            overlay.remove();
+            resolve(result);
+        };
+        const onKey = (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                close(null);
+            }
+        };
+        const swatches = document.createElement('div');
+        swatches.className = 'card-detail-colors';
+        for (const color of colors) {
+            const swatch = document.createElement('button');
+            swatch.className = 'card-detail-swatch';
+            swatch.style.background = color || 'transparent';
+            if (!color)
+                swatch.classList.add('is-none');
+            if (color === current)
+                swatch.classList.add('is-selected');
+            swatch.addEventListener('click', () => close(color));
+            swatches.appendChild(swatch);
+        }
+        dialog.appendChild(swatches);
+        const actions = document.createElement('div');
+        actions.className = 'modal-actions';
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'modal-btn modal-cancel';
+        cancelBtn.textContent = t('cancel');
+        cancelBtn.addEventListener('click', () => close(null));
+        actions.appendChild(cancelBtn);
+        dialog.appendChild(actions);
+        overlay.addEventListener('pointerdown', (e) => {
+            if (e.target === overlay)
+                close(null);
+        });
+        document.addEventListener('keydown', onKey, true);
+        document.body.appendChild(overlay);
+        cancelBtn.focus();
+    });
 }
 /** Convert a timestamp to a `datetime-local` input value in local time. */
 function toLocalInputValue(ts) {
@@ -3416,6 +3525,7 @@ function openArchive(cb) {
 __exports.customAlert = customAlert;
 __exports.customConfirm = customConfirm;
 __exports.customPrompt = customPrompt;
+__exports.openColorPicker = openColorPicker;
 __exports.openCardDetail = openCardDetail;
 __exports.openArchive = openArchive;
 
@@ -3465,6 +3575,7 @@ function createBoard(name, columns = []) {
         labels: defaultLabels(),
         archived: [],
         archivedColumns: [],
+        background: '',
         createdAt: now,
         updatedAt: now,
     };
@@ -3482,6 +3593,26 @@ function createDefaultData() {
         activeBoardId: board.id,
         settings: { lang: 'ko', zoom: 1 },
     };
+}
+/** Trello-like board background palette (empty = default theme color). */
+const BOARD_BACKGROUNDS = [
+    '',
+    '#0079bf',
+    '#d29034',
+    '#519839',
+    '#b04632',
+    '#89609e',
+    '#cd5a91',
+    '#00aecc',
+    '#838c91',
+];
+/** Change the board's background color. Returns false when nothing changed. */
+function setBoardBackground(board, color) {
+    if (board.background === color)
+        return false;
+    board.background = color;
+    touch(board);
+    return true;
 }
 /** Mark a board as modified now. */
 function touch(board) {
@@ -3881,6 +4012,7 @@ __exports.createCard = createCard;
 __exports.createColumn = createColumn;
 __exports.createBoard = createBoard;
 __exports.createDefaultData = createDefaultData;
+__exports.setBoardBackground = setBoardBackground;
 __exports.touch = touch;
 __exports.findColumn = findColumn;
 __exports.findCard = findCard;
@@ -3915,6 +4047,7 @@ __exports.toggleCardLabel = toggleCardLabel;
 __exports.moveCard = moveCard;
 __exports.getActiveBoard = getActiveBoard;
 __exports.LABEL_COLORS = LABEL_COLORS;
+__exports.BOARD_BACKGROUNDS = BOARD_BACKGROUNDS;
 
 };
 __modules["normalize"] = function(__exports, __require){
@@ -4021,6 +4154,7 @@ function normalizeBoard(raw) {
     board.archived = Array.isArray(obj.archived)
         ? obj.archived.map(normalizeArchived).filter((a) => a !== null)
         : [];
+    board.background = asString(obj.background, '');
     board.archivedColumns = Array.isArray(obj.archivedColumns)
         ? obj.archivedColumns
             .map(normalizeArchivedColumn)
@@ -4151,8 +4285,8 @@ function renderBoardToCanvas(board, scale = 2) {
     canvas.height = Math.ceil(height * scale);
     const ctx = canvas.getContext('2d');
     ctx.scale(scale, scale);
-    // Background.
-    ctx.fillStyle = '#0d6efd';
+    // Background: the board's own color, or the app's default theme color.
+    ctx.fillStyle = board.background || '#0d6efd';
     ctx.fillRect(0, 0, width, height);
     // Board title.
     ctx.fillStyle = '#ffffff';

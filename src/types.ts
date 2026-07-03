@@ -79,6 +79,8 @@ export interface Board {
   archived: ArchivedCard[];
   /** Archived lists/columns (newest first), restorable from the archive view. */
   archivedColumns: ArchivedColumn[];
+  /** Board background color (hex). Empty means the default theme color. */
+  background: string;
   createdAt: number;
   updatedAt: number;
 }

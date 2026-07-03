@@ -123,6 +123,7 @@ function normalizeBoard(raw: unknown): Board {
   board.archived = Array.isArray(obj.archived)
     ? obj.archived.map(normalizeArchived).filter((a): a is ArchivedCard => a !== null)
     : [];
+  board.background = asString(obj.background, '');
   board.archivedColumns = Array.isArray(obj.archivedColumns)
     ? obj.archivedColumns
         .map(normalizeArchivedColumn)
