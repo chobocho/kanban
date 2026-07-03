@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCardsFromText, importBoard, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCardsFromText, importBoard, duplicateBoard, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, moveChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch, } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t, tf } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
@@ -436,6 +436,7 @@ export class KanbanApp {
     wireToolbar() {
         this.byId('newBoardBtn').addEventListener('click', () => this.newBoard());
         this.byId('renameBoardBtn').addEventListener('click', () => this.renameBoard());
+        this.byId('copyBoardBtn').addEventListener('click', () => this.copyBoard());
         this.byId('deleteBoardBtn').addEventListener('click', () => this.deleteBoard());
         this.byId('archiveBtn').addEventListener('click', () => this.openArchiveView());
         this.byId('bgColorBtn').addEventListener('click', () => this.pickBackground());
@@ -560,6 +561,16 @@ export class KanbanApp {
         board.name = name || board.name;
         // Board name is outside undo scope (cards/lists), so keep the history.
         this.refresh();
+    }
+    async copyBoard() {
+        const board = this.active();
+        if (!board)
+            return;
+        const name = await customPrompt(t('boardNamePrompt'), tf('copyOfName', [board.name]));
+        if (name === null)
+            return;
+        if (duplicateBoard(this.data, board.id, name || board.name))
+            this.commitReset();
     }
     async deleteBoard() {
         const board = this.active();

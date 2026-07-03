@@ -457,6 +457,25 @@ try {
   const firstOpt = await page.locator('#boardSelect option').first().textContent();
   assert(firstOpt === '⭐ Project X', `starred board is listed first (got "${firstOpt}")`);
 
+  // Copy board: duplicates the active board under the suggested name.
+  const boardsBeforeCopy = await page.locator('#boardSelect option').count();
+  await page.locator('#menuBtn').click();
+  await page.locator('#copyBoardBtn').click();
+  await page.waitForTimeout(100);
+  await page.locator('.modal-overlay').last().locator('.modal-ok').click();
+  await page.waitForTimeout(100);
+  const boardsAfterCopy = await page.locator('#boardSelect option').count();
+  assert(boardsAfterCopy === boardsBeforeCopy + 1, `copy board adds a board (got ${boardsAfterCopy})`);
+  const copyId = await page.locator('#boardSelect').inputValue();
+  const copyName = await page.locator(`#boardSelect option[value="${copyId}"]`).textContent();
+  assert(copyName === 'Project X (copy)', `copy uses the suggested name (got "${copyName}")`);
+  // Return to the original board for the following checks.
+  await page.locator('#menuBtn').click();
+  await page.locator('#deleteBoardBtn').click();
+  await page.waitForSelector('.modal-dialog', { timeout: 3000 });
+  await page.locator('.modal-overlay').last().locator('.modal-ok').click();
+  await page.waitForTimeout(100);
+
   // Board export: downloads the active board as a JSON file.
   await page.locator('#menuBtn').click();
   const [download] = await Promise.all([

@@ -17,6 +17,7 @@ import {
   moveAllCards,
   addCardsFromText,
   importBoard,
+  duplicateBoard,
   addCard,
   updateCard,
   moveCard,
@@ -493,6 +494,7 @@ export class KanbanApp {
   private wireToolbar(): void {
     this.byId('newBoardBtn').addEventListener('click', () => this.newBoard());
     this.byId('renameBoardBtn').addEventListener('click', () => this.renameBoard());
+    this.byId('copyBoardBtn').addEventListener('click', () => this.copyBoard());
     this.byId('deleteBoardBtn').addEventListener('click', () => this.deleteBoard());
     this.byId('archiveBtn').addEventListener('click', () => this.openArchiveView());
     this.byId('bgColorBtn').addEventListener('click', () => this.pickBackground());
@@ -616,6 +618,14 @@ export class KanbanApp {
     board.name = name || board.name;
     // Board name is outside undo scope (cards/lists), so keep the history.
     this.refresh();
+  }
+
+  private async copyBoard(): Promise<void> {
+    const board = this.active();
+    if (!board) return;
+    const name = await customPrompt(t('boardNamePrompt'), tf('copyOfName', [board.name]));
+    if (name === null) return;
+    if (duplicateBoard(this.data, board.id, name || board.name)) this.commitReset();
   }
 
   private async deleteBoard(): Promise<void> {

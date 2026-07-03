@@ -46,6 +46,7 @@ import {
   ACTIVITY_LIMIT,
   addCardsFromText,
   importBoard,
+  duplicateBoard,
 } from '../src/model.js';
 
 test('createDefaultData has one board with three columns', () => {
@@ -600,6 +601,30 @@ test('moveChecklistItem shifts an item and stops at the edges', () => {
   assertEqual(texts(), 'one,three,two', 'moved to the end');
   assert(!moveChecklistItem(board, colId, card.id, secondId, 1), 'bottom edge rejected');
   assert(!moveChecklistItem(board, colId, card.id, 'missing', 1), 'unknown item rejected');
+});
+
+test('duplicateBoard deep-copies content and activates the copy', () => {
+  const data = createDefaultData();
+  const source = data.boards[0];
+  const colId = source.columns[0].id;
+  addCard(data.boards[0], colId, 'original card');
+  toggleBoardStar(source);
+  logActivity(source, 'activityCardAdd', ['x', 'y']);
+
+  const copy = duplicateBoard(data, source.id, 'My Copy');
+  assert(copy !== null, 'copy created');
+  assertEqual(data.boards.length, 2, 'copy appended');
+  assertEqual(data.boards[1].id, copy!.id, 'inserted after the original');
+  assertEqual(data.activeBoardId, copy!.id, 'copy becomes active');
+  assert(copy!.id !== source.id, 'fresh board id');
+  assertEqual(copy!.name, 'My Copy', 'given name applied');
+  assertEqual(copy!.columns[0].cards[0].text, 'original card', 'cards copied');
+  assertEqual(copy!.starred, false, 'copy starts unstarred');
+  assertEqual(copy!.activity.length, 0, 'activity log not inherited');
+
+  copy!.columns[0].cards[0].text = 'changed';
+  assertEqual(source.columns[0].cards[0].text, 'original card', 'deep copy, original untouched');
+  assertEqual(duplicateBoard(data, 'missing', 'x'), null, 'unknown board rejected');
 });
 
 test('getActiveBoard returns the active board', () => {

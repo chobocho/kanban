@@ -638,6 +638,26 @@ export function logActivity(board: Board, kind: string, params: string[]): void 
 }
 
 /**
+ * Deep-copy a whole board (Trello's "copy board") with the given name, insert
+ * it right after the original and make it active. The copy starts unstarred
+ * and with an empty activity log, since that history belongs to the original.
+ */
+export function duplicateBoard(data: AppData, boardId: string, name: string): Board | null {
+  const index = data.boards.findIndex((b) => b.id === boardId);
+  if (index < 0) return null;
+  const copy = JSON.parse(JSON.stringify(data.boards[index])) as Board;
+  copy.id = makeId('board');
+  copy.name = name;
+  copy.starred = false;
+  copy.activity = [];
+  copy.createdAt = Date.now();
+  copy.updatedAt = Date.now();
+  data.boards.splice(index + 1, 0, copy);
+  data.activeBoardId = copy.id;
+  return copy;
+}
+
+/**
  * Add an imported board and make it active. A board id that already exists is
  * regenerated so the import can never clobber an existing board.
  */
