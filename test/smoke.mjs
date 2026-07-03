@@ -446,6 +446,44 @@ try {
   const firstOpt = await page.locator('#boardSelect option').first().textContent();
   assert(firstOpt === '⭐ Project X', `starred board is listed first (got "${firstOpt}")`);
 
+  // Board export: downloads the active board as a JSON file.
+  await page.locator('#menuBtn').click();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('#exportBoardBtn').click(),
+  ]);
+  assert(
+    download.suggestedFilename().endsWith('.json'),
+    `board export downloads a JSON file (got "${download.suggestedFilename()}")`,
+  );
+
+  // Board import: a single-board JSON file becomes a new, active board.
+  const boardsBeforeImport = await page.locator('#boardSelect option').count();
+  await page.locator('#menuBtn').click();
+  await page.locator('#importBoardInput').setInputFiles({
+    name: 'imported.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({
+        kanbanBoard: 1,
+        board: { name: 'Imported Board', columns: [{ title: 'L', cards: [{ text: 'hi' }] }] },
+      }),
+    ),
+  });
+  await page.waitForTimeout(200);
+  const boardsAfterImport = await page.locator('#boardSelect option').count();
+  assert(
+    boardsAfterImport === boardsBeforeImport + 1,
+    `board import adds a board (got ${boardsAfterImport})`,
+  );
+  const importedId = await page.locator('#boardSelect').inputValue();
+  const importedName = await page
+    .locator(`#boardSelect option[value="${importedId}"]`)
+    .textContent();
+  assert(importedName === 'Imported Board', `imported board is active (got "${importedName}")`);
+  const importedCards = await page.locator('.card').count();
+  assert(importedCards === 1, `imported board shows its cards (got ${importedCards})`);
+
   assert(errors.length === 0, `no runtime errors (${JSON.stringify(errors)})`);
 
   // --- Touch drag-and-drop (foldable / phone) ---------------------------------

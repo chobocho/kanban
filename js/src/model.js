@@ -548,6 +548,18 @@ export function logActivity(board, kind, params) {
         board.activity.length = ACTIVITY_LIMIT;
     touch(board);
 }
+/**
+ * Add an imported board and make it active. A board id that already exists is
+ * regenerated so the import can never clobber an existing board.
+ */
+export function importBoard(data, board) {
+    if (data.boards.some((b) => b.id === board.id))
+        board.id = makeId('board');
+    data.boards.push(board);
+    data.activeBoardId = board.id;
+    touch(board);
+    return board;
+}
 /** Flip a board's starred flag. */
 export function toggleBoardStar(board) {
     board.starred = !board.starred;

@@ -44,6 +44,7 @@ import {
   logActivity,
   ACTIVITY_LIMIT,
   addCardsFromText,
+  importBoard,
 } from '../src/model.js';
 
 test('createDefaultData has one board with three columns', () => {
@@ -563,6 +564,20 @@ test('logActivity keeps newest-first entries capped at the limit', () => {
   }
   assertEqual(board.activity.length, ACTIVITY_LIMIT, 'capped at the limit');
   assertEqual(board.activity[0].params[0], `bulk ${ACTIVITY_LIMIT + 9}`, 'latest kept');
+});
+
+test('importBoard appends, activates and avoids id collisions', () => {
+  const data = createDefaultData();
+  const incoming = createBoard('Imported');
+  const imported = importBoard(data, incoming);
+  assertEqual(data.boards.length, 2, 'board appended');
+  assertEqual(data.activeBoardId, imported.id, 'imported board becomes active');
+
+  // Importing a board whose id already exists gets a fresh id.
+  const clone = JSON.parse(JSON.stringify(imported));
+  const again = importBoard(data, clone);
+  assertEqual(data.boards.length, 3, 'second copy appended');
+  assert(again.id !== imported.id, 'colliding id regenerated');
 });
 
 test('getActiveBoard returns the active board', () => {

@@ -16,6 +16,7 @@ import {
   duplicateColumn,
   moveAllCards,
   addCardsFromText,
+  importBoard,
   addCard,
   updateCard,
   moveCard,
@@ -55,7 +56,7 @@ import { DragController } from './dnd.js';
 import { KeyboardNavigator } from './keys.js';
 import { ZoomController } from './zoom.js';
 import { LayoutController } from './layout.js';
-import { downloadJson, readJsonFile } from './jsonio.js';
+import { downloadJson, readJsonFile, downloadBoardJson, readBoardJsonFile } from './jsonio.js';
 import { exportBoardPng } from './png.js';
 import {
   customAlert,
@@ -552,6 +553,25 @@ export class KanbanApp {
     this.byId('exportPngBtn').addEventListener('click', () => {
       const board = this.active();
       if (board) exportBoardPng(board);
+    });
+
+    this.byId('exportBoardBtn').addEventListener('click', () => {
+      const board = this.active();
+      if (board) downloadBoardJson(board);
+    });
+
+    const importBoardInput = this.byId('importBoardInput') as HTMLInputElement;
+    importBoardInput.addEventListener('change', async () => {
+      const file = importBoardInput.files?.[0];
+      if (!file) return;
+      try {
+        importBoard(this.data, await readBoardJsonFile(file));
+        this.commitReset();
+      } catch {
+        void customAlert(t('importError'));
+      } finally {
+        importBoardInput.value = '';
+      }
     });
 
     const importInput = this.byId('importJsonInput') as HTMLInputElement;

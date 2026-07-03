@@ -1576,6 +1576,13 @@ select.control {
             <span class="menu-icon">📂</span><span class="menu-label" data-i18n="importJson">JSON 가져오기</span>
           </label>
           <input id="importJsonInput" type="file" accept="application/json,.json" hidden />
+          <button id="exportBoardBtn" class="menu-item">
+            <span class="menu-icon">📤</span><span class="menu-label" data-i18n="exportBoard">보드 내보내기</span>
+          </button>
+          <label id="importBoardLabel" class="menu-item" for="importBoardInput">
+            <span class="menu-icon">📥</span><span class="menu-label" data-i18n="importBoard">보드 가져오기</span>
+          </label>
+          <input id="importBoardInput" type="file" accept="application/json,.json" hidden />
           <button id="exportPngBtn" class="menu-item">
             <span class="menu-icon">🖼️</span><span class="menu-label" data-i18n="exportPng">PNG 저장</span>
           </button>
@@ -1616,7 +1623,7 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCardsFromText, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCardsFromText, importBoard, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch } = __require("model");
 const { History } = __require("history");
 const { setLanguage, t, tf } = __require("i18n");
 const { emptyFilter, isFilterActive } = __require("filter");
@@ -1625,7 +1632,7 @@ const { DragController } = __require("dnd");
 const { KeyboardNavigator } = __require("keys");
 const { ZoomController } = __require("zoom");
 const { LayoutController } = __require("layout");
-const { downloadJson, readJsonFile } = __require("jsonio");
+const { downloadJson, readJsonFile, downloadBoardJson, readBoardJsonFile } = __require("jsonio");
 const { exportBoardPng } = __require("png");
 const { customAlert, customConfirm, customPrompt, customTextPrompt, openCardDetail, openArchive, openColorPicker, openActivityLog } = __require("modal");
 /** Maximum number of undo steps kept per board. */
@@ -2105,6 +2112,27 @@ class KanbanApp {
             const board = this.active();
             if (board)
                 exportBoardPng(board);
+        });
+        this.byId('exportBoardBtn').addEventListener('click', () => {
+            const board = this.active();
+            if (board)
+                downloadBoardJson(board);
+        });
+        const importBoardInput = this.byId('importBoardInput');
+        importBoardInput.addEventListener('change', async () => {
+            const file = importBoardInput.files?.[0];
+            if (!file)
+                return;
+            try {
+                importBoard(this.data, await readBoardJsonFile(file));
+                this.commitReset();
+            }
+            catch {
+                void customAlert(t('importError'));
+            }
+            finally {
+                importBoardInput.value = '';
+            }
         });
         const importInput = this.byId('importJsonInput');
         importInput.addEventListener('change', async () => {
@@ -3000,6 +3028,8 @@ const translations = {
         delete: '삭제',
         exportJson: 'JSON 내보내기',
         importJson: 'JSON 가져오기',
+        exportBoard: '보드 내보내기',
+        importBoard: '보드 가져오기',
         exportPng: 'PNG 저장',
         language: '언어',
         theme: '테마',
@@ -3120,6 +3150,8 @@ const translations = {
         delete: 'Delete',
         exportJson: 'Export JSON',
         importJson: 'Import JSON',
+        exportBoard: 'Export board',
+        importBoard: 'Import board',
         exportPng: 'Save PNG',
         language: 'Language',
         theme: 'Theme',
@@ -3186,7 +3218,7 @@ __modules["jsonio"] = function(__exports, __require){
 // Import/export of the whole application state as a single JSON document.
 // Importing always runs through normalization so a malformed file cannot break
 // the app.
-const { normalizeAppData } = __require("normalize");
+const { normalizeAppData, normalizeBoard } = __require("normalize");
 /** Download the entire app state as a JSON file. */
 function downloadJson(data, filename = 'kanban-data.json') {
     const text = JSON.stringify(data, null, 2);
@@ -3199,6 +3231,50 @@ function downloadJson(data, filename = 'kanban-data.json') {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+}
+/** Download one board (Trello-style per-board export) as a JSON file. */
+function downloadBoardJson(board) {
+    const text = JSON.stringify({ kanbanBoard: 1, board }, null, 2);
+    const blob = new Blob([text], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${board.name || 'board'}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+/**
+ * Parse a single-board JSON export (wrapped `{ board: … }` or a bare board
+ * object). Whole-app exports are rejected so they are not mangled into a
+ * nonsense board; import those via the regular JSON import instead.
+ */
+function parseBoardJson(text) {
+    const raw = JSON.parse(text);
+    if (!raw || typeof raw !== 'object')
+        throw new Error('not a board file');
+    if (raw.board && typeof raw.board === 'object')
+        return normalizeBoard(raw.board);
+    if (Array.isArray(raw.boards))
+        throw new Error('app data, not a single board');
+    return normalizeBoard(raw);
+}
+/** Read a File chosen by the user and resolve to a valid single Board. */
+function readBoardJsonFile(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                resolve(parseBoardJson(String(reader.result)));
+            }
+            catch (err) {
+                reject(err);
+            }
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(file);
+    });
 }
 /** Parse JSON text into a valid AppData. Throws if the text is not JSON. */
 function parseJson(text) {
@@ -3223,6 +3299,9 @@ function readJsonFile(file) {
 }
 
 __exports.downloadJson = downloadJson;
+__exports.downloadBoardJson = downloadBoardJson;
+__exports.parseBoardJson = parseBoardJson;
+__exports.readBoardJsonFile = readBoardJsonFile;
 __exports.parseJson = parseJson;
 __exports.readJsonFile = readJsonFile;
 
@@ -5090,6 +5169,18 @@ function logActivity(board, kind, params) {
         board.activity.length = ACTIVITY_LIMIT;
     touch(board);
 }
+/**
+ * Add an imported board and make it active. A board id that already exists is
+ * regenerated so the import can never clobber an existing board.
+ */
+function importBoard(data, board) {
+    if (data.boards.some((b) => b.id === board.id))
+        board.id = makeId('board');
+    data.boards.push(board);
+    data.activeBoardId = board.id;
+    touch(board);
+    return board;
+}
 /** Flip a board's starred flag. */
 function toggleBoardStar(board) {
     board.starred = !board.starred;
@@ -5148,6 +5239,7 @@ __exports.toggleCardLabel = toggleCardLabel;
 __exports.moveCard = moveCard;
 __exports.getActiveBoard = getActiveBoard;
 __exports.logActivity = logActivity;
+__exports.importBoard = importBoard;
 __exports.toggleBoardStar = toggleBoardStar;
 __exports.sortedBoards = sortedBoards;
 __exports.LABEL_COLORS = LABEL_COLORS;
@@ -5266,6 +5358,7 @@ function normalizeColumn(raw) {
     column.cards = cards;
     return column;
 }
+/** Coerce any value into a valid Board (also used for single-board imports). */
 function normalizeBoard(raw) {
     const obj = (raw ?? {});
     const columns = Array.isArray(obj.columns) ? obj.columns.map(normalizeColumn) : [];
@@ -5355,6 +5448,7 @@ function normalizeAppData(raw) {
     };
 }
 
+__exports.normalizeBoard = normalizeBoard;
 __exports.normalizeAppData = normalizeAppData;
 
 };

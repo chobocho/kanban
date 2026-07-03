@@ -108,7 +108,8 @@ function normalizeColumn(raw) {
     column.cards = cards;
     return column;
 }
-function normalizeBoard(raw) {
+/** Coerce any value into a valid Board (also used for single-board imports). */
+export function normalizeBoard(raw) {
     const obj = (raw ?? {});
     const columns = Array.isArray(obj.columns) ? obj.columns.map(normalizeColumn) : [];
     const board = createBoard(asString(obj.name, 'Board'), columns);

@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCardsFromText, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCardsFromText, importBoard, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, toggleBoardStar, sortedBoards, logActivity, touch, } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t, tf } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
@@ -12,7 +12,7 @@ import { DragController } from './dnd.js';
 import { KeyboardNavigator } from './keys.js';
 import { ZoomController } from './zoom.js';
 import { LayoutController } from './layout.js';
-import { downloadJson, readJsonFile } from './jsonio.js';
+import { downloadJson, readJsonFile, downloadBoardJson, readBoardJsonFile } from './jsonio.js';
 import { exportBoardPng } from './png.js';
 import { customAlert, customConfirm, customPrompt, customTextPrompt, openCardDetail, openArchive, openColorPicker, openActivityLog, } from './modal.js';
 /** Maximum number of undo steps kept per board. */
@@ -492,6 +492,27 @@ export class KanbanApp {
             const board = this.active();
             if (board)
                 exportBoardPng(board);
+        });
+        this.byId('exportBoardBtn').addEventListener('click', () => {
+            const board = this.active();
+            if (board)
+                downloadBoardJson(board);
+        });
+        const importBoardInput = this.byId('importBoardInput');
+        importBoardInput.addEventListener('change', async () => {
+            const file = importBoardInput.files?.[0];
+            if (!file)
+                return;
+            try {
+                importBoard(this.data, await readBoardJsonFile(file));
+                this.commitReset();
+            }
+            catch {
+                void customAlert(t('importError'));
+            }
+            finally {
+                importBoardInput.value = '';
+            }
         });
         const importInput = this.byId('importJsonInput');
         importInput.addEventListener('change', async () => {
