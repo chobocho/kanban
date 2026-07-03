@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 import { loadData, saveData } from './store.js';
-import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, touch, } from './model.js';
+import { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, touch, } from './model.js';
 import { History } from './history.js';
 import { setLanguage, t } from './i18n.js';
 import { emptyFilter, isFilterActive } from './filter.js';
@@ -200,6 +200,7 @@ export class KanbanApp {
                     checklist: card.checklist,
                     comments: card.comments,
                     attachments: card.attachments,
+                    isTemplate: card.isTemplate,
                     columnId: colId,
                     columns: board.columns.map((c) => ({
                         id: c.id,
@@ -279,6 +280,15 @@ export class KanbanApp {
                     },
                     onMove: (toColumnId, toIndex) => {
                         if (moveCard(board, colId, cardId, toColumnId, toIndex))
+                            this.commit();
+                    },
+                    onToggleTemplate: () => {
+                        if (updateCard(board, colId, cardId, { isTemplate: !card.isTemplate })) {
+                            this.commit();
+                        }
+                    },
+                    onCreateFromTemplate: () => {
+                        if (createCardFromTemplate(board, colId, cardId))
                             this.commit();
                     },
                 });

@@ -977,6 +977,13 @@ select.control {
   color: var(--muted);
 }
 
+/* Template badge on the card front. */
+.card-template {
+  background: #e4f0f6;
+  color: #0c66e4;
+  font-weight: 600;
+}
+
 /* Cover image on the card front (the first attachment). */
 .card-cover {
   display: block;

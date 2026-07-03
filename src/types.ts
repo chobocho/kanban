@@ -56,6 +56,8 @@ export interface Card {
   dueDone: boolean;
   /** Optional accent color (hex). Empty means default. */
   color: string;
+  /** Template cards stay in their list as blueprints for new cards. */
+  isTemplate: boolean;
   createdAt: number;
 }
 

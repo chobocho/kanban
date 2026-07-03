@@ -616,7 +616,27 @@ export function openCardDetail(init, cb) {
         moveBtn.type = 'button';
         moveBtn.className = 'card-detail-op-btn';
         moveBtn.textContent = `📤 ${t('moveCardAction')}`;
-        opsBox.append(copyBtn, moveBtn);
+        // Template actions: toggle the flag, and (for templates) stamp out a card.
+        const templateBtn = document.createElement('button');
+        templateBtn.type = 'button';
+        templateBtn.className = 'card-detail-op-btn';
+        templateBtn.textContent = `📋 ${t(init.isTemplate ? 'removeTemplate' : 'makeTemplate')}`;
+        templateBtn.addEventListener('click', () => {
+            cb.onToggleTemplate();
+            close();
+        });
+        opsBox.append(copyBtn, moveBtn, templateBtn);
+        if (init.isTemplate) {
+            const stampBtn = document.createElement('button');
+            stampBtn.type = 'button';
+            stampBtn.className = 'card-detail-op-btn';
+            stampBtn.textContent = `🆕 ${t('createFromTemplate')}`;
+            stampBtn.addEventListener('click', () => {
+                cb.onCreateFromTemplate();
+                close();
+            });
+            opsBox.appendChild(stampBtn);
+        }
         // The move picker: destination list + 1-based position + confirm.
         const moveRow = document.createElement('div');
         moveRow.className = 'card-detail-move';

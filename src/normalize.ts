@@ -93,6 +93,7 @@ function normalizeCard(raw: unknown): Card {
       typeof obj.dueAt === 'number' && Number.isFinite(obj.dueAt) ? obj.dueAt : null,
     dueDone: obj.dueDone === true,
     color: asString(obj.color, ''),
+    isTemplate: obj.isTemplate === true,
     createdAt: asNumber(obj.createdAt, Date.now()),
   };
 }

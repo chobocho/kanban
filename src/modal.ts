@@ -216,6 +216,8 @@ export interface CardDetailInit {
   comments: Comment[];
   /** The card's image attachments (live reference; re-read after each edit). */
   attachments: Attachment[];
+  /** Whether the card is a template (blueprint for new cards). */
+  isTemplate: boolean;
   /** Id of the column the card currently lives in. */
   columnId: string;
   /** All board columns, offered as move targets. */
@@ -269,6 +271,10 @@ export interface CardDetailCallbacks {
   onCopy(): void;
   /** Move the card to a column at the given index. */
   onMove(toColumnId: string, toIndex: number): void;
+  /** Toggle the card's template flag. */
+  onToggleTemplate(): void;
+  /** Create a regular card from this template (appended to the list). */
+  onCreateFromTemplate(): void;
 }
 
 /** Convert a timestamp to a `datetime-local` input value in local time. */
@@ -771,7 +777,30 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     moveBtn.type = 'button';
     moveBtn.className = 'card-detail-op-btn';
     moveBtn.textContent = `📤 ${t('moveCardAction')}`;
-    opsBox.append(copyBtn, moveBtn);
+
+    // Template actions: toggle the flag, and (for templates) stamp out a card.
+    const templateBtn = document.createElement('button');
+    templateBtn.type = 'button';
+    templateBtn.className = 'card-detail-op-btn';
+    templateBtn.textContent = `📋 ${t(init.isTemplate ? 'removeTemplate' : 'makeTemplate')}`;
+    templateBtn.addEventListener('click', () => {
+      cb.onToggleTemplate();
+      close();
+    });
+
+    opsBox.append(copyBtn, moveBtn, templateBtn);
+
+    if (init.isTemplate) {
+      const stampBtn = document.createElement('button');
+      stampBtn.type = 'button';
+      stampBtn.className = 'card-detail-op-btn';
+      stampBtn.textContent = `🆕 ${t('createFromTemplate')}`;
+      stampBtn.addEventListener('click', () => {
+        cb.onCreateFromTemplate();
+        close();
+      });
+      opsBox.appendChild(stampBtn);
+    }
 
     // The move picker: destination list + 1-based position + confirm.
     const moveRow = document.createElement('div');

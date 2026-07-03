@@ -984,6 +984,13 @@ select.control {
   color: var(--muted);
 }
 
+/* Template badge on the card front. */
+.card-template {
+  background: #e4f0f6;
+  color: #0c66e4;
+  font-weight: 600;
+}
+
 /* Cover image on the card front (the first attachment). */
 .card-cover {
   display: block;
@@ -1459,7 +1466,7 @@ __modules["app"] = function(__exports, __require){
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 const { loadData, saveData } = __require("store");
-const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, touch } = __require("model");
+const { createBoard, createColumn, getActiveBoard, addColumn, renameColumn, moveColumn, sortColumnCards, duplicateColumn, moveAllCards, addCard, updateCard, moveCard, addLabel, updateLabel, removeLabel, toggleCardLabel, LABEL_COLORS, addChecklistItem, updateChecklistItem, removeChecklistItem, addComment, updateComment, removeComment, addAttachment, removeAttachment, duplicateCard, createCardFromTemplate, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, setBoardBackground, BOARD_BACKGROUNDS, touch } = __require("model");
 const { History } = __require("history");
 const { setLanguage, t } = __require("i18n");
 const { emptyFilter, isFilterActive } = __require("filter");
@@ -1656,6 +1663,7 @@ class KanbanApp {
                     checklist: card.checklist,
                     comments: card.comments,
                     attachments: card.attachments,
+                    isTemplate: card.isTemplate,
                     columnId: colId,
                     columns: board.columns.map((c) => ({
                         id: c.id,
@@ -1735,6 +1743,15 @@ class KanbanApp {
                     },
                     onMove: (toColumnId, toIndex) => {
                         if (moveCard(board, colId, cardId, toColumnId, toIndex))
+                            this.commit();
+                    },
+                    onToggleTemplate: () => {
+                        if (updateCard(board, colId, cardId, { isTemplate: !card.isTemplate })) {
+                            this.commit();
+                        }
+                    },
+                    onCreateFromTemplate: () => {
+                        if (createCardFromTemplate(board, colId, cardId))
                             this.commit();
                     },
                 });
@@ -2615,6 +2632,10 @@ const translations = {
         copyList: '리스트 복사',
         moveAllCardsTo: '카드 모두 이동',
         actions: '동작',
+        template: '템플릿',
+        makeTemplate: '템플릿으로 지정',
+        removeTemplate: '템플릿 해제',
+        createFromTemplate: '템플릿에서 카드 만들기',
         copyCard: '카드 복사',
         moveCardAction: '카드 이동',
         list: '리스트',
@@ -2710,6 +2731,10 @@ const translations = {
         copyList: 'Copy list',
         moveAllCardsTo: 'Move all cards',
         actions: 'Actions',
+        template: 'Template',
+        makeTemplate: 'Make template',
+        removeTemplate: 'Remove template',
+        createFromTemplate: 'Create card from template',
         copyCard: 'Copy card',
         moveCardAction: 'Move card',
         list: 'List',
@@ -3546,7 +3571,27 @@ function openCardDetail(init, cb) {
         moveBtn.type = 'button';
         moveBtn.className = 'card-detail-op-btn';
         moveBtn.textContent = `📤 ${t('moveCardAction')}`;
-        opsBox.append(copyBtn, moveBtn);
+        // Template actions: toggle the flag, and (for templates) stamp out a card.
+        const templateBtn = document.createElement('button');
+        templateBtn.type = 'button';
+        templateBtn.className = 'card-detail-op-btn';
+        templateBtn.textContent = `📋 ${t(init.isTemplate ? 'removeTemplate' : 'makeTemplate')}`;
+        templateBtn.addEventListener('click', () => {
+            cb.onToggleTemplate();
+            close();
+        });
+        opsBox.append(copyBtn, moveBtn, templateBtn);
+        if (init.isTemplate) {
+            const stampBtn = document.createElement('button');
+            stampBtn.type = 'button';
+            stampBtn.className = 'card-detail-op-btn';
+            stampBtn.textContent = `🆕 ${t('createFromTemplate')}`;
+            stampBtn.addEventListener('click', () => {
+                cb.onCreateFromTemplate();
+                close();
+            });
+            opsBox.appendChild(stampBtn);
+        }
         // The move picker: destination list + 1-based position + confirm.
         const moveRow = document.createElement('div');
         moveRow.className = 'card-detail-move';
@@ -3807,6 +3852,34 @@ function createCard(text) {
         dueAt: null,
         dueDone: false,
         color: '',
+        isTemplate: false,
+        createdAt: Date.now(),
+    };
+}
+/**
+ * Deep-copy a card with fresh ids. Content travels with the copy (labels,
+ * checklist state, attachments, dates, color, template flag) but comments do
+ * not, matching Trello's copy behavior.
+ */
+function cloneCard(source) {
+    return {
+        id: makeId('card'),
+        text: source.text,
+        description: source.description,
+        labelIds: source.labelIds.slice(),
+        checklist: source.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
+        comments: [],
+        attachments: source.attachments.map((a) => ({
+            id: makeId('att'),
+            name: a.name,
+            dataUrl: a.dataUrl,
+            createdAt: a.createdAt,
+        })),
+        startAt: source.startAt,
+        dueAt: source.dueAt,
+        dueDone: source.dueDone,
+        color: source.color,
+        isTemplate: source.isTemplate,
         createdAt: Date.now(),
     };
 }
@@ -3940,27 +4013,7 @@ function duplicateColumn(board, columnId) {
         return null;
     const source = board.columns[index];
     const copy = createColumn(source.title);
-    for (const card of source.cards) {
-        copy.cards.push({
-            id: makeId('card'),
-            text: card.text,
-            description: card.description,
-            labelIds: card.labelIds.slice(),
-            checklist: card.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
-            comments: [],
-            attachments: card.attachments.map((a) => ({
-                id: makeId('att'),
-                name: a.name,
-                dataUrl: a.dataUrl,
-                createdAt: a.createdAt,
-            })),
-            startAt: card.startAt,
-            dueAt: card.dueAt,
-            dueDone: card.dueDone,
-            color: card.color,
-            createdAt: Date.now(),
-        });
-    }
+    copy.cards = source.cards.map(cloneCard);
     board.columns.splice(index + 1, 0, copy);
     touch(board);
     return copy;
@@ -4007,14 +4060,12 @@ function updateCard(board, columnId, cardId, patch) {
         card.dueDone = patch.dueDone;
     if (patch.color !== undefined)
         card.color = patch.color;
+    if (patch.isTemplate !== undefined)
+        card.isTemplate = patch.isTemplate;
     touch(board);
     return true;
 }
-/**
- * Insert a copy of a card right after the original (Trello's "copy card").
- * Content travels with the copy (labels, checklist state, due date, color) but
- * comments do not, and every id is regenerated.
- */
+/** Insert a copy of a card right after the original (Trello's "copy card"). */
 function duplicateCard(board, columnId, cardId) {
     const column = findColumn(board, columnId);
     if (!column)
@@ -4022,29 +4073,25 @@ function duplicateCard(board, columnId, cardId) {
     const index = column.cards.findIndex((c) => c.id === cardId);
     if (index < 0)
         return null;
-    const source = column.cards[index];
-    const copy = {
-        id: makeId('card'),
-        text: source.text,
-        description: source.description,
-        labelIds: source.labelIds.slice(),
-        checklist: source.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
-        comments: [],
-        attachments: source.attachments.map((a) => ({
-            id: makeId('att'),
-            name: a.name,
-            dataUrl: a.dataUrl,
-            createdAt: a.createdAt,
-        })),
-        startAt: source.startAt,
-        dueAt: source.dueAt,
-        dueDone: source.dueDone,
-        color: source.color,
-        createdAt: Date.now(),
-    };
+    const copy = cloneCard(column.cards[index]);
     column.cards.splice(index + 1, 0, copy);
     touch(board);
     return copy;
+}
+/**
+ * Create a regular card from a template card, appended to the end of the same
+ * list. The template itself stays in place.
+ */
+function createCardFromTemplate(board, columnId, cardId) {
+    const column = findColumn(board, columnId);
+    const source = column?.cards.find((c) => c.id === cardId);
+    if (!column || !source)
+        return null;
+    const card = cloneCard(source);
+    card.isTemplate = false;
+    column.cards.push(card);
+    touch(board);
+    return card;
 }
 function removeCard(board, columnId, cardId) {
     const column = findColumn(board, columnId);
@@ -4314,6 +4361,7 @@ __exports.moveAllCards = moveAllCards;
 __exports.addCard = addCard;
 __exports.updateCard = updateCard;
 __exports.duplicateCard = duplicateCard;
+__exports.createCardFromTemplate = createCardFromTemplate;
 __exports.removeCard = removeCard;
 __exports.addChecklistItem = addChecklistItem;
 __exports.updateChecklistItem = updateChecklistItem;
@@ -4414,6 +4462,7 @@ function normalizeCard(raw) {
         dueAt: typeof obj.dueAt === 'number' && Number.isFinite(obj.dueAt) ? obj.dueAt : null,
         dueDone: obj.dueDone === true,
         color: asString(obj.color, ''),
+        isTemplate: obj.isTemplate === true,
         createdAt: asNumber(obj.createdAt, Date.now()),
     };
 }
@@ -4803,6 +4852,10 @@ function renderCard(card, column, labels, handlers) {
     node.appendChild(text);
     // Badges row: due date (if any) and a description hint (Trello-style).
     const badges = el('div', 'card-badges');
+    if (card.isTemplate) {
+        const tpl = el('span', 'card-badge card-template', `📋 ${t('template')}`);
+        badges.appendChild(tpl);
+    }
     if (card.dueAt != null) {
         const status = dueStatus(card);
         // With a start date the badge shows the whole range (Trello-style).

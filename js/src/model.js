@@ -27,6 +27,34 @@ export function createCard(text) {
         dueAt: null,
         dueDone: false,
         color: '',
+        isTemplate: false,
+        createdAt: Date.now(),
+    };
+}
+/**
+ * Deep-copy a card with fresh ids. Content travels with the copy (labels,
+ * checklist state, attachments, dates, color, template flag) but comments do
+ * not, matching Trello's copy behavior.
+ */
+function cloneCard(source) {
+    return {
+        id: makeId('card'),
+        text: source.text,
+        description: source.description,
+        labelIds: source.labelIds.slice(),
+        checklist: source.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
+        comments: [],
+        attachments: source.attachments.map((a) => ({
+            id: makeId('att'),
+            name: a.name,
+            dataUrl: a.dataUrl,
+            createdAt: a.createdAt,
+        })),
+        startAt: source.startAt,
+        dueAt: source.dueAt,
+        dueDone: source.dueDone,
+        color: source.color,
+        isTemplate: source.isTemplate,
         createdAt: Date.now(),
     };
 }
@@ -160,27 +188,7 @@ export function duplicateColumn(board, columnId) {
         return null;
     const source = board.columns[index];
     const copy = createColumn(source.title);
-    for (const card of source.cards) {
-        copy.cards.push({
-            id: makeId('card'),
-            text: card.text,
-            description: card.description,
-            labelIds: card.labelIds.slice(),
-            checklist: card.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
-            comments: [],
-            attachments: card.attachments.map((a) => ({
-                id: makeId('att'),
-                name: a.name,
-                dataUrl: a.dataUrl,
-                createdAt: a.createdAt,
-            })),
-            startAt: card.startAt,
-            dueAt: card.dueAt,
-            dueDone: card.dueDone,
-            color: card.color,
-            createdAt: Date.now(),
-        });
-    }
+    copy.cards = source.cards.map(cloneCard);
     board.columns.splice(index + 1, 0, copy);
     touch(board);
     return copy;
@@ -227,14 +235,12 @@ export function updateCard(board, columnId, cardId, patch) {
         card.dueDone = patch.dueDone;
     if (patch.color !== undefined)
         card.color = patch.color;
+    if (patch.isTemplate !== undefined)
+        card.isTemplate = patch.isTemplate;
     touch(board);
     return true;
 }
-/**
- * Insert a copy of a card right after the original (Trello's "copy card").
- * Content travels with the copy (labels, checklist state, due date, color) but
- * comments do not, and every id is regenerated.
- */
+/** Insert a copy of a card right after the original (Trello's "copy card"). */
 export function duplicateCard(board, columnId, cardId) {
     const column = findColumn(board, columnId);
     if (!column)
@@ -242,29 +248,25 @@ export function duplicateCard(board, columnId, cardId) {
     const index = column.cards.findIndex((c) => c.id === cardId);
     if (index < 0)
         return null;
-    const source = column.cards[index];
-    const copy = {
-        id: makeId('card'),
-        text: source.text,
-        description: source.description,
-        labelIds: source.labelIds.slice(),
-        checklist: source.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
-        comments: [],
-        attachments: source.attachments.map((a) => ({
-            id: makeId('att'),
-            name: a.name,
-            dataUrl: a.dataUrl,
-            createdAt: a.createdAt,
-        })),
-        startAt: source.startAt,
-        dueAt: source.dueAt,
-        dueDone: source.dueDone,
-        color: source.color,
-        createdAt: Date.now(),
-    };
+    const copy = cloneCard(column.cards[index]);
     column.cards.splice(index + 1, 0, copy);
     touch(board);
     return copy;
+}
+/**
+ * Create a regular card from a template card, appended to the end of the same
+ * list. The template itself stays in place.
+ */
+export function createCardFromTemplate(board, columnId, cardId) {
+    const column = findColumn(board, columnId);
+    const source = column?.cards.find((c) => c.id === cardId);
+    if (!column || !source)
+        return null;
+    const card = cloneCard(source);
+    card.isTemplate = false;
+    column.cards.push(card);
+    touch(board);
+    return card;
 }
 export function removeCard(board, columnId, cardId) {
     const column = findColumn(board, columnId);

@@ -16,6 +16,7 @@ function card(patch) {
         dueAt: null,
         dueDone: false,
         color: '',
+        isTemplate: false,
         createdAt: 0,
         ...patch,
     };

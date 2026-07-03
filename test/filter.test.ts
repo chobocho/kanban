@@ -20,6 +20,7 @@ function card(patch: Partial<Card>): Card {
     dueAt: null,
     dueDone: false,
     color: '',
+    isTemplate: false,
     createdAt: 0,
     ...patch,
   };

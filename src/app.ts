@@ -32,6 +32,7 @@ import {
   addAttachment,
   removeAttachment,
   duplicateCard,
+  createCardFromTemplate,
   archiveCard,
   restoreCard,
   deleteArchivedCard,
@@ -269,6 +270,7 @@ export class KanbanApp {
             checklist: card.checklist,
             comments: card.comments,
             attachments: card.attachments,
+            isTemplate: card.isTemplate,
             columnId: colId,
             columns: board.columns.map((c) => ({
               id: c.id,
@@ -334,6 +336,14 @@ export class KanbanApp {
             },
             onMove: (toColumnId, toIndex) => {
               if (moveCard(board, colId, cardId, toColumnId, toIndex)) this.commit();
+            },
+            onToggleTemplate: () => {
+              if (updateCard(board, colId, cardId, { isTemplate: !card.isTemplate })) {
+                this.commit();
+              }
+            },
+            onCreateFromTemplate: () => {
+              if (createCardFromTemplate(board, colId, cardId)) this.commit();
             },
           },
         );

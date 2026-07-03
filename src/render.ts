@@ -184,6 +184,10 @@ function renderCard(
 
   // Badges row: due date (if any) and a description hint (Trello-style).
   const badges = el('div', 'card-badges');
+  if (card.isTemplate) {
+    const tpl = el('span', 'card-badge card-template', `📋 ${t('template')}`);
+    badges.appendChild(tpl);
+  }
   if (card.dueAt != null) {
     const status = dueStatus(card);
     // With a start date the badge shows the whole range (Trello-style).

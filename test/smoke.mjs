@@ -297,6 +297,25 @@ try {
   const afterCopy = await page.locator('.column').nth(2).locator('.card').count();
   assert(afterCopy === 3, `copy card duplicates the card (got ${afterCopy})`);
 
+  // Card templates: mark a card as a template, then stamp a new card from it.
+  await commentCard.hover();
+  await commentCard.locator('.icon-btn[title="Open card details"]').click();
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  await page.locator('.card-detail-op-btn', { hasText: 'Make template' }).click();
+  await page.waitForTimeout(100);
+  const tplBadge = await commentCard.locator('.card-template').count();
+  assert(tplBadge === 1, `template badge appears on the card (got ${tplBadge})`);
+  await commentCard.hover();
+  await commentCard.locator('.icon-btn[title="Open card details"]').click();
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  await page.locator('.card-detail-op-btn', { hasText: 'Create card from template' }).click();
+  await page.waitForTimeout(100);
+  const afterStamp = await page.locator('.column').nth(2).locator('.card').count();
+  assert(afterStamp === 4, `template stamps a new card (got ${afterStamp})`);
+  const stampedTpl = await page
+    .locator('.column').nth(2).locator('.card').last().locator('.card-template').count();
+  assert(stampedTpl === 0, `stamped card is not a template (got ${stampedTpl})`);
+
   // Attachments: upload a tiny PNG, see the list row, cover image and badge.
   await commentCard.hover();
   await commentCard.locator('.icon-btn[title="Open card details"]').click();

@@ -1,6 +1,6 @@
 // Unit tests for the pure board operations in src/model.ts.
 import { test, assert, assertEqual } from './harness.js';
-import { createDefaultData, createBoard, createColumn, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, getActiveBoard, addLabel, updateLabel, removeLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, addChecklistItem, updateChecklistItem, removeChecklistItem, checklistProgress, addComment, updateComment, removeComment, duplicateCard, sortColumnCards, duplicateColumn, moveAllCards, setBoardBackground, addAttachment, removeAttachment, } from '../src/model.js';
+import { createDefaultData, createBoard, createColumn, addColumn, renameColumn, removeColumn, moveColumn, addCard, updateCard, removeCard, moveCard, getActiveBoard, addLabel, updateLabel, removeLabel, toggleCardLabel, archiveCard, restoreCard, deleteArchivedCard, archiveColumn, restoreColumn, deleteArchivedColumn, addChecklistItem, updateChecklistItem, removeChecklistItem, checklistProgress, addComment, updateComment, removeComment, duplicateCard, sortColumnCards, duplicateColumn, moveAllCards, setBoardBackground, addAttachment, removeAttachment, createCardFromTemplate, } from '../src/model.js';
 test('createDefaultData has one board with three columns', () => {
     const data = createDefaultData();
     assertEqual(data.boards.length, 1, 'board count');
@@ -370,6 +370,35 @@ test('duplicateCard copies attachments with fresh ids', () => {
     assertEqual(copy.attachments.length, 1, 'attachment copied');
     assertEqual(copy.attachments[0].dataUrl, 'data:image/png;base64,AAAA', 'data copied');
     assert(copy.attachments[0].id !== card.attachments[0].id, 'fresh attachment id');
+});
+test('card templates: flag toggles and creating from a template appends a copy', () => {
+    const board = createBoard('b', [createColumn('A')]);
+    const colId = board.columns[0].id;
+    const card = addCard(board, colId, 'tpl');
+    addCard(board, colId, 'tail');
+    assertEqual(card.isTemplate, false, 'new card is not a template');
+    assert(updateCard(board, colId, card.id, { isTemplate: true }), 'flag set ok');
+    assertEqual(card.isTemplate, true, 'card is now a template');
+    addChecklistItem(board, colId, card.id, 'step');
+    toggleCardLabel(board, colId, card.id, board.labels[0].id);
+    const made = createCardFromTemplate(board, colId, card.id);
+    assert(made !== null, 'card created from template');
+    assertEqual(board.columns[0].cards.length, 3, 'appended to the list');
+    assertEqual(board.columns[0].cards[2].id, made.id, 'appended at the end');
+    assertEqual(made.isTemplate, false, 'created card is not a template');
+    assert(made.id !== card.id, 'fresh id');
+    assertEqual(made.text, 'tpl', 'text copied');
+    assertEqual(made.checklist.length, 1, 'checklist copied');
+    assertEqual(made.labelIds.length, 1, 'labels copied');
+    assertEqual(createCardFromTemplate(board, colId, 'missing'), null, 'unknown card rejected');
+});
+test('duplicateCard keeps the template flag', () => {
+    const board = createBoard('b', [createColumn('A')]);
+    const colId = board.columns[0].id;
+    const card = addCard(board, colId, 'tpl');
+    updateCard(board, colId, card.id, { isTemplate: true });
+    const copy = duplicateCard(board, colId, card.id);
+    assertEqual(copy.isTemplate, true, 'copy is also a template');
 });
 test('setBoardBackground sets, clears and skips no-op changes', () => {
     const board = createBoard('b');
