@@ -90,7 +90,7 @@ export function createDefaultData() {
         version: SCHEMA_VERSION,
         boards: [board],
         activeBoardId: board.id,
-        settings: { lang: 'ko', zoom: 1 },
+        settings: { lang: 'ko', zoom: 1, theme: 'auto' },
     };
 }
 /** Trello-like board background palette (empty = default theme color). */

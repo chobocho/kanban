@@ -109,7 +109,7 @@ export function createDefaultData(): AppData {
     version: SCHEMA_VERSION,
     boards: [board],
     activeBoardId: board.id,
-    settings: { lang: 'ko', zoom: 1 },
+    settings: { lang: 'ko', zoom: 1, theme: 'auto' },
   };
 }
 

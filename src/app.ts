@@ -3,7 +3,7 @@
 // drop, zoom, JSON import/export and PNG export together. No global variables
 // are used; all state lives on the instance.
 
-import { AppData, Board, Column, Language } from './types.js';
+import { AppData, Board, Column, Language, Theme } from './types.js';
 import { loadData, saveData } from './store.js';
 import {
   createBoard,
@@ -105,6 +105,7 @@ export class KanbanApp {
   private readonly boardSelect: HTMLSelectElement;
   private readonly starBtn: HTMLButtonElement;
   private readonly langSelect: HTMLSelectElement;
+  private readonly themeSelect: HTMLSelectElement;
   private readonly undoBtn: HTMLButtonElement;
   private readonly redoBtn: HTMLButtonElement;
   private readonly filterInput: HTMLInputElement;
@@ -120,6 +121,7 @@ export class KanbanApp {
     this.boardSelect = this.byId('boardSelect') as HTMLSelectElement;
     this.starBtn = this.byId('starBtn') as HTMLButtonElement;
     this.langSelect = this.byId('langSelect') as HTMLSelectElement;
+    this.themeSelect = this.byId('themeSelect') as HTMLSelectElement;
     this.undoBtn = this.byId('undoBtn') as HTMLButtonElement;
     this.redoBtn = this.byId('redoBtn') as HTMLButtonElement;
     this.filterInput = this.byId('filterInput') as HTMLInputElement;
@@ -140,6 +142,13 @@ export class KanbanApp {
   async start(): Promise<void> {
     this.data = await loadData();
     setLanguage(this.data.settings.lang);
+    this.applyTheme();
+    // In "auto" the theme tracks the OS preference live.
+    this.doc.defaultView
+      ?.matchMedia('(prefers-color-scheme: dark)')
+      .addEventListener('change', () => {
+        if (this.data.settings.theme === 'auto') this.applyTheme();
+      });
 
     const surface = this.surfaceEl;
     const scale = this.byId('boardScale');
@@ -487,6 +496,14 @@ export class KanbanApp {
       this.menuPanel.hidden = true;
     });
 
+    this.themeSelect.addEventListener('change', () => {
+      this.data.settings.theme = this.themeSelect.value as Theme;
+      this.applyTheme();
+      this.menuPanel.hidden = true;
+      // A setting, not board content, so the undo history is preserved.
+      this.refresh();
+    });
+
     // Overflow menu: toggle, and close after an action is chosen.
     this.menuBtn.addEventListener('click', () => {
       this.menuPanel.hidden = !this.menuPanel.hidden;
@@ -583,6 +600,15 @@ export class KanbanApp {
     if (color === null) return;
     // Background is board decoration, outside the undo scope (cards/lists).
     if (setBoardBackground(board, color)) this.refresh();
+  }
+
+  /** Resolve the theme setting ('auto' follows the OS) onto the html element. */
+  private applyTheme(): void {
+    const setting = this.data.settings.theme;
+    const prefersDark =
+      this.doc.defaultView?.matchMedia('(prefers-color-scheme: dark)').matches ?? false;
+    const resolved = setting === 'auto' ? (prefersDark ? 'dark' : 'light') : setting;
+    this.doc.documentElement.dataset.theme = resolved;
   }
 
   /** Apply the active board's background to the page theme variables. */
@@ -862,6 +888,7 @@ export class KanbanApp {
     this.boardSelect.value = this.data.activeBoardId ?? '';
     this.starBtn.textContent = this.active()?.starred ? '⭐' : '☆';
     this.langSelect.value = this.data.settings.lang;
+    this.themeSelect.value = this.data.settings.theme;
   }
 
   /** Update all static labels marked with data-i18n / data-i18n-title. */

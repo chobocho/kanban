@@ -15,6 +15,15 @@
 <body>
   <h1>📋 작업 이력 (History)</h1>
 
+  <h2>다크 모드 지원 <time>2026-07-03</time></h2>
+  <ul>
+    <li>☰ 메뉴 &gt; 보기에 <strong>🌓 테마 선택(시스템/라이트/다크)</strong>을 추가했습니다. 기본값은 <strong>시스템</strong>으로, OS의 다크 모드 설정을 실시간으로 따라갑니다.</li>
+    <li>스타일시트의 하드코딩 색상을 CSS 변수(<code>--panel-bg</code>, <code>--hover-bg</code>, <code>--border</code> 등)로 승격하고, <code>html[data-theme=dark]</code> 오버라이드 한 벌로 다크 팔레트를 적용했습니다. <code>color-scheme</code>으로 날짜 선택기 등 네이티브 컨트롤도 테마를 따릅니다.</li>
+    <li>버튼·포커스 강조색(<code>--accent</code>)을 보드 캔버스색(<code>--bg</code>)에서 분리해, 보드 배경색을 바꿔도 버튼 색이 유지되고 다크 모드에서도 강조가 살아 있습니다.</li>
+    <li>라이트 테마의 기존 모습은 그대로이며, 다크/라이트 화면을 스크린샷으로 직접 확인했습니다.</li>
+    <li>설정에 <code>settings.theme</code>을 추가했고(정규화 시 auto 복구), 단위 테스트 1건과 스모크 테스트(다크 적용/라이트 복귀) 2건을 추가했습니다. (단위 77/77, 스모크 전체 통과)</li>
+  </ul>
+
   <h2>보드 활동 로그 기능 추가 <time>2026-07-03</time></h2>
   <ul>
     <li>☰ 메뉴 &gt; <strong>📜 활동 로그</strong>에서 보드의 최근 활동(최신순, 최대 50건)을 확인할 수 있습니다. (Trello의 Activity)</li>

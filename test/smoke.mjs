@@ -378,6 +378,18 @@ try {
   await page.locator('.card-archive .modal-ok').click();
   await page.waitForTimeout(100);
 
+  // Theme: forcing dark mode flips the html data-theme attribute.
+  await page.locator('#menuBtn').click();
+  await page.selectOption('#themeSelect', 'dark');
+  await page.waitForTimeout(100);
+  const themeAttr = await page.evaluate(() => document.documentElement.dataset.theme);
+  assert(themeAttr === 'dark', `dark theme is applied to the document (got "${themeAttr}")`);
+  await page.locator('#menuBtn').click();
+  await page.selectOption('#themeSelect', 'light');
+  await page.waitForTimeout(100);
+  const themeBack = await page.evaluate(() => document.documentElement.dataset.theme);
+  assert(themeBack === 'light', `light theme restores (got "${themeBack}")`);
+
   // Board star: starring moves the board to the front of the selector.
   await page.locator('#starBtn').click();
   await page.waitForTimeout(100);

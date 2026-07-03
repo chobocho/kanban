@@ -223,6 +223,20 @@ test('language and zoom are sanitized', () => {
     assertEqual(data.settings.lang, 'ko', 'invalid lang -> ko');
     assert(data.settings.zoom <= 2.5, 'zoom clamped');
 });
+test('theme is kept when valid and sanitized otherwise', () => {
+    const dark = normalizeAppData({
+        boards: [{ id: 'b1', name: 'A', columns: [] }],
+        settings: { theme: 'dark' },
+    });
+    assertEqual(dark.settings.theme, 'dark', 'valid theme kept');
+    const junk = normalizeAppData({
+        boards: [{ id: 'b1', name: 'A', columns: [] }],
+        settings: { theme: 'purple' },
+    });
+    assertEqual(junk.settings.theme, 'auto', 'invalid theme falls back to auto');
+    const missing = normalizeAppData({ boards: [{ id: 'b1', name: 'A', columns: [] }] });
+    assertEqual(missing.settings.theme, 'auto', 'missing theme defaults to auto');
+});
 test('non-array columns and cards are coerced to empty', () => {
     const data = normalizeAppData({
         boards: [{ id: 'b1', name: 'A', columns: 'nope' }],

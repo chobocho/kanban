@@ -118,10 +118,14 @@ export interface Board {
 
 export type Language = 'ko' | 'en';
 
+/** Color theme: follow the OS ('auto') or force light/dark. */
+export type Theme = 'auto' | 'light' | 'dark';
+
 /** User settings persisted alongside the boards. */
 export interface Settings {
   lang: Language;
   zoom: number;
+  theme: Theme;
 }
 
 /** The whole application state, serialized as one JSON document. */

@@ -49,6 +49,7 @@ export class KanbanApp {
         this.boardSelect = this.byId('boardSelect');
         this.starBtn = this.byId('starBtn');
         this.langSelect = this.byId('langSelect');
+        this.themeSelect = this.byId('themeSelect');
         this.undoBtn = this.byId('undoBtn');
         this.redoBtn = this.byId('redoBtn');
         this.filterInput = this.byId('filterInput');
@@ -68,6 +69,14 @@ export class KanbanApp {
     async start() {
         this.data = await loadData();
         setLanguage(this.data.settings.lang);
+        this.applyTheme();
+        // In "auto" the theme tracks the OS preference live.
+        this.doc.defaultView
+            ?.matchMedia('(prefers-color-scheme: dark)')
+            .addEventListener('change', () => {
+            if (this.data.settings.theme === 'auto')
+                this.applyTheme();
+        });
         const surface = this.surfaceEl;
         const scale = this.byId('boardScale');
         this.zoom = new ZoomController(scale, surface, (value) => {
@@ -431,6 +440,13 @@ export class KanbanApp {
             this.setLang(this.langSelect.value);
             this.menuPanel.hidden = true;
         });
+        this.themeSelect.addEventListener('change', () => {
+            this.data.settings.theme = this.themeSelect.value;
+            this.applyTheme();
+            this.menuPanel.hidden = true;
+            // A setting, not board content, so the undo history is preserved.
+            this.refresh();
+        });
         // Overflow menu: toggle, and close after an action is chosen.
         this.menuBtn.addEventListener('click', () => {
             this.menuPanel.hidden = !this.menuPanel.hidden;
@@ -532,6 +548,13 @@ export class KanbanApp {
         // Background is board decoration, outside the undo scope (cards/lists).
         if (setBoardBackground(board, color))
             this.refresh();
+    }
+    /** Resolve the theme setting ('auto' follows the OS) onto the html element. */
+    applyTheme() {
+        const setting = this.data.settings.theme;
+        const prefersDark = this.doc.defaultView?.matchMedia('(prefers-color-scheme: dark)').matches ?? false;
+        const resolved = setting === 'auto' ? (prefersDark ? 'dark' : 'light') : setting;
+        this.doc.documentElement.dataset.theme = resolved;
     }
     /** Apply the active board's background to the page theme variables. */
     applyBackground() {
@@ -810,6 +833,7 @@ export class KanbanApp {
         this.boardSelect.value = this.data.activeBoardId ?? '';
         this.starBtn.textContent = this.active()?.starred ? '⭐' : '☆';
         this.langSelect.value = this.data.settings.lang;
+        this.themeSelect.value = this.data.settings.theme;
     }
     /** Update all static labels marked with data-i18n / data-i18n-title. */
     refreshLabels() {

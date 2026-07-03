@@ -17,6 +17,47 @@
   --text: #172b4d;
   --muted: #5e6c84;
   --radius: 8px;
+  /* Accent (buttons, focus rings) is independent of the board canvas color. */
+  --accent: #0d6efd;
+  --accent-strong: #0b5ed7;
+  /* Surfaces and lines for popovers, modals, inputs and hover states. */
+  --panel-bg: #ffffff;
+  --hover-bg: #ebecf0;
+  --hover-bg-strong: #dfe1e6;
+  --border: #dfe1e6;
+  --input-border: #c1c7d0;
+  --soft-bg: #f4f5f7;
+  --overlay: rgba(9, 30, 66, 0.5);
+  --tint: rgba(9, 30, 66, 0.08);
+  --tint-strong: rgba(9, 30, 66, 0.12);
+  --dash-border: rgba(9, 30, 66, 0.35);
+  --dash-bg: rgba(9, 30, 66, 0.06);
+  /* Native form controls (date pickers, checkboxes) follow the theme. */
+  color-scheme: light;
+}
+
+/* Dark theme: applied by JS as html[data-theme="dark"] (setting or OS). */
+html[data-theme='dark'] {
+  --bg: #1d2125;
+  --toolbar-bg: #14171a;
+  --column-bg: #22272b;
+  --card-bg: #2c333a;
+  --text: #e6edf3;
+  --muted: #9aa7b4;
+  --accent: #579dff;
+  --accent-strong: #388bff;
+  --panel-bg: #282e33;
+  --hover-bg: #3a4149;
+  --hover-bg-strong: #454e57;
+  --border: #3a4149;
+  --input-border: #566069;
+  --soft-bg: #22272b;
+  --overlay: rgba(0, 0, 0, 0.6);
+  --tint: rgba(255, 255, 255, 0.08);
+  --tint-strong: rgba(255, 255, 255, 0.14);
+  --dash-border: rgba(255, 255, 255, 0.35);
+  --dash-bg: rgba(255, 255, 255, 0.06);
+  color-scheme: dark;
 }
 
 * {
@@ -101,7 +142,7 @@ body {
 }
 
 select.control {
-  background: #fff;
+  background: var(--panel-bg);
   color: var(--text);
   max-width: 180px;
 }
@@ -127,7 +168,7 @@ select.control {
 }
 
 .filter-input {
-  background: #fff;
+  background: var(--panel-bg);
   color: var(--text);
   max-width: 180px;
 }
@@ -138,8 +179,8 @@ select.control {
 
 /* The filter button glows when a filter is active. */
 .icon-control.is-active {
-  background: #fff;
-  color: var(--bg);
+  background: var(--panel-bg);
+  color: var(--accent);
 }
 
 .filter-panel {
@@ -150,7 +191,7 @@ select.control {
   margin-top: 6px;
   width: 240px;
   padding: 12px;
-  background: #fff;
+  background: var(--panel-bg);
   color: var(--text);
   border-radius: 8px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
@@ -191,9 +232,9 @@ select.control {
   width: 100%;
   max-width: none;
   margin-top: 2px;
-  background: #fff;
+  background: var(--panel-bg);
   color: var(--text);
-  border: 2px solid #c1c7d0;
+  border: 2px solid var(--input-border);
 }
 
 .filter-panel-clear {
@@ -204,13 +245,13 @@ select.control {
   padding: 8px;
   border: none;
   border-radius: 6px;
-  background: #ebecf0;
+  background: var(--hover-bg);
   color: var(--text);
   cursor: pointer;
 }
 
 .filter-panel-clear:hover {
-  background: #dfe1e6;
+  background: var(--hover-bg-strong);
 }
 
 /* Overflow menu (☰) -------------------------------------------------------- */
@@ -230,7 +271,7 @@ select.control {
   max-height: 80dvh;
   overflow-y: auto;
   padding: 8px;
-  background: #fff;
+  background: var(--panel-bg);
   color: var(--text);
   border-radius: 8px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
@@ -241,7 +282,7 @@ select.control {
 }
 
 .menu-section + .menu-section {
-  border-top: 1px solid #ebecf0;
+  border-top: 1px solid var(--border);
 }
 
 .menu-title {
@@ -272,7 +313,7 @@ select.control {
 }
 
 .menu-item:hover {
-  background: #ebecf0;
+  background: var(--hover-bg);
 }
 
 .menu-item:disabled {
@@ -292,9 +333,9 @@ select.control {
 
 .menu-select {
   flex: 1 1 auto;
-  background: #fff;
+  background: var(--panel-bg);
   color: var(--text);
-  border: 2px solid #c1c7d0;
+  border: 2px solid var(--input-border);
 }
 
 .visually-hidden {
@@ -391,7 +432,7 @@ select.control {
   margin-top: 4px;
   width: 210px;
   padding: 6px;
-  background: #fff;
+  background: var(--panel-bg);
   color: var(--text);
   border-radius: 8px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3);
@@ -424,7 +465,7 @@ select.control {
 }
 
 .column-menu-item:hover {
-  background: #ebecf0;
+  background: var(--hover-bg);
 }
 
 /* Card count in a column header (matches/total while a filter is active). */
@@ -433,7 +474,7 @@ select.control {
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
-  background: rgba(9, 30, 66, 0.08);
+  background: var(--tint);
   padding: 1px 6px;
   border-radius: 8px;
 }
@@ -463,7 +504,7 @@ select.control {
 }
 
 .add-card-btn:hover {
-  background: rgba(9, 30, 66, 0.08);
+  background: var(--tint);
 }
 
 /* Card ----------------------------------------------------------------- */
@@ -532,7 +573,7 @@ select.control {
 }
 
 .icon-btn:hover {
-  background: rgba(9, 30, 66, 0.12);
+  background: var(--tint-strong);
 }
 
 .empty-hint {
@@ -552,7 +593,7 @@ select.control {
   font: inherit;
   line-height: 1.4;
   box-sizing: border-box;
-  border: 2px solid var(--bg);
+  border: 2px solid var(--accent);
   border-radius: 4px;
   padding: 6px;
   /* Height is managed by autoGrow() (grows with content up to 20 lines). */
@@ -580,12 +621,12 @@ select.control {
 }
 
 .inline-edit-ok {
-  background: var(--bg);
+  background: var(--accent);
   color: #fff;
 }
 
 .inline-edit-cancel {
-  background: rgba(9, 30, 66, 0.12);
+  background: var(--tint-strong);
   color: var(--text);
 }
 
@@ -619,9 +660,9 @@ select.control {
 
 .card-placeholder,
 .column-placeholder {
-  border: 2px dashed rgba(9, 30, 66, 0.35);
+  border: 2px dashed var(--dash-border);
   border-radius: 6px;
-  background: rgba(9, 30, 66, 0.06);
+  background: var(--dash-bg);
   margin-bottom: 8px;
 }
 
@@ -637,13 +678,13 @@ select.control {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(9, 30, 66, 0.5);
+  background: var(--overlay);
   padding: 16px;
   animation: modal-fade 0.12s ease-out;
 }
 
 .modal-dialog {
-  background: #fff;
+  background: var(--panel-bg);
   border-radius: 10px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
   width: min(420px, 100%);
@@ -665,13 +706,13 @@ select.control {
   font: inherit;
   font-size: 15px;
   padding: 9px 10px;
-  border: 2px solid #c1c7d0;
+  border: 2px solid var(--input-border);
   border-radius: 6px;
 }
 
 .modal-input:focus {
   outline: none;
-  border-color: var(--bg);
+  border-color: var(--accent);
 }
 
 .modal-actions {
@@ -692,21 +733,21 @@ select.control {
 }
 
 .modal-cancel {
-  background: #ebecf0;
+  background: var(--hover-bg);
   color: var(--text);
 }
 
 .modal-cancel:hover {
-  background: #dfe1e6;
+  background: var(--hover-bg-strong);
 }
 
 .modal-ok {
-  background: var(--bg);
+  background: var(--accent);
   color: #fff;
 }
 
 .modal-ok:hover {
-  background: #0b5ed7;
+  background: var(--accent-strong);
 }
 
 /* --- Card detail modal (back of the card) --- */
@@ -742,13 +783,13 @@ select.control {
   min-height: 120px;
   resize: vertical;
   padding: 9px 10px;
-  border: 2px solid #c1c7d0;
+  border: 2px solid var(--input-border);
   border-radius: 6px;
 }
 
 .card-detail-desc:focus {
   outline: none;
-  border-color: var(--bg);
+  border-color: var(--accent);
 }
 
 .card-detail-colors {
@@ -761,7 +802,7 @@ select.control {
   width: 32px;
   height: 32px;
   border-radius: 6px;
-  border: 2px solid #c1c7d0;
+  border: 2px solid var(--input-border);
   cursor: pointer;
   padding: 0;
 }
@@ -770,12 +811,12 @@ select.control {
   /* The "no accent" swatch shows a diagonal slash over white. */
   background:
     linear-gradient(to top right, transparent 45%, #eb5a46 45%, #eb5a46 55%, transparent 55%),
-    #fff;
+    var(--panel-bg);
 }
 
 .card-detail-swatch.is-selected {
   border-color: var(--text);
-  box-shadow: 0 0 0 2px var(--bg);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .card-detail-meta {
@@ -808,7 +849,7 @@ select.control {
   flex: 1 1 auto;
   height: 8px;
   border-radius: 4px;
-  background: #ebecf0;
+  background: var(--hover-bg);
   overflow: hidden;
 }
 
@@ -834,12 +875,12 @@ select.control {
 }
 
 .checklist-item-text:hover {
-  border-color: #dfe1e6;
+  border-color: var(--border);
 }
 
 .checklist-item-text:focus {
   outline: none;
-  border-color: var(--bg);
+  border-color: var(--accent);
 }
 
 .checklist-item-text.is-done {
@@ -858,7 +899,7 @@ select.control {
 }
 
 .checklist-item-del:hover {
-  background: #ebecf0;
+  background: var(--hover-bg);
 }
 
 .checklist-add {
@@ -872,13 +913,13 @@ select.control {
   font: inherit;
   font-size: 14px;
   padding: 7px 8px;
-  border: 2px solid #c1c7d0;
+  border: 2px solid var(--input-border);
   border-radius: 6px;
 }
 
 .checklist-add-input:focus {
   outline: none;
-  border-color: var(--bg);
+  border-color: var(--accent);
 }
 
 .checklist-add-btn {
@@ -888,7 +929,7 @@ select.control {
   padding: 7px 12px;
   border: none;
   border-radius: 6px;
-  background: var(--bg);
+  background: var(--accent);
   color: #fff;
   cursor: pointer;
 }
@@ -902,13 +943,13 @@ select.control {
   padding: 6px 10px;
   border: none;
   border-radius: 6px;
-  background: #ebecf0;
+  background: var(--hover-bg);
   cursor: pointer;
 }
 
 .card-detail-label-add:hover,
 .attachment-add-btn:hover {
-  background: #dfe1e6;
+  background: var(--hover-bg-strong);
 }
 
 /* Card actions (copy/move) inside the card detail modal. */
@@ -924,12 +965,12 @@ select.control {
   padding: 7px 12px;
   border: none;
   border-radius: 6px;
-  background: #ebecf0;
+  background: var(--hover-bg);
   cursor: pointer;
 }
 
 .card-detail-op-btn:hover {
-  background: #dfe1e6;
+  background: var(--hover-bg-strong);
 }
 
 .card-detail-move {
@@ -957,7 +998,7 @@ select.control {
   gap: 10px;
   padding: 6px;
   border-radius: 6px;
-  background: #f4f5f7;
+  background: var(--soft-bg);
 }
 
 .attachment-thumb {
@@ -966,7 +1007,7 @@ select.control {
   height: 48px;
   object-fit: cover;
   border-radius: 4px;
-  background: #dfe1e6;
+  background: var(--hover-bg-strong);
 }
 
 .attachment-info {
@@ -1019,14 +1060,14 @@ select.control {
   font: inherit;
   font-size: 14px;
   padding: 7px 8px;
-  border: 2px solid #c1c7d0;
+  border: 2px solid var(--input-border);
   border-radius: 6px;
   resize: vertical;
 }
 
 .comment-add-input:focus {
   outline: none;
-  border-color: var(--bg);
+  border-color: var(--accent);
 }
 
 .comment-add-btn {
@@ -1036,7 +1077,7 @@ select.control {
   padding: 7px 12px;
   border: none;
   border-radius: 6px;
-  background: var(--bg);
+  background: var(--accent);
   color: #fff;
   cursor: pointer;
 }
@@ -1047,7 +1088,7 @@ select.control {
   gap: 4px;
   padding: 8px;
   border-radius: 6px;
-  background: #f4f5f7;
+  background: var(--soft-bg);
 }
 
 .comment-meta {
@@ -1073,7 +1114,7 @@ select.control {
 }
 
 .comment-btn:hover {
-  background: #ebecf0;
+  background: var(--hover-bg);
 }
 
 .comment-text {
@@ -1106,7 +1147,7 @@ select.control {
 }
 
 .activity-row:nth-child(odd) {
-  background: #f4f5f7;
+  background: var(--soft-bg);
 }
 
 .activity-text {
@@ -1154,7 +1195,7 @@ select.control {
   align-items: center;
   gap: 8px;
   padding: 8px;
-  border: 1px solid #dfe1e6;
+  border: 1px solid var(--border);
   border-radius: 6px;
 }
 
@@ -1186,7 +1227,7 @@ select.control {
 }
 
 .archive-restore {
-  background: var(--bg);
+  background: var(--accent);
   color: #fff;
 }
 
@@ -1260,13 +1301,13 @@ select.control {
   min-height: 32px;
   border: none;
   border-radius: 6px;
-  background: #ebecf0;
+  background: var(--hover-bg);
   cursor: pointer;
   font-size: 14px;
 }
 
 .card-detail-label-edit:hover {
-  background: #dfe1e6;
+  background: var(--hover-bg-strong);
 }
 
 /* Description / due-date badges on the card face. */
@@ -1292,7 +1333,7 @@ select.control {
   border-radius: 6px;
   font-weight: 600;
   opacity: 1;
-  background: #ebecf0;
+  background: var(--hover-bg);
   color: var(--text);
 }
 
@@ -1329,13 +1370,13 @@ select.control {
   font: inherit;
   font-size: 15px;
   padding: 8px 10px;
-  border: 2px solid #c1c7d0;
+  border: 2px solid var(--input-border);
   border-radius: 6px;
 }
 
 .card-detail-due-input:focus {
   outline: none;
-  border-color: var(--bg);
+  border-color: var(--accent);
 }
 
 .card-detail-due-done {
@@ -1353,13 +1394,13 @@ select.control {
   padding: 7px 12px;
   border: none;
   border-radius: 6px;
-  background: #ebecf0;
+  background: var(--hover-bg);
   color: var(--text);
   cursor: pointer;
 }
 
 .card-detail-due-clear:hover {
-  background: #dfe1e6;
+  background: var(--hover-bg-strong);
 }
 
 @keyframes modal-fade {
@@ -1440,6 +1481,14 @@ select.control {
           <button id="zoomResetBtn" class="menu-item">
             <span class="menu-icon">↩️</span><span class="menu-label" data-i18n="zoomReset">원래대로</span>
           </button>
+          <div class="menu-row">
+            <span class="menu-icon">🌓</span>
+            <select id="themeSelect" class="control menu-select" title="theme">
+              <option value="auto" data-i18n="themeAuto">시스템</option>
+              <option value="light" data-i18n="themeLight">라이트</option>
+              <option value="dark" data-i18n="themeDark">다크</option>
+            </select>
+          </div>
         </div>
 
         <div class="menu-section">
@@ -1537,6 +1586,7 @@ class KanbanApp {
         this.boardSelect = this.byId('boardSelect');
         this.starBtn = this.byId('starBtn');
         this.langSelect = this.byId('langSelect');
+        this.themeSelect = this.byId('themeSelect');
         this.undoBtn = this.byId('undoBtn');
         this.redoBtn = this.byId('redoBtn');
         this.filterInput = this.byId('filterInput');
@@ -1556,6 +1606,14 @@ class KanbanApp {
     async start() {
         this.data = await loadData();
         setLanguage(this.data.settings.lang);
+        this.applyTheme();
+        // In "auto" the theme tracks the OS preference live.
+        this.doc.defaultView
+            ?.matchMedia('(prefers-color-scheme: dark)')
+            .addEventListener('change', () => {
+            if (this.data.settings.theme === 'auto')
+                this.applyTheme();
+        });
         const surface = this.surfaceEl;
         const scale = this.byId('boardScale');
         this.zoom = new ZoomController(scale, surface, (value) => {
@@ -1919,6 +1977,13 @@ class KanbanApp {
             this.setLang(this.langSelect.value);
             this.menuPanel.hidden = true;
         });
+        this.themeSelect.addEventListener('change', () => {
+            this.data.settings.theme = this.themeSelect.value;
+            this.applyTheme();
+            this.menuPanel.hidden = true;
+            // A setting, not board content, so the undo history is preserved.
+            this.refresh();
+        });
         // Overflow menu: toggle, and close after an action is chosen.
         this.menuBtn.addEventListener('click', () => {
             this.menuPanel.hidden = !this.menuPanel.hidden;
@@ -2020,6 +2085,13 @@ class KanbanApp {
         // Background is board decoration, outside the undo scope (cards/lists).
         if (setBoardBackground(board, color))
             this.refresh();
+    }
+    /** Resolve the theme setting ('auto' follows the OS) onto the html element. */
+    applyTheme() {
+        const setting = this.data.settings.theme;
+        const prefersDark = this.doc.defaultView?.matchMedia('(prefers-color-scheme: dark)').matches ?? false;
+        const resolved = setting === 'auto' ? (prefersDark ? 'dark' : 'light') : setting;
+        this.doc.documentElement.dataset.theme = resolved;
     }
     /** Apply the active board's background to the page theme variables. */
     applyBackground() {
@@ -2298,6 +2370,7 @@ class KanbanApp {
         this.boardSelect.value = this.data.activeBoardId ?? '';
         this.starBtn.textContent = this.active()?.starred ? '⭐' : '☆';
         this.langSelect.value = this.data.settings.lang;
+        this.themeSelect.value = this.data.settings.theme;
     }
     /** Update all static labels marked with data-i18n / data-i18n-title. */
     refreshLabels() {
@@ -2833,6 +2906,10 @@ const translations = {
         importJson: 'JSON 가져오기',
         exportPng: 'PNG 저장',
         language: '언어',
+        theme: '테마',
+        themeAuto: '시스템',
+        themeLight: '라이트',
+        themeDark: '다크',
         zoomIn: '확대',
         zoomOut: '축소',
         zoomReset: '원래대로',
@@ -2946,6 +3023,10 @@ const translations = {
         importJson: 'Import JSON',
         exportPng: 'Save PNG',
         language: 'Language',
+        theme: 'Theme',
+        themeAuto: 'System',
+        themeLight: 'Light',
+        themeDark: 'Dark',
         zoomIn: 'Zoom in',
         zoomOut: 'Zoom out',
         zoomReset: 'Reset zoom',
@@ -4150,7 +4231,7 @@ function createDefaultData() {
         version: SCHEMA_VERSION,
         boards: [board],
         activeBoardId: board.id,
-        settings: { lang: 'ko', zoom: 1 },
+        settings: { lang: 'ko', zoom: 1, theme: 'auto' },
     };
 }
 /** Trello-like board background palette (empty = default theme color). */
@@ -4821,6 +4902,9 @@ function normalizeActivity(raw) {
 function normalizeLang(value) {
     return value === 'en' ? 'en' : 'ko';
 }
+function normalizeTheme(value) {
+    return value === 'light' || value === 'dark' ? value : 'auto';
+}
 /**
  * Coerce any value into a valid {@link AppData}. Never throws. If nothing
  * usable is present, a fresh default state is returned.
@@ -4845,6 +4929,7 @@ function normalizeAppData(raw) {
         settings: {
             lang: normalizeLang(settings.lang),
             zoom: Math.max(0.4, Math.min(zoom, 2.5)),
+            theme: normalizeTheme(settings.theme),
         },
     };
 }

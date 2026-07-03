@@ -16,6 +16,7 @@ import {
   Label,
   Language,
   SCHEMA_VERSION,
+  Theme,
 } from './types.js';
 import { createBoard, createColumn, createDefaultData, defaultLabels } from './model.js';
 import { makeId } from './id.js';
@@ -188,6 +189,10 @@ function normalizeLang(value: unknown): Language {
   return value === 'en' ? 'en' : 'ko';
 }
 
+function normalizeTheme(value: unknown): Theme {
+  return value === 'light' || value === 'dark' ? value : 'auto';
+}
+
 /**
  * Coerce any value into a valid {@link AppData}. Never throws. If nothing
  * usable is present, a fresh default state is returned.
@@ -214,6 +219,7 @@ export function normalizeAppData(raw: unknown): AppData {
     settings: {
       lang: normalizeLang(settings.lang),
       zoom: Math.max(0.4, Math.min(zoom, 2.5)),
+      theme: normalizeTheme(settings.theme),
     },
   };
 }
