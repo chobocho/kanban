@@ -530,6 +530,29 @@ try {
   assert(sc1 === 1, `quick swipe scrolls instead of dragging (card stays, got ${sc1})`);
   assert(terrors.length === 0, `no runtime errors during touch (${JSON.stringify(terrors)})`);
 
+  // --- Release bundle (single-file artifact) ----------------------------------
+  // The bundler rewrites ES modules with regexes, so boot the built
+  // release/index.html too and make sure the app actually works from it.
+  const rctx = await browser.newContext();
+  const rpage = await rctx.newPage();
+  const rerrors = [];
+  rpage.on('pageerror', (e) => rerrors.push(e.message));
+  rpage.on('console', (m) => { if (m.type() === 'error') rerrors.push(m.text()); });
+  await rpage.goto(base + '/release/index.html');
+  await rpage.waitForSelector('.column', { timeout: 5000 });
+  const rcols = await rpage.locator('.column').count();
+  assert(rcols === 3, `release bundle renders the default board (got ${rcols})`);
+  await rpage.locator('.column').first().locator('.add-card-btn').click();
+  await rpage.waitForTimeout(150);
+  const rcards = await rpage.locator('.card').count();
+  assert(rcards === 1, `release bundle can add a card (got ${rcards})`);
+  await rpage.locator('.card').first().locator('.icon-btn[title="카드 상세 열기"]').click();
+  await rpage.waitForSelector('.card-detail', { timeout: 3000 });
+  await rpage.keyboard.press('Escape');
+  assert(true, 'release bundle opens the card detail modal');
+  assert(rerrors.length === 0, `release bundle has no runtime errors (${JSON.stringify(rerrors)})`);
+  await rctx.close();
+
   console.log('\nsmoke: all checks passed');
 } finally {
   await browser.close();
