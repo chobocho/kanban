@@ -4,7 +4,7 @@ import { normalizeAppData } from '../src/normalize.js';
 test('null input yields default data', () => {
     const data = normalizeAppData(null);
     assert(data.boards.length >= 1, 'has a board');
-    assertEqual(data.version, 1, 'version set');
+    assertEqual(data.version, 2, 'version set');
 });
 test('garbage input yields default data', () => {
     const data = normalizeAppData(42);
@@ -27,7 +27,7 @@ test('partial board is repaired with defaults', () => {
     assert(data.boards[0].labels.length > 0, 'labels seeded for legacy board');
     assertEqual(data.boards[0].columns[0].cards[0].dueAt, null, 'dueAt defaulted to null');
     assertEqual(data.boards[0].columns[0].cards[0].dueDone, false, 'dueDone defaulted');
-    assertEqual(data.boards[0].columns[0].cards[0].checklist.length, 0, 'checklist defaulted');
+    assertEqual(data.boards[0].columns[0].cards[0].checklists.length, 0, 'checklists defaulted');
     assert(Array.isArray(data.boards[0].archived), 'archived defaulted to array');
     assertEqual(data.boards[0].archived.length, 0, 'archived empty by default');
     assert(Array.isArray(data.boards[0].archivedColumns), 'archivedColumns defaulted to array');
@@ -143,6 +143,36 @@ test('attachments are kept, junk dropped, and defaulted when missing', () => {
     assertEqual(withAtt.attachments.length, 1, 'only the valid attachment kept');
     assertEqual(withAtt.attachments[0].name, 'pic.png', 'name kept');
     assertEqual(without.attachments.length, 0, 'missing attachments default to empty');
+});
+test('legacy single checklist migrates into one checklist group', () => {
+    const data = normalizeAppData({
+        boards: [
+            {
+                id: 'b1',
+                name: 'A',
+                columns: [
+                    {
+                        title: 'C',
+                        cards: [
+                            { text: 'old', checklist: [{ id: 'i1', text: 'step', done: true }] },
+                            {
+                                text: 'new',
+                                checklists: [
+                                    { id: 'cl1', name: 'Named', items: [{ id: 'i2', text: 'x', done: false }] },
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    });
+    const [legacy, modern] = data.boards[0].columns[0].cards;
+    assertEqual(legacy.checklists.length, 1, 'legacy list wrapped into one group');
+    assertEqual(legacy.checklists[0].items[0].text, 'step', 'legacy item text kept');
+    assertEqual(legacy.checklists[0].items[0].done, true, 'legacy done state kept');
+    assertEqual(modern.checklists[0].name, 'Named', 'modern checklist name kept');
+    assertEqual(modern.checklists[0].items.length, 1, 'modern items kept');
 });
 test('comments are kept and defaulted when missing', () => {
     const data = normalizeAppData({

@@ -26,6 +26,26 @@ function normalizeChecklistItem(raw) {
         done: obj.done === true,
     };
 }
+function normalizeChecklist(raw) {
+    const obj = (raw ?? {});
+    return {
+        id: asString(obj.id, makeId('cl')),
+        name: asString(obj.name, ''),
+        items: Array.isArray(obj.items) ? obj.items.map(normalizeChecklistItem) : [],
+    };
+}
+/**
+ * Read a card's checklists, migrating the legacy single-checklist shape
+ * (`checklist: item[]`, schema v1) into one unnamed checklist group.
+ */
+function normalizeChecklists(obj) {
+    if (Array.isArray(obj.checklists))
+        return obj.checklists.map(normalizeChecklist);
+    if (Array.isArray(obj.checklist) && obj.checklist.length > 0) {
+        return [{ id: makeId('cl'), name: '', items: obj.checklist.map(normalizeChecklistItem) }];
+    }
+    return [];
+}
 function normalizeComment(raw) {
     const obj = (raw ?? {});
     return {
@@ -53,9 +73,6 @@ function normalizeCard(raw) {
     const labelIds = Array.isArray(obj.labelIds)
         ? obj.labelIds.filter((id) => typeof id === 'string')
         : [];
-    const checklist = Array.isArray(obj.checklist)
-        ? obj.checklist.map(normalizeChecklistItem)
-        : [];
     const comments = Array.isArray(obj.comments) ? obj.comments.map(normalizeComment) : [];
     const attachments = Array.isArray(obj.attachments)
         ? obj.attachments.map(normalizeAttachment).filter((a) => a !== null)
@@ -65,7 +82,7 @@ function normalizeCard(raw) {
         text: asString(obj.text, ''),
         description: asString(obj.description, ''),
         labelIds,
-        checklist,
+        checklists: normalizeChecklists(obj),
         comments,
         attachments,
         startAt: typeof obj.startAt === 'number' && Number.isFinite(obj.startAt) ? obj.startAt : null,

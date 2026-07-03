@@ -10,6 +10,7 @@ import {
   ArchivedColumn,
   Board,
   Card,
+  Checklist,
   ChecklistItem,
   Column,
   Comment,
@@ -47,6 +48,27 @@ function normalizeChecklistItem(raw: unknown): ChecklistItem {
   };
 }
 
+function normalizeChecklist(raw: unknown): Checklist {
+  const obj = (raw ?? {}) as Record<string, unknown>;
+  return {
+    id: asString(obj.id, makeId('cl')),
+    name: asString(obj.name, ''),
+    items: Array.isArray(obj.items) ? obj.items.map(normalizeChecklistItem) : [],
+  };
+}
+
+/**
+ * Read a card's checklists, migrating the legacy single-checklist shape
+ * (`checklist: item[]`, schema v1) into one unnamed checklist group.
+ */
+function normalizeChecklists(obj: Record<string, unknown>): Checklist[] {
+  if (Array.isArray(obj.checklists)) return obj.checklists.map(normalizeChecklist);
+  if (Array.isArray(obj.checklist) && obj.checklist.length > 0) {
+    return [{ id: makeId('cl'), name: '', items: obj.checklist.map(normalizeChecklistItem) }];
+  }
+  return [];
+}
+
 function normalizeComment(raw: unknown): Comment {
   const obj = (raw ?? {}) as Record<string, unknown>;
   return {
@@ -74,9 +96,6 @@ function normalizeCard(raw: unknown): Card {
   const labelIds = Array.isArray(obj.labelIds)
     ? obj.labelIds.filter((id): id is string => typeof id === 'string')
     : [];
-  const checklist = Array.isArray(obj.checklist)
-    ? obj.checklist.map(normalizeChecklistItem)
-    : [];
   const comments = Array.isArray(obj.comments) ? obj.comments.map(normalizeComment) : [];
   const attachments = Array.isArray(obj.attachments)
     ? obj.attachments.map(normalizeAttachment).filter((a): a is Attachment => a !== null)
@@ -86,7 +105,7 @@ function normalizeCard(raw: unknown): Card {
     text: asString(obj.text, ''),
     description: asString(obj.description, ''),
     labelIds,
-    checklist,
+    checklists: normalizeChecklists(obj),
     comments,
     attachments,
     startAt:

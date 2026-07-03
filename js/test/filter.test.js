@@ -9,7 +9,7 @@ function card(patch) {
         text: '',
         description: '',
         labelIds: [],
-        checklist: [],
+        checklists: [],
         comments: [],
         attachments: [],
         startAt: null,

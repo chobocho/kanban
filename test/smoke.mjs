@@ -144,10 +144,16 @@ try {
   const dueBadgeText = await page.locator('.column').nth(1).locator('.card-due').textContent();
   assert(dueBadgeText.includes('~'), `start+due shows a date range badge (got "${dueBadgeText}")`);
 
-  // Add a checklist item (applies immediately), then check the card badge.
+  // Create a checklist, add an item (applies immediately), check the badge.
   await detailCard.hover();
   await detailCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
+  await page.locator('.checklist-group-add').click();
+  await page.waitForTimeout(100);
+  await page.locator('.modal-overlay').last().locator('.modal-ok').click();
+  await page.waitForTimeout(100);
+  const groups = await page.locator('.checklist-group').count();
+  assert(groups === 1, `checklist group is created (got ${groups})`);
   await page.locator('.checklist-add-input').fill('first step');
   await page.locator('.checklist-add-btn').click();
   await page.waitForTimeout(100);

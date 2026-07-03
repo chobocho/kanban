@@ -17,6 +17,13 @@ export interface ChecklistItem {
   done: boolean;
 }
 
+/** A named checklist; a card can carry several (Trello-style). */
+export interface Checklist {
+  id: string;
+  name: string;
+  items: ChecklistItem[];
+}
+
 /** A comment left on a card (newest first). */
 export interface Comment {
   id: string;
@@ -42,8 +49,8 @@ export interface Card {
   description: string;
   /** Ids of the board labels applied to this card. */
   labelIds: string[];
-  /** Checklist items (ordered) shown on the card's back. */
-  checklist: ChecklistItem[];
+  /** Checklists (each with its own items) shown on the card's back. */
+  checklists: Checklist[];
   /** Comments (newest first) shown on the card's back. */
   comments: Comment[];
   /** Image attachments; the first one doubles as the card's cover. */
@@ -137,5 +144,5 @@ export interface AppData {
   settings: Settings;
 }
 
-/** Current schema version of {@link AppData}. */
-export const SCHEMA_VERSION = 1;
+/** Current schema version of {@link AppData}. v2: multiple checklists. */
+export const SCHEMA_VERSION = 2;

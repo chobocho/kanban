@@ -4,7 +4,7 @@
 
 import { getLanguage, t } from './i18n.js';
 import { renderMarkdown } from './markdown.js';
-import { Attachment, ChecklistItem, Comment, Label } from './types.js';
+import { Attachment, Checklist, Comment, Label } from './types.js';
 
 /** Attachments above this size are refused to keep the DB and exports sane. */
 const MAX_ATTACHMENT_BYTES = 1_500_000;
@@ -275,8 +275,8 @@ export interface CardDetailInit {
   labelColors: readonly string[];
   /** Ids of labels currently assigned to this card. */
   assignedLabelIds: string[];
-  /** The card's checklist (live reference; re-read after each edit). */
-  checklist: ChecklistItem[];
+  /** The card's checklists (live reference; re-read after each edit). */
+  checklists: Checklist[];
   /** The card's comments, newest first (live reference; re-read after each edit). */
   comments: Comment[];
   /** The card's image attachments (live reference; re-read after each edit). */
@@ -314,16 +314,22 @@ export interface CardDetailCallbacks {
   onAddLabel(name: string, color: string): void;
   /** Delete a board label, stripping it from every card. */
   onRemoveLabel(labelId: string): void;
+  /** Create a new named checklist on the card. */
+  onAddChecklist(name: string): void;
+  /** Rename a checklist. */
+  onRenameChecklist(checklistId: string, name: string): void;
+  /** Delete a whole checklist and its items. */
+  onRemoveChecklist(checklistId: string): void;
   /** Append a checklist item. */
-  onAddChecklistItem(text: string): void;
+  onAddChecklistItem(checklistId: string, text: string): void;
   /** Toggle a checklist item's done state. */
-  onToggleChecklistItem(itemId: string): void;
+  onToggleChecklistItem(checklistId: string, itemId: string): void;
   /** Rename a checklist item. */
-  onRenameChecklistItem(itemId: string, text: string): void;
+  onRenameChecklistItem(checklistId: string, itemId: string, text: string): void;
   /** Move a checklist item one step up (-1) or down (+1). */
-  onMoveChecklistItem(itemId: string, direction: -1 | 1): void;
+  onMoveChecklistItem(checklistId: string, itemId: string, direction: -1 | 1): void;
   /** Remove a checklist item. */
-  onRemoveChecklistItem(itemId: string): void;
+  onRemoveChecklistItem(checklistId: string, itemId: string): void;
   /** Attach an image (already read into a data URL). */
   onAddAttachment(name: string, dataUrl: string): void;
   /** Delete an attachment. */
@@ -559,16 +565,43 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     }
     dialog.append(preview, desc);
 
-    // --- Checklist: progress bar + items, all applied immediately. ---
+    // --- Checklists: several named groups, all edits applied immediately. ---
     addLabel(t('checklist'));
     const checklistBox = document.createElement('div');
     checklistBox.className = 'card-detail-checklist';
     dialog.appendChild(checklistBox);
 
-    const renderChecklist = (): void => {
-      checklistBox.replaceChildren();
-      const items = init.checklist;
+    // Build one checklist group (header, progress bar, items, add-item row).
+    const renderOneChecklist = (checklist: Checklist, rerender: () => void): HTMLElement => {
+      const box = document.createElement('div');
+      box.className = 'checklist-group';
+      const items = checklist.items;
       const done = items.filter((i) => i.done).length;
+
+      const header = document.createElement('div');
+      header.className = 'checklist-group-header';
+      const name = document.createElement('input');
+      name.type = 'text';
+      name.className = 'checklist-item-text checklist-group-name';
+      name.value = checklist.name;
+      name.placeholder = t('checklist');
+      name.addEventListener('change', () =>
+        cb.onRenameChecklist(checklist.id, name.value.trim()),
+      );
+      const delGroup = document.createElement('button');
+      delGroup.type = 'button';
+      delGroup.className = 'checklist-item-del';
+      delGroup.textContent = '🗑️';
+      delGroup.title = t('delete');
+      delGroup.addEventListener('click', () => {
+        void customConfirm(t('deleteChecklistConfirm')).then((ok) => {
+          if (!ok) return;
+          cb.onRemoveChecklist(checklist.id);
+          rerender();
+        });
+      });
+      header.append(name, delGroup);
+      box.appendChild(header);
 
       const bar = document.createElement('div');
       bar.className = 'checklist-progress';
@@ -582,7 +615,7 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
       const barRow = document.createElement('div');
       barRow.className = 'checklist-progress-row';
       barRow.append(pct, bar);
-      checklistBox.appendChild(barRow);
+      box.appendChild(barRow);
 
       items.forEach((item, at) => {
         const row = document.createElement('div');
@@ -592,8 +625,8 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
         check.type = 'checkbox';
         check.checked = item.done;
         check.addEventListener('change', () => {
-          cb.onToggleChecklistItem(item.id);
-          renderChecklist();
+          cb.onToggleChecklistItem(checklist.id, item.id);
+          rerender();
         });
 
         const text = document.createElement('input');
@@ -602,7 +635,9 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
         text.value = item.text;
         if (item.done) text.classList.add('is-done');
         // Commit a rename on blur/Enter, not on every keystroke.
-        text.addEventListener('change', () => cb.onRenameChecklistItem(item.id, text.value.trim()));
+        text.addEventListener('change', () =>
+          cb.onRenameChecklistItem(checklist.id, item.id, text.value.trim()),
+        );
 
         const moveBtn = (glyph: string, titleKey: string, direction: -1 | 1): HTMLElement => {
           const btn = document.createElement('button');
@@ -612,8 +647,8 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
           btn.title = t(titleKey);
           btn.disabled = direction === -1 ? at === 0 : at === items.length - 1;
           btn.addEventListener('click', () => {
-            cb.onMoveChecklistItem(item.id, direction);
-            renderChecklist();
+            cb.onMoveChecklistItem(checklist.id, item.id, direction);
+            rerender();
           });
           return btn;
         };
@@ -624,12 +659,12 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
         del.textContent = '🗑️';
         del.title = t('delete');
         del.addEventListener('click', () => {
-          cb.onRemoveChecklistItem(item.id);
-          renderChecklist();
+          cb.onRemoveChecklistItem(checklist.id, item.id);
+          rerender();
         });
 
         row.append(check, text, moveBtn('🔼', 'moveUp', -1), moveBtn('🔽', 'moveDown', 1), del);
-        checklistBox.appendChild(row);
+        box.appendChild(row);
       });
 
       const addRow = document.createElement('div');
@@ -641,11 +676,14 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
       const addItem = (): void => {
         const value = addInput.value.trim();
         if (!value) return;
-        cb.onAddChecklistItem(value);
-        renderChecklist();
-        // Keep adding: refocus the (rebuilt) input.
-        const next = checklistBox.querySelector<HTMLInputElement>('.checklist-add-input');
-        next?.focus();
+        cb.onAddChecklistItem(checklist.id, value);
+        rerender();
+        // Keep adding: refocus this checklist's (rebuilt) input.
+        checklistBox
+          .querySelector<HTMLInputElement>(
+            `[data-checklist-id="${checklist.id}"] .checklist-add-input`,
+          )
+          ?.focus();
       };
       addInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
@@ -659,9 +697,31 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
       addBtn.textContent = t('addChecklistItem');
       addBtn.addEventListener('click', addItem);
       addRow.append(addInput, addBtn);
-      checklistBox.appendChild(addRow);
+      box.appendChild(addRow);
+
+      box.dataset.checklistId = checklist.id;
+      return box;
     };
-    renderChecklist();
+
+    const renderChecklists = (): void => {
+      checklistBox.replaceChildren();
+      for (const checklist of init.checklists) {
+        checklistBox.appendChild(renderOneChecklist(checklist, renderChecklists));
+      }
+      const addGroup = document.createElement('button');
+      addGroup.type = 'button';
+      addGroup.className = 'checklist-group-add';
+      addGroup.textContent = `➕ ${t('addChecklistGroup')}`;
+      addGroup.addEventListener('click', () => {
+        void customPrompt(t('checklistNamePrompt'), t('checklist')).then((name) => {
+          if (name === null) return;
+          cb.onAddChecklist(name.trim() || t('checklist'));
+          renderChecklists();
+        });
+      });
+      checklistBox.appendChild(addGroup);
+    };
+    renderChecklists();
 
     // --- Attachments: image files stored inline as data URLs. ---
     addLabel(t('attachments'));

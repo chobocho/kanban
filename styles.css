@@ -901,6 +901,27 @@ select.control {
   gap: 6px;
 }
 
+/* One named checklist group inside the card detail modal. */
+.checklist-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.checklist-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checklist-group-name {
+  font-weight: 600;
+}
+
+
 .checklist-progress-row {
   display: flex;
   align-items: center;
@@ -1012,9 +1033,10 @@ select.control {
   cursor: pointer;
 }
 
-/* "Add label" / "add file" buttons below their lists in the card detail modal. */
+/* "Add label" / "add file" / "add checklist" buttons below their lists. */
 .card-detail-label-add,
-.attachment-add-btn {
+.attachment-add-btn,
+.checklist-group-add {
   align-self: flex-start;
   font: inherit;
   font-size: 13px;
@@ -1026,7 +1048,8 @@ select.control {
 }
 
 .card-detail-label-add:hover,
-.attachment-add-btn:hover {
+.attachment-add-btn:hover,
+.checklist-group-add:hover {
   background: var(--hover-bg-strong);
 }
 

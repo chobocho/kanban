@@ -24,6 +24,9 @@ import {
   archiveColumn,
   restoreColumn,
   deleteArchivedColumn,
+  addChecklist,
+  renameChecklist,
+  removeChecklist,
   addChecklistItem,
   updateChecklistItem,
   removeChecklistItem,
@@ -304,27 +307,59 @@ test('checklist items add, toggle, rename, remove and report progress', () => {
   const board = createBoard('b', [createColumn('A')]);
   const colId = board.columns[0].id;
   const card = addCard(board, colId, 'a')!;
-  assertEqual(card.checklist.length, 0, 'starts empty');
+  assertEqual(card.checklists.length, 0, 'starts with no checklists');
 
-  assert(addChecklistItem(board, colId, card.id, 'step 1'), 'add ok');
-  assert(!addChecklistItem(board, colId, card.id, '   '), 'blank item rejected');
-  assert(addChecklistItem(board, colId, card.id, 'step 2'), 'add 2 ok');
-  assertEqual(card.checklist.length, 2, 'two items');
+  const cl = addChecklist(board, colId, card.id, 'Steps')!;
+  assert(cl !== null, 'checklist created');
+  assertEqual(card.checklists[0].name, 'Steps', 'name stored');
+
+  assert(addChecklistItem(board, colId, card.id, cl.id, 'step 1'), 'add ok');
+  assert(!addChecklistItem(board, colId, card.id, cl.id, '   '), 'blank item rejected');
+  assert(addChecklistItem(board, colId, card.id, cl.id, 'step 2'), 'add 2 ok');
+  assertEqual(cl.items.length, 2, 'two items');
 
   let prog = checklistProgress(card);
   assertEqual(`${prog.done}/${prog.total}`, '0/2', 'nothing done yet');
 
-  const firstId = card.checklist[0].id;
-  assert(updateChecklistItem(board, colId, card.id, firstId, { done: true }), 'toggle ok');
+  const firstId = cl.items[0].id;
+  assert(updateChecklistItem(board, colId, card.id, cl.id, firstId, { done: true }), 'toggle ok');
   prog = checklistProgress(card);
   assertEqual(`${prog.done}/${prog.total}`, '1/2', 'one done');
 
-  assert(updateChecklistItem(board, colId, card.id, firstId, { text: 'renamed' }), 'rename ok');
-  assertEqual(card.checklist[0].text, 'renamed', 'text patched');
+  assert(
+    updateChecklistItem(board, colId, card.id, cl.id, firstId, { text: 'renamed' }),
+    'rename ok',
+  );
+  assertEqual(cl.items[0].text, 'renamed', 'text patched');
 
-  assert(removeChecklistItem(board, colId, card.id, firstId), 'remove ok');
-  assertEqual(card.checklist.length, 1, 'one left');
-  assert(!removeChecklistItem(board, colId, card.id, 'missing'), 'unknown item rejected');
+  assert(removeChecklistItem(board, colId, card.id, cl.id, firstId), 'remove ok');
+  assertEqual(cl.items.length, 1, 'one left');
+  assert(!removeChecklistItem(board, colId, card.id, cl.id, 'missing'), 'unknown item rejected');
+});
+
+test('multiple checklists: rename, delete and aggregated progress', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  const first = addChecklist(board, colId, card.id, 'One')!;
+  const second = addChecklist(board, colId, card.id, 'Two')!;
+  assertEqual(card.checklists.length, 2, 'two checklists');
+
+  addChecklistItem(board, colId, card.id, first.id, 'a');
+  addChecklistItem(board, colId, card.id, second.id, 'b');
+  addChecklistItem(board, colId, card.id, second.id, 'c');
+  updateChecklistItem(board, colId, card.id, second.id, second.items[0].id, { done: true });
+
+  const prog = checklistProgress(card);
+  assertEqual(`${prog.done}/${prog.total}`, '1/3', 'progress aggregates across checklists');
+
+  assert(renameChecklist(board, colId, card.id, second.id, 'Renamed'), 'rename ok');
+  assertEqual(card.checklists[1].name, 'Renamed', 'name patched');
+  assert(!renameChecklist(board, colId, card.id, 'missing', 'x'), 'unknown checklist rejected');
+
+  assert(removeChecklist(board, colId, card.id, first.id), 'delete ok');
+  assertEqual(card.checklists.length, 1, 'one checklist left');
+  assert(!removeChecklist(board, colId, card.id, 'missing'), 'unknown delete rejected');
 });
 
 test('comments add newest-first, edit, remove and reject blanks', () => {
@@ -364,8 +399,9 @@ test('duplicateCard copies content with fresh ids, right after the original', ()
     color: '#f00',
   });
   toggleCardLabel(board, colId, card.id, board.labels[0].id);
-  addChecklistItem(board, colId, card.id, 'step');
-  updateChecklistItem(board, colId, card.id, card.checklist[0].id, { done: true });
+  const dupCl = addChecklist(board, colId, card.id, 'Steps')!;
+  addChecklistItem(board, colId, card.id, dupCl.id, 'step');
+  updateChecklistItem(board, colId, card.id, dupCl.id, dupCl.items[0].id, { done: true });
   addComment(board, colId, card.id, 'note');
 
   const copy = duplicateCard(board, colId, card.id);
@@ -378,9 +414,10 @@ test('duplicateCard copies content with fresh ids, right after the original', ()
   assertEqual(copy!.dueDone, true, 'due state copied');
   assertEqual(copy!.color, '#f00', 'color copied');
   assertEqual(copy!.labelIds.join(''), card.labelIds.join(''), 'labels copied');
-  assertEqual(copy!.checklist.length, 1, 'checklist copied');
-  assertEqual(copy!.checklist[0].done, true, 'checklist state copied');
-  assert(copy!.checklist[0].id !== card.checklist[0].id, 'fresh checklist item id');
+  assertEqual(copy!.checklists.length, 1, 'checklist copied');
+  assertEqual(copy!.checklists[0].items[0].done, true, 'checklist state copied');
+  assert(copy!.checklists[0].id !== dupCl.id, 'fresh checklist id');
+  assert(copy!.checklists[0].items[0].id !== dupCl.items[0].id, 'fresh checklist item id');
   assertEqual(copy!.comments.length, 0, 'comments are not copied');
   assertEqual(duplicateCard(board, colId, 'missing'), null, 'unknown card rejected');
 });
@@ -417,7 +454,8 @@ test('duplicateColumn copies the list and its cards with fresh ids', () => {
   const board = createBoard('b', [createColumn('A'), createColumn('B')]);
   const colId = board.columns[0].id;
   const card = addCard(board, colId, 'x')!;
-  addChecklistItem(board, colId, card.id, 'step');
+  const cl = addChecklist(board, colId, card.id, 'Steps')!;
+  addChecklistItem(board, colId, card.id, cl.id, 'step');
 
   const copy = duplicateColumn(board, colId);
   assert(copy !== null, 'copy created');
@@ -426,7 +464,7 @@ test('duplicateColumn copies the list and its cards with fresh ids', () => {
   assertEqual(copy!.cards.length, 1, 'cards copied');
   assert(copy!.cards[0].id !== card.id, 'fresh card id');
   assertEqual(copy!.cards[0].text, 'x', 'card content copied');
-  assertEqual(copy!.cards[0].checklist.length, 1, 'checklist copied');
+  assertEqual(copy!.cards[0].checklists[0].items.length, 1, 'checklist copied');
   assertEqual(duplicateColumn(board, 'missing'), null, 'unknown column rejected');
 });
 
@@ -482,7 +520,8 @@ test('card templates: flag toggles and creating from a template appends a copy',
 
   assert(updateCard(board, colId, card.id, { isTemplate: true }), 'flag set ok');
   assertEqual(card.isTemplate, true, 'card is now a template');
-  addChecklistItem(board, colId, card.id, 'step');
+  const tplCl = addChecklist(board, colId, card.id, 'Steps')!;
+  addChecklistItem(board, colId, card.id, tplCl.id, 'step');
   toggleCardLabel(board, colId, card.id, board.labels[0].id);
 
   const made = createCardFromTemplate(board, colId, card.id);
@@ -492,7 +531,7 @@ test('card templates: flag toggles and creating from a template appends a copy',
   assertEqual(made!.isTemplate, false, 'created card is not a template');
   assert(made!.id !== card.id, 'fresh id');
   assertEqual(made!.text, 'tpl', 'text copied');
-  assertEqual(made!.checklist.length, 1, 'checklist copied');
+  assertEqual(made!.checklists[0].items.length, 1, 'checklist copied');
   assertEqual(made!.labelIds.length, 1, 'labels copied');
   assertEqual(createCardFromTemplate(board, colId, 'missing'), null, 'unknown card rejected');
 });
@@ -586,21 +625,22 @@ test('moveChecklistItem shifts an item and stops at the edges', () => {
   const board = createBoard('b', [createColumn('A')]);
   const colId = board.columns[0].id;
   const card = addCard(board, colId, 'a')!;
-  addChecklistItem(board, colId, card.id, 'one');
-  addChecklistItem(board, colId, card.id, 'two');
-  addChecklistItem(board, colId, card.id, 'three');
-  const texts = (): string => card.checklist.map((i) => i.text).join(',');
+  const cl = addChecklist(board, colId, card.id, 'Steps')!;
+  addChecklistItem(board, colId, card.id, cl.id, 'one');
+  addChecklistItem(board, colId, card.id, cl.id, 'two');
+  addChecklistItem(board, colId, card.id, cl.id, 'three');
+  const texts = (): string => cl.items.map((i) => i.text).join(',');
 
-  const secondId = card.checklist[1].id;
-  assert(moveChecklistItem(board, colId, card.id, secondId, -1), 'move up ok');
+  const secondId = cl.items[1].id;
+  assert(moveChecklistItem(board, colId, card.id, cl.id, secondId, -1), 'move up ok');
   assertEqual(texts(), 'two,one,three', 'moved above the first item');
-  assert(!moveChecklistItem(board, colId, card.id, secondId, -1), 'top edge rejected');
+  assert(!moveChecklistItem(board, colId, card.id, cl.id, secondId, -1), 'top edge rejected');
 
-  assert(moveChecklistItem(board, colId, card.id, secondId, 1), 'move down ok');
-  assert(moveChecklistItem(board, colId, card.id, secondId, 1), 'move down again ok');
+  assert(moveChecklistItem(board, colId, card.id, cl.id, secondId, 1), 'move down ok');
+  assert(moveChecklistItem(board, colId, card.id, cl.id, secondId, 1), 'move down again ok');
   assertEqual(texts(), 'one,three,two', 'moved to the end');
-  assert(!moveChecklistItem(board, colId, card.id, secondId, 1), 'bottom edge rejected');
-  assert(!moveChecklistItem(board, colId, card.id, 'missing', 1), 'unknown item rejected');
+  assert(!moveChecklistItem(board, colId, card.id, cl.id, secondId, 1), 'bottom edge rejected');
+  assert(!moveChecklistItem(board, colId, card.id, cl.id, 'missing', 1), 'unknown item rejected');
 });
 
 test('duplicateBoard deep-copies content and activates the copy', () => {

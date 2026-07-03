@@ -8,6 +8,7 @@ import {
   Attachment,
   Board,
   Card,
+  Checklist,
   ChecklistItem,
   Column,
   Label,
@@ -35,7 +36,7 @@ export function createCard(text: string): Card {
     text,
     description: '',
     labelIds: [],
-    checklist: [],
+    checklists: [],
     comments: [],
     attachments: [],
     startAt: null,
@@ -58,7 +59,11 @@ function cloneCard(source: Card): Card {
     text: source.text,
     description: source.description,
     labelIds: source.labelIds.slice(),
-    checklist: source.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
+    checklists: source.checklists.map((c) => ({
+      id: makeId('cl'),
+      name: c.name,
+      items: c.items.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
+    })),
     comments: [],
     attachments: source.attachments.map((a) => ({
       id: makeId('att'),
@@ -147,9 +152,15 @@ export function findCard(board: Board, columnId: string, cardId: string): Card |
   return findColumn(board, columnId)?.cards.find((c) => c.id === cardId);
 }
 
-/** Number of completed and total checklist items on a card. */
+/** Completed and total checklist items on a card, across all its checklists. */
 export function checklistProgress(card: Card): { done: number; total: number } {
-  return { done: card.checklist.filter((i) => i.done).length, total: card.checklist.length };
+  let done = 0;
+  let total = 0;
+  for (const checklist of card.checklists) {
+    done += checklist.items.filter((i) => i.done).length;
+    total += checklist.items.length;
+  }
+  return { done, total };
 }
 
 /** Append a new column and return it. */
@@ -328,17 +339,74 @@ export function removeCard(board: Board, columnId: string, cardId: string): bool
   return true;
 }
 
-/** Append a checklist item to a card. Ignores blank text. */
+/** Look up one of a card's checklists. */
+function findChecklist(
+  board: Board,
+  columnId: string,
+  cardId: string,
+  checklistId: string,
+): Checklist | undefined {
+  return findCard(board, columnId, cardId)?.checklists.find((c) => c.id === checklistId);
+}
+
+/** Append a new (empty) named checklist to a card. */
+export function addChecklist(
+  board: Board,
+  columnId: string,
+  cardId: string,
+  name: string,
+): Checklist | null {
+  const card = findCard(board, columnId, cardId);
+  if (!card) return null;
+  const checklist: Checklist = { id: makeId('cl'), name, items: [] };
+  card.checklists.push(checklist);
+  touch(board);
+  return checklist;
+}
+
+/** Rename one of a card's checklists. */
+export function renameChecklist(
+  board: Board,
+  columnId: string,
+  cardId: string,
+  checklistId: string,
+  name: string,
+): boolean {
+  const checklist = findChecklist(board, columnId, cardId, checklistId);
+  if (!checklist) return false;
+  checklist.name = name;
+  touch(board);
+  return true;
+}
+
+/** Delete a whole checklist (and its items) from a card. */
+export function removeChecklist(
+  board: Board,
+  columnId: string,
+  cardId: string,
+  checklistId: string,
+): boolean {
+  const card = findCard(board, columnId, cardId);
+  if (!card) return false;
+  const index = card.checklists.findIndex((c) => c.id === checklistId);
+  if (index < 0) return false;
+  card.checklists.splice(index, 1);
+  touch(board);
+  return true;
+}
+
+/** Append an item to one of a card's checklists. Ignores blank text. */
 export function addChecklistItem(
   board: Board,
   columnId: string,
   cardId: string,
+  checklistId: string,
   text: string,
 ): boolean {
   const trimmed = text.trim();
-  const card = findCard(board, columnId, cardId);
-  if (!card || !trimmed) return false;
-  card.checklist.push({ id: makeId('chk'), text: trimmed, done: false });
+  const checklist = findChecklist(board, columnId, cardId, checklistId);
+  if (!checklist || !trimmed) return false;
+  checklist.items.push({ id: makeId('chk'), text: trimmed, done: false });
   touch(board);
   return true;
 }
@@ -348,11 +416,12 @@ export function updateChecklistItem(
   board: Board,
   columnId: string,
   cardId: string,
+  checklistId: string,
   itemId: string,
   patch: Partial<Pick<ChecklistItem, 'text' | 'done'>>,
 ): boolean {
-  const card = findCard(board, columnId, cardId);
-  const item = card?.checklist.find((i) => i.id === itemId);
+  const checklist = findChecklist(board, columnId, cardId, checklistId);
+  const item = checklist?.items.find((i) => i.id === itemId);
   if (!item) return false;
   if (patch.text !== undefined) item.text = patch.text;
   if (patch.done !== undefined) item.done = patch.done;
@@ -365,32 +434,34 @@ export function moveChecklistItem(
   board: Board,
   columnId: string,
   cardId: string,
+  checklistId: string,
   itemId: string,
   direction: -1 | 1,
 ): boolean {
-  const card = findCard(board, columnId, cardId);
-  if (!card) return false;
-  const index = card.checklist.findIndex((i) => i.id === itemId);
+  const checklist = findChecklist(board, columnId, cardId, checklistId);
+  if (!checklist) return false;
+  const index = checklist.items.findIndex((i) => i.id === itemId);
   const target = index + direction;
-  if (index < 0 || target < 0 || target >= card.checklist.length) return false;
-  const [item] = card.checklist.splice(index, 1);
-  card.checklist.splice(target, 0, item);
+  if (index < 0 || target < 0 || target >= checklist.items.length) return false;
+  const [item] = checklist.items.splice(index, 1);
+  checklist.items.splice(target, 0, item);
   touch(board);
   return true;
 }
 
-/** Remove a checklist item from a card. */
+/** Remove an item from one of a card's checklists. */
 export function removeChecklistItem(
   board: Board,
   columnId: string,
   cardId: string,
+  checklistId: string,
   itemId: string,
 ): boolean {
-  const card = findCard(board, columnId, cardId);
-  if (!card) return false;
-  const index = card.checklist.findIndex((i) => i.id === itemId);
+  const checklist = findChecklist(board, columnId, cardId, checklistId);
+  if (!checklist) return false;
+  const index = checklist.items.findIndex((i) => i.id === itemId);
   if (index < 0) return false;
-  card.checklist.splice(index, 1);
+  checklist.items.splice(index, 1);
   touch(board);
   return true;
 }

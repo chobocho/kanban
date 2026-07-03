@@ -26,6 +26,9 @@ import {
   removeLabel,
   toggleCardLabel,
   LABEL_COLORS,
+  addChecklist,
+  renameChecklist,
+  removeChecklist,
   addChecklistItem,
   updateChecklistItem,
   removeChecklistItem,
@@ -322,7 +325,7 @@ export class KanbanApp {
             labels: board.labels,
             labelColors: LABEL_COLORS,
             assignedLabelIds: card.labelIds.slice(),
-            checklist: card.checklist,
+            checklists: card.checklists,
             comments: card.comments,
             attachments: card.attachments,
             isTemplate: card.isTemplate,
@@ -359,23 +362,43 @@ export class KanbanApp {
             onRemoveLabel: (labelId) => {
               if (removeLabel(board, labelId)) this.commit();
             },
-            onAddChecklistItem: (text) => {
-              if (addChecklistItem(board, colId, cardId, text)) this.commit();
+            onAddChecklist: (name) => {
+              if (addChecklist(board, colId, cardId, name)) this.commit();
             },
-            onToggleChecklistItem: (itemId) => {
-              const item = card.checklist.find((i) => i.id === itemId);
-              if (item && updateChecklistItem(board, colId, cardId, itemId, { done: !item.done })) {
+            onRenameChecklist: (checklistId, name) => {
+              if (renameChecklist(board, colId, cardId, checklistId, name)) this.commit();
+            },
+            onRemoveChecklist: (checklistId) => {
+              if (removeChecklist(board, colId, cardId, checklistId)) this.commit();
+            },
+            onAddChecklistItem: (checklistId, text) => {
+              if (addChecklistItem(board, colId, cardId, checklistId, text)) this.commit();
+            },
+            onToggleChecklistItem: (checklistId, itemId) => {
+              const item = card.checklists
+                .find((c) => c.id === checklistId)
+                ?.items.find((i) => i.id === itemId);
+              if (
+                item &&
+                updateChecklistItem(board, colId, cardId, checklistId, itemId, {
+                  done: !item.done,
+                })
+              ) {
                 this.commit();
               }
             },
-            onRenameChecklistItem: (itemId, text) => {
-              if (updateChecklistItem(board, colId, cardId, itemId, { text })) this.commit();
+            onRenameChecklistItem: (checklistId, itemId, text) => {
+              if (updateChecklistItem(board, colId, cardId, checklistId, itemId, { text })) {
+                this.commit();
+              }
             },
-            onRemoveChecklistItem: (itemId) => {
-              if (removeChecklistItem(board, colId, cardId, itemId)) this.commit();
+            onRemoveChecklistItem: (checklistId, itemId) => {
+              if (removeChecklistItem(board, colId, cardId, checklistId, itemId)) this.commit();
             },
-            onMoveChecklistItem: (itemId, direction) => {
-              if (moveChecklistItem(board, colId, cardId, itemId, direction)) this.commit();
+            onMoveChecklistItem: (checklistId, itemId, direction) => {
+              if (moveChecklistItem(board, colId, cardId, checklistId, itemId, direction)) {
+                this.commit();
+              }
             },
             onAddAttachment: (name, dataUrl) => {
               if (addAttachment(board, colId, cardId, name, dataUrl)) this.commit();

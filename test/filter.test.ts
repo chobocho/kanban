@@ -13,7 +13,7 @@ function card(patch: Partial<Card>): Card {
     text: '',
     description: '',
     labelIds: [],
-    checklist: [],
+    checklists: [],
     comments: [],
     attachments: [],
     startAt: null,
