@@ -11,6 +11,7 @@ function card(patch) {
         labelIds: [],
         checklist: [],
         comments: [],
+        startAt: null,
         dueAt: null,
         dueDone: false,
         color: '',

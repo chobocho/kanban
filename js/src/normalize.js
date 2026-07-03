@@ -50,6 +50,7 @@ function normalizeCard(raw) {
         labelIds,
         checklist,
         comments,
+        startAt: typeof obj.startAt === 'number' && Number.isFinite(obj.startAt) ? obj.startAt : null,
         dueAt: typeof obj.dueAt === 'number' && Number.isFinite(obj.dueAt) ? obj.dueAt : null,
         dueDone: obj.dueDone === true,
         color: asString(obj.color, ''),

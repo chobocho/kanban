@@ -177,9 +177,18 @@ function renderCard(
   const badges = el('div', 'card-badges');
   if (card.dueAt != null) {
     const status = dueStatus(card);
-    const due = el('span', `card-badge card-due is-${status}`, `🕒 ${formatDueShort(card.dueAt)}`);
+    // With a start date the badge shows the whole range (Trello-style).
+    const range =
+      card.startAt != null
+        ? `${formatDueShort(card.startAt)} ~ ${formatDueShort(card.dueAt)}`
+        : formatDueShort(card.dueAt);
+    const due = el('span', `card-badge card-due is-${status}`, `🕒 ${range}`);
     due.title = t('dueDate');
     badges.appendChild(due);
+  } else if (card.startAt != null) {
+    const start = el('span', 'card-badge', `▶️ ${formatDueShort(card.startAt)}`);
+    start.title = t('startDate');
+    badges.appendChild(start);
   }
   if (card.description.trim()) {
     const note = el('span', 'card-badge', '📝');

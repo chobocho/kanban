@@ -126,6 +126,21 @@ test('a valid stored due date is preserved', () => {
   assertEqual(card.dueDone, true, 'dueDone kept');
 });
 
+test('start date is kept and defaulted when missing', () => {
+  const data = normalizeAppData({
+    boards: [
+      {
+        id: 'b1',
+        name: 'A',
+        columns: [{ title: 'C', cards: [{ text: 'x', startAt: 777 }, { text: 'y' }] }],
+      },
+    ],
+  });
+  const [withStart, without] = data.boards[0].columns[0].cards;
+  assertEqual(withStart.startAt, 777, 'start date kept');
+  assertEqual(without.startAt, null, 'missing start date defaults to null');
+});
+
 test('stored labels are kept and dangling card references are dropped', () => {
   const data = normalizeAppData({
     boards: [

@@ -193,6 +193,8 @@ export interface CardDetailInit {
   description: string;
   color: string;
   createdAt: number;
+  /** Current start date (ms) or null when unset. */
+  startAt: number | null;
   /** Current due date (ms) or null when unset. */
   dueAt: number | null;
   /** Whether the due date is marked complete. */
@@ -219,6 +221,7 @@ export interface CardDetailInit {
 export interface CardDetailPatch {
   text: string;
   description: string;
+  startAt: number | null;
   dueAt: number | null;
   dueDone: boolean;
   color: string;
@@ -397,6 +400,27 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
       labelList.appendChild(add);
     };
     renderLabels();
+
+    // --- Start date: a datetime picker with a clear button. ---
+    addLabel(t('startDate'));
+    const startRow = document.createElement('div');
+    startRow.className = 'card-detail-due';
+
+    const startInput = document.createElement('input');
+    startInput.className = 'card-detail-due-input';
+    startInput.type = 'datetime-local';
+    if (init.startAt != null) startInput.value = toLocalInputValue(init.startAt);
+
+    const startClear = document.createElement('button');
+    startClear.type = 'button';
+    startClear.className = 'card-detail-due-clear';
+    startClear.textContent = t('clear');
+    startClear.addEventListener('click', () => {
+      startInput.value = '';
+    });
+
+    startRow.append(startInput, startClear);
+    dialog.appendChild(startRow);
 
     // --- Due date: a datetime picker, a "done" toggle and a clear button. ---
     addLabel(t('dueDate'));
@@ -731,6 +755,7 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
       cb.onSave({
         text: title.value.trim(),
         description: desc.value.trim(),
+        startAt: fromLocalInputValue(startInput.value),
         dueAt,
         dueDone: dueAt != null && doneCheck.checked,
         color: selectedColor,

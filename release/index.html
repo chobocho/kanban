@@ -1594,6 +1594,7 @@ class KanbanApp {
                     description: card.description,
                     color: card.color,
                     createdAt: card.createdAt,
+                    startAt: card.startAt,
                     dueAt: card.dueAt,
                     dueDone: card.dueDone,
                     colors: CARD_COLORS,
@@ -2563,6 +2564,7 @@ const translations = {
         commentPlaceholder: '코멘트를 입력하세요…',
         deleteCommentConfirm: '이 코멘트를 삭제할까요?',
         edit: '수정',
+        startDate: '시작일',
         dueDate: '마감일',
         dueComplete: '완료',
         clear: '지우기',
@@ -2652,6 +2654,7 @@ const translations = {
         commentPlaceholder: 'Write a comment…',
         deleteCommentConfirm: 'Delete this comment?',
         edit: 'Edit',
+        startDate: 'Start date',
         dueDate: 'Due date',
         dueComplete: 'Complete',
         clear: 'Clear',
@@ -3140,6 +3143,24 @@ function openCardDetail(init, cb) {
             labelList.appendChild(add);
         };
         renderLabels();
+        // --- Start date: a datetime picker with a clear button. ---
+        addLabel(t('startDate'));
+        const startRow = document.createElement('div');
+        startRow.className = 'card-detail-due';
+        const startInput = document.createElement('input');
+        startInput.className = 'card-detail-due-input';
+        startInput.type = 'datetime-local';
+        if (init.startAt != null)
+            startInput.value = toLocalInputValue(init.startAt);
+        const startClear = document.createElement('button');
+        startClear.type = 'button';
+        startClear.className = 'card-detail-due-clear';
+        startClear.textContent = t('clear');
+        startClear.addEventListener('click', () => {
+            startInput.value = '';
+        });
+        startRow.append(startInput, startClear);
+        dialog.appendChild(startRow);
         // --- Due date: a datetime picker, a "done" toggle and a clear button. ---
         addLabel(t('dueDate'));
         const dueRow = document.createElement('div');
@@ -3446,6 +3467,7 @@ function openCardDetail(init, cb) {
             cb.onSave({
                 text: title.value.trim(),
                 description: desc.value.trim(),
+                startAt: fromLocalInputValue(startInput.value),
                 dueAt,
                 dueDone: dueAt != null && doneCheck.checked,
                 color: selectedColor,
@@ -3632,6 +3654,7 @@ function createCard(text) {
         labelIds: [],
         checklist: [],
         comments: [],
+        startAt: null,
         dueAt: null,
         dueDone: false,
         color: '',
@@ -3776,6 +3799,7 @@ function duplicateColumn(board, columnId) {
             labelIds: card.labelIds.slice(),
             checklist: card.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
             comments: [],
+            startAt: card.startAt,
             dueAt: card.dueAt,
             dueDone: card.dueDone,
             color: card.color,
@@ -3820,6 +3844,8 @@ function updateCard(board, columnId, cardId, patch) {
         card.text = patch.text;
     if (patch.description !== undefined)
         card.description = patch.description;
+    if (patch.startAt !== undefined)
+        card.startAt = patch.startAt;
     if (patch.dueAt !== undefined)
         card.dueAt = patch.dueAt;
     if (patch.dueDone !== undefined)
@@ -3849,6 +3875,7 @@ function duplicateCard(board, columnId, cardId) {
         labelIds: source.labelIds.slice(),
         checklist: source.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
         comments: [],
+        startAt: source.startAt,
         dueAt: source.dueAt,
         dueDone: source.dueDone,
         color: source.color,
@@ -4180,6 +4207,7 @@ function normalizeCard(raw) {
         labelIds,
         checklist,
         comments,
+        startAt: typeof obj.startAt === 'number' && Number.isFinite(obj.startAt) ? obj.startAt : null,
         dueAt: typeof obj.dueAt === 'number' && Number.isFinite(obj.dueAt) ? obj.dueAt : null,
         dueDone: obj.dueDone === true,
         color: asString(obj.color, ''),
@@ -4566,9 +4594,18 @@ function renderCard(card, column, labels, handlers) {
     const badges = el('div', 'card-badges');
     if (card.dueAt != null) {
         const status = dueStatus(card);
-        const due = el('span', `card-badge card-due is-${status}`, `🕒 ${formatDueShort(card.dueAt)}`);
+        // With a start date the badge shows the whole range (Trello-style).
+        const range = card.startAt != null
+            ? `${formatDueShort(card.startAt)} ~ ${formatDueShort(card.dueAt)}`
+            : formatDueShort(card.dueAt);
+        const due = el('span', `card-badge card-due is-${status}`, `🕒 ${range}`);
         due.title = t('dueDate');
         badges.appendChild(due);
+    }
+    else if (card.startAt != null) {
+        const start = el('span', 'card-badge', `▶️ ${formatDueShort(card.startAt)}`);
+        start.title = t('startDate');
+        badges.appendChild(start);
     }
     if (card.description.trim()) {
         const note = el('span', 'card-badge', '📝');

@@ -284,6 +284,24 @@ export function openCardDetail(init, cb) {
             labelList.appendChild(add);
         };
         renderLabels();
+        // --- Start date: a datetime picker with a clear button. ---
+        addLabel(t('startDate'));
+        const startRow = document.createElement('div');
+        startRow.className = 'card-detail-due';
+        const startInput = document.createElement('input');
+        startInput.className = 'card-detail-due-input';
+        startInput.type = 'datetime-local';
+        if (init.startAt != null)
+            startInput.value = toLocalInputValue(init.startAt);
+        const startClear = document.createElement('button');
+        startClear.type = 'button';
+        startClear.className = 'card-detail-due-clear';
+        startClear.textContent = t('clear');
+        startClear.addEventListener('click', () => {
+            startInput.value = '';
+        });
+        startRow.append(startInput, startClear);
+        dialog.appendChild(startRow);
         // --- Due date: a datetime picker, a "done" toggle and a clear button. ---
         addLabel(t('dueDate'));
         const dueRow = document.createElement('div');
@@ -590,6 +608,7 @@ export function openCardDetail(init, cb) {
             cb.onSave({
                 text: title.value.trim(),
                 description: desc.value.trim(),
+                startAt: fromLocalInputValue(startInput.value),
                 dueAt,
                 dueDone: dueAt != null && doneCheck.checked,
                 color: selectedColor,

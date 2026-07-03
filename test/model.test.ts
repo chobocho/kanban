@@ -117,6 +117,17 @@ test('updateCard sets and clears the due date', () => {
   assertEqual(board.columns[0].cards[0].dueAt, null, 'due date cleared');
 });
 
+test('updateCard sets and clears the start date', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  assertEqual(card.startAt, null, 'new card has no start date');
+  assert(updateCard(board, colId, card.id, { startAt: 500 }), 'update ok');
+  assertEqual(board.columns[0].cards[0].startAt, 500, 'start date set');
+  assert(updateCard(board, colId, card.id, { startAt: null }), 'clear ok');
+  assertEqual(board.columns[0].cards[0].startAt, null, 'start date cleared');
+});
+
 test('removeCard deletes a card', () => {
   const board = createBoard('b', [createColumn('A')]);
   const colId = board.columns[0].id;
@@ -334,7 +345,13 @@ test('duplicateCard copies content with fresh ids, right after the original', ()
   const colId = board.columns[0].id;
   const card = addCard(board, colId, 'original')!;
   addCard(board, colId, 'tail');
-  updateCard(board, colId, card.id, { description: 'desc', dueAt: 5000, dueDone: true, color: '#f00' });
+  updateCard(board, colId, card.id, {
+    description: 'desc',
+    startAt: 4000,
+    dueAt: 5000,
+    dueDone: true,
+    color: '#f00',
+  });
   toggleCardLabel(board, colId, card.id, board.labels[0].id);
   addChecklistItem(board, colId, card.id, 'step');
   updateChecklistItem(board, colId, card.id, card.checklist[0].id, { done: true });
@@ -345,6 +362,7 @@ test('duplicateCard copies content with fresh ids, right after the original', ()
   assertEqual(board.columns[0].cards.map((c) => c.text).join(','), 'original,original,tail', 'inserted after original');
   assert(copy!.id !== card.id, 'fresh card id');
   assertEqual(copy!.description, 'desc', 'description copied');
+  assertEqual(copy!.startAt, 4000, 'start date copied');
   assertEqual(copy!.dueAt, 5000, 'due date copied');
   assertEqual(copy!.dueDone, true, 'due state copied');
   assertEqual(copy!.color, '#f00', 'color copied');

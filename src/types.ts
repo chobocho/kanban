@@ -36,6 +36,8 @@ export interface Card {
   checklist: ChecklistItem[];
   /** Comments (newest first) shown on the card's back. */
   comments: Comment[];
+  /** Start date as a timestamp (ms), or null when none is set. */
+  startAt: number | null;
   /** Due date as a timestamp (ms), or null when none is set. */
   dueAt: number | null;
   /** Whether the due date has been marked complete. */

@@ -27,6 +27,7 @@ export function createCard(text: string): Card {
     labelIds: [],
     checklist: [],
     comments: [],
+    startAt: null,
     dueAt: null,
     dueDone: false,
     color: '',
@@ -183,6 +184,7 @@ export function duplicateColumn(board: Board, columnId: string): Column | null {
       labelIds: card.labelIds.slice(),
       checklist: card.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
       comments: [],
+      startAt: card.startAt,
       dueAt: card.dueAt,
       dueDone: card.dueDone,
       color: card.color,
@@ -220,7 +222,7 @@ export function updateCard(
   board: Board,
   columnId: string,
   cardId: string,
-  patch: Partial<Pick<Card, 'text' | 'description' | 'dueAt' | 'dueDone' | 'color'>>,
+  patch: Partial<Pick<Card, 'text' | 'description' | 'startAt' | 'dueAt' | 'dueDone' | 'color'>>,
 ): boolean {
   const column = findColumn(board, columnId);
   if (!column) return false;
@@ -228,6 +230,7 @@ export function updateCard(
   if (!card) return false;
   if (patch.text !== undefined) card.text = patch.text;
   if (patch.description !== undefined) card.description = patch.description;
+  if (patch.startAt !== undefined) card.startAt = patch.startAt;
   if (patch.dueAt !== undefined) card.dueAt = patch.dueAt;
   if (patch.dueDone !== undefined) card.dueDone = patch.dueDone;
   if (patch.color !== undefined) card.color = patch.color;
@@ -253,6 +256,7 @@ export function duplicateCard(board: Board, columnId: string, cardId: string): C
     labelIds: source.labelIds.slice(),
     checklist: source.checklist.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
     comments: [],
+    startAt: source.startAt,
     dueAt: source.dueAt,
     dueDone: source.dueDone,
     color: source.color,

@@ -257,6 +257,7 @@ export class KanbanApp {
             description: card.description,
             color: card.color,
             createdAt: card.createdAt,
+            startAt: card.startAt,
             dueAt: card.dueAt,
             dueDone: card.dueDone,
             colors: CARD_COLORS,

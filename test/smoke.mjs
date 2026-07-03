@@ -132,14 +132,17 @@ try {
   // Assign the first label from the detail modal; it applies immediately.
   await page.locator('.card-detail-label-chip').first().click();
   await page.waitForTimeout(100);
-  // Set a far-future due date, then save (applies on Save).
-  await page.locator('.card-detail-due-input').fill('2031-01-02T10:30');
+  // Set a start date and a far-future due date, then save (applies on Save).
+  await page.locator('.card-detail-due-input').first().fill('2030-12-31T09:00');
+  await page.locator('.card-detail-due-input').last().fill('2031-01-02T10:30');
   await page.locator('.card-detail .modal-ok').click();
   await page.waitForTimeout(100);
   const labelChips = await page.locator('.column').nth(1).locator('.card-label').count();
   assert(labelChips === 1, `assigning a label shows a chip on the card (got ${labelChips})`);
   const dueBadge = await page.locator('.column').nth(1).locator('.card-due').count();
   assert(dueBadge === 1, `setting a due date shows a due badge (got ${dueBadge})`);
+  const dueBadgeText = await page.locator('.column').nth(1).locator('.card-due').textContent();
+  assert(dueBadgeText.includes('~'), `start+due shows a date range badge (got "${dueBadgeText}")`);
 
   // Add a checklist item (applies immediately), then check the card badge.
   await detailCard.hover();
@@ -155,11 +158,13 @@ try {
   const checkBadge = await page.locator('.column').nth(1).locator('.card-check').textContent();
   assert(checkBadge.includes('0/1'), `checklist badge shows progress (got "${checkBadge}")`);
 
-  // Reopen and confirm the due date round-trips into the picker.
+  // Reopen and confirm the start/due dates round-trip into the pickers.
   await detailCard.hover();
   await detailCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
-  const dueVal = await page.locator('.card-detail-due-input').inputValue();
+  const startVal = await page.locator('.card-detail-due-input').first().inputValue();
+  assert(startVal === '2030-12-31T09:00', `start date round-trips (got "${startVal}")`);
+  const dueVal = await page.locator('.card-detail-due-input').last().inputValue();
   assert(dueVal === '2031-01-02T10:30', `due date round-trips (got "${dueVal}")`);
   await page.locator('.card-detail .modal-cancel').click();
   await page.waitForTimeout(100);
