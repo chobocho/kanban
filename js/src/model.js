@@ -21,6 +21,7 @@ export function createCard(text) {
         description: '',
         labelIds: [],
         checklists: [],
+        checklistsOpen: false,
         comments: [],
         attachments: [],
         startAt: null,
@@ -47,6 +48,7 @@ function cloneCard(source) {
             name: c.name,
             items: c.items.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
         })),
+        checklistsOpen: source.checklistsOpen,
         comments: [],
         attachments: source.attachments.map((a) => ({
             id: makeId('att'),
@@ -249,6 +251,8 @@ export function updateCard(board, columnId, cardId, patch) {
         card.color = patch.color;
     if (patch.isTemplate !== undefined)
         card.isTemplate = patch.isTemplate;
+    if (patch.checklistsOpen !== undefined)
+        card.checklistsOpen = patch.checklistsOpen;
     touch(board);
     return true;
 }

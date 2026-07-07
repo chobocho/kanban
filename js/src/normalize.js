@@ -87,6 +87,7 @@ function normalizeCard(raw) {
         description: asString(obj.description, ''),
         labelIds,
         checklists: normalizeChecklists(obj),
+        checklistsOpen: obj.checklistsOpen === true,
         comments,
         attachments,
         startAt: asNullableNumber(obj.startAt),

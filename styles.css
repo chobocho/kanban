@@ -1422,9 +1422,56 @@ select.control {
   color: var(--text);
 }
 
+/* The ☑️ badge is a button (it toggles the inline checklist view). */
+button.card-check {
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
 .card-check.is-complete {
   background: #e3fcef;
   color: #006644;
+}
+
+/* Checklists expanded inline on the card front via the ☑️ badge. */
+.card-checklists {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 6px;
+}
+
+.card-checklist-name {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.6;
+  margin-top: 3px;
+}
+
+.card-check-item {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text);
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.card-check-item:hover {
+  background: var(--hover-bg);
+}
+
+.card-check-item.is-done {
+  text-decoration: line-through;
+  opacity: 0.55;
 }
 
 .card-due.is-overdue {

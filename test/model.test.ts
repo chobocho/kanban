@@ -110,6 +110,17 @@ test('updateCard patches text and color', () => {
   assertEqual(board.columns[0].cards[0].color, '#f00', 'color patched');
 });
 
+test('card checklists start collapsed and updateCard toggles visibility', () => {
+  const board = createBoard('b', [createColumn('A')]);
+  const colId = board.columns[0].id;
+  const card = addCard(board, colId, 'a')!;
+  assertEqual(card.checklistsOpen, false, 'collapsed by default');
+  assert(updateCard(board, colId, card.id, { checklistsOpen: true }), 'open ok');
+  assertEqual(board.columns[0].cards[0].checklistsOpen, true, 'opened');
+  assert(updateCard(board, colId, card.id, { checklistsOpen: false }), 'close ok');
+  assertEqual(board.columns[0].cards[0].checklistsOpen, false, 'closed again');
+});
+
 test('updateCard patches description independently', () => {
   const board = createBoard('b', [createColumn('A')]);
   const colId = board.columns[0].id;
@@ -442,6 +453,7 @@ test('duplicateCard copies content with fresh ids, right after the original', ()
     dueAt: 5000,
     dueDone: true,
     color: '#f00',
+    checklistsOpen: true,
   });
   toggleCardLabel(board, colId, card.id, board.labels[0].id);
   const dupCl = addChecklist(board, colId, card.id, 'Steps')!;
@@ -461,6 +473,7 @@ test('duplicateCard copies content with fresh ids, right after the original', ()
   assertEqual(copy!.labelIds.join(''), card.labelIds.join(''), 'labels copied');
   assertEqual(copy!.checklists.length, 1, 'checklist copied');
   assertEqual(copy!.checklists[0].items[0].done, true, 'checklist state copied');
+  assertEqual(copy!.checklistsOpen, true, 'checklist visibility copied');
   assert(copy!.checklists[0].id !== dupCl.id, 'fresh checklist id');
   assert(copy!.checklists[0].items[0].id !== dupCl.items[0].id, 'fresh checklist item id');
   assertEqual(copy!.comments.length, 0, 'comments are not copied');

@@ -13,6 +13,8 @@ export interface RenderHandlers {
   archiveCard(colId: string, cardId: string): void;
   cycleCardColor(colId: string, cardId: string): void;
   openCard(colId: string, cardId: string): void;
+  toggleCardChecklists(colId: string, cardId: string): void;
+  toggleChecklistItem(colId: string, cardId: string, checklistId: string, itemId: string): void;
   addColumn(): void;
   renameColumn(colId: string, title: string): void;
   archiveColumn(colId: string): void;
@@ -227,12 +229,35 @@ function renderCard(
   const progress = checklistProgress(card);
   if (progress.total > 0) {
     const complete = progress.done === progress.total;
-    const chk = el('span', 'card-badge card-check', `☑️ ${progress.done}/${progress.total}`);
+    // The badge doubles as a toggle that expands the checklists on the card
+    // front, so progress can be scanned without opening the detail view.
+    const chk = el('button', 'card-badge card-check', `☑️ ${progress.done}/${progress.total}`);
     if (complete) chk.classList.add('is-complete');
-    chk.title = t('checklist');
+    chk.title = t(card.checklistsOpen ? 'hideChecklist' : 'showChecklist');
+    chk.addEventListener('click', () => handlers.toggleCardChecklists(column.id, card.id));
     badges.appendChild(chk);
   }
   if (badges.children.length > 0) node.appendChild(badges);
+
+  // Expanded checklists inline on the card front; items toggle done in place.
+  if (card.checklistsOpen && progress.total > 0) {
+    const section = el('div', 'card-checklists');
+    for (const checklist of card.checklists) {
+      if (checklist.items.length === 0) continue;
+      if (checklist.name) {
+        section.appendChild(el('div', 'card-checklist-name', checklist.name));
+      }
+      for (const item of checklist.items) {
+        const row = el('button', 'card-check-item', `${item.done ? '☑' : '☐'} ${item.text}`);
+        if (item.done) row.classList.add('is-done');
+        row.addEventListener('click', () =>
+          handlers.toggleChecklistItem(column.id, card.id, checklist.id, item.id),
+        );
+        section.appendChild(row);
+      }
+    }
+    node.appendChild(section);
+  }
 
   const actions = el('div', 'card-actions');
   const openBtn = el('button', 'icon-btn', '🔍');

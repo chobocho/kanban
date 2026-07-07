@@ -223,6 +223,27 @@ test('a valid stored due date is preserved', () => {
   assertEqual(card.dueDone, true, 'dueDone kept');
 });
 
+test('checklistsOpen is kept when true and defaulted to false otherwise', () => {
+  const data = normalizeAppData({
+    boards: [
+      {
+        id: 'b1',
+        name: 'A',
+        columns: [
+          {
+            title: 'C',
+            cards: [{ text: 'x', checklistsOpen: true }, { text: 'y' }, { text: 'z', checklistsOpen: 'junk' }],
+          },
+        ],
+      },
+    ],
+  });
+  const [open, missing, junk] = data.boards[0].columns[0].cards;
+  assertEqual(open.checklistsOpen, true, 'true kept');
+  assertEqual(missing.checklistsOpen, false, 'missing defaults to false');
+  assertEqual(junk.checklistsOpen, false, 'junk value repaired to false');
+});
+
 test('start date is kept and defaulted when missing', () => {
   const data = normalizeAppData({
     boards: [

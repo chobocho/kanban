@@ -51,6 +51,8 @@ export interface Card {
   labelIds: string[];
   /** Checklists (each with its own items) shown on the card's back. */
   checklists: Checklist[];
+  /** Whether the checklists are expanded inline on the card's front. */
+  checklistsOpen: boolean;
   /** Comments (newest first) shown on the card's back. */
   comments: Comment[];
   /** Image attachments; the first one doubles as the card's cover. */

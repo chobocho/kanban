@@ -222,6 +222,23 @@ export class KanbanApp {
                 if (updateCard(board, colId, cardId, { color: next }))
                     this.commit();
             },
+            toggleCardChecklists: (colId, cardId) => {
+                const board = this.active();
+                if (!board)
+                    return;
+                const card = findCard(board, colId, cardId);
+                if (!card)
+                    return;
+                if (updateCard(board, colId, cardId, { checklistsOpen: !card.checklistsOpen })) {
+                    this.commit();
+                }
+            },
+            toggleChecklistItem: (colId, cardId, checklistId, itemId) => {
+                const board = this.active();
+                if (board && toggleChecklistItem(board, colId, cardId, checklistId, itemId)) {
+                    this.commit();
+                }
+            },
             openCard: (colId, cardId) => {
                 const board = this.active();
                 if (!board)

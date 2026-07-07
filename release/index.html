@@ -1429,9 +1429,56 @@ select.control {
   color: var(--text);
 }
 
+/* The ☑️ badge is a button (it toggles the inline checklist view). */
+button.card-check {
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
 .card-check.is-complete {
   background: #e3fcef;
   color: #006644;
+}
+
+/* Checklists expanded inline on the card front via the ☑️ badge. */
+.card-checklists {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 6px;
+}
+
+.card-checklist-name {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.6;
+  margin-top: 3px;
+}
+
+.card-check-item {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text);
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.card-check-item:hover {
+  background: var(--hover-bg);
+}
+
+.card-check-item.is-done {
+  text-decoration: line-through;
+  opacity: 0.55;
 }
 
 .card-due.is-overdue {
@@ -1860,6 +1907,23 @@ class KanbanApp {
                 const next = CARD_COLORS[(CARD_COLORS.indexOf(card.color) + 1) % CARD_COLORS.length];
                 if (updateCard(board, colId, cardId, { color: next }))
                     this.commit();
+            },
+            toggleCardChecklists: (colId, cardId) => {
+                const board = this.active();
+                if (!board)
+                    return;
+                const card = findCard(board, colId, cardId);
+                if (!card)
+                    return;
+                if (updateCard(board, colId, cardId, { checklistsOpen: !card.checklistsOpen })) {
+                    this.commit();
+                }
+            },
+            toggleChecklistItem: (colId, cardId, checklistId, itemId) => {
+                const board = this.active();
+                if (board && toggleChecklistItem(board, colId, cardId, checklistId, itemId)) {
+                    this.commit();
+                }
             },
             openCard: (colId, cardId) => {
                 const board = this.active();
@@ -2974,6 +3038,8 @@ const translations = {
         labelColorPrompt: '라벨 색상을 선택하세요',
         deleteLabelConfirm: '이 라벨을 삭제할까요? 모든 카드에서 제거됩니다.',
         checklist: '체크리스트',
+        showChecklist: '체크리스트 펼치기',
+        hideChecklist: '체크리스트 접기',
         addChecklistGroup: '체크리스트 추가',
         checklistNamePrompt: '체크리스트 이름을 입력하세요',
         deleteChecklistConfirm: '이 체크리스트를 삭제할까요? 항목이 모두 삭제됩니다.',
@@ -3103,6 +3169,8 @@ const translations = {
         labelColorPrompt: 'Pick a label color',
         deleteLabelConfirm: 'Delete this label? It will be removed from every card.',
         checklist: 'Checklist',
+        showChecklist: 'Show checklist',
+        hideChecklist: 'Hide checklist',
         addChecklistGroup: 'Add checklist',
         checklistNamePrompt: 'Enter a checklist name',
         deleteChecklistConfirm: 'Delete this checklist? All its items will be removed.',
@@ -4627,6 +4695,7 @@ function createCard(text) {
         description: '',
         labelIds: [],
         checklists: [],
+        checklistsOpen: false,
         comments: [],
         attachments: [],
         startAt: null,
@@ -4653,6 +4722,7 @@ function cloneCard(source) {
             name: c.name,
             items: c.items.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
         })),
+        checklistsOpen: source.checklistsOpen,
         comments: [],
         attachments: source.attachments.map((a) => ({
             id: makeId('att'),
@@ -4855,6 +4925,8 @@ function updateCard(board, columnId, cardId, patch) {
         card.color = patch.color;
     if (patch.isTemplate !== undefined)
         card.isTemplate = patch.isTemplate;
+    if (patch.checklistsOpen !== undefined)
+        card.checklistsOpen = patch.checklistsOpen;
     touch(board);
     return true;
 }
@@ -5437,6 +5509,7 @@ function normalizeCard(raw) {
         description: asString(obj.description, ''),
         labelIds,
         checklists: normalizeChecklists(obj),
+        checklistsOpen: obj.checklistsOpen === true,
         comments,
         attachments,
         startAt: asNullableNumber(obj.startAt),
@@ -5902,14 +5975,36 @@ function renderCard(card, column, labels, handlers) {
     const progress = checklistProgress(card);
     if (progress.total > 0) {
         const complete = progress.done === progress.total;
-        const chk = el('span', 'card-badge card-check', `☑️ ${progress.done}/${progress.total}`);
+        // The badge doubles as a toggle that expands the checklists on the card
+        // front, so progress can be scanned without opening the detail view.
+        const chk = el('button', 'card-badge card-check', `☑️ ${progress.done}/${progress.total}`);
         if (complete)
             chk.classList.add('is-complete');
-        chk.title = t('checklist');
+        chk.title = t(card.checklistsOpen ? 'hideChecklist' : 'showChecklist');
+        chk.addEventListener('click', () => handlers.toggleCardChecklists(column.id, card.id));
         badges.appendChild(chk);
     }
     if (badges.children.length > 0)
         node.appendChild(badges);
+    // Expanded checklists inline on the card front; items toggle done in place.
+    if (card.checklistsOpen && progress.total > 0) {
+        const section = el('div', 'card-checklists');
+        for (const checklist of card.checklists) {
+            if (checklist.items.length === 0)
+                continue;
+            if (checklist.name) {
+                section.appendChild(el('div', 'card-checklist-name', checklist.name));
+            }
+            for (const item of checklist.items) {
+                const row = el('button', 'card-check-item', `${item.done ? '☑' : '☐'} ${item.text}`);
+                if (item.done)
+                    row.classList.add('is-done');
+                row.addEventListener('click', () => handlers.toggleChecklistItem(column.id, card.id, checklist.id, item.id));
+                section.appendChild(row);
+            }
+        }
+        node.appendChild(section);
+    }
     const actions = el('div', 'card-actions');
     const openBtn = el('button', 'icon-btn', '🔍');
     openBtn.title = t('openCard');

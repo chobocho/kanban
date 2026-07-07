@@ -37,6 +37,7 @@ export function createCard(text: string): Card {
     description: '',
     labelIds: [],
     checklists: [],
+    checklistsOpen: false,
     comments: [],
     attachments: [],
     startAt: null,
@@ -64,6 +65,7 @@ function cloneCard(source: Card): Card {
       name: c.name,
       items: c.items.map((i) => ({ id: makeId('chk'), text: i.text, done: i.done })),
     })),
+    checklistsOpen: source.checklistsOpen,
     comments: [],
     attachments: source.attachments.map((a) => ({
       id: makeId('att'),
@@ -262,7 +264,10 @@ export function updateCard(
   columnId: string,
   cardId: string,
   patch: Partial<
-    Pick<Card, 'text' | 'description' | 'startAt' | 'dueAt' | 'dueDone' | 'color' | 'isTemplate'>
+    Pick<
+      Card,
+      'text' | 'description' | 'startAt' | 'dueAt' | 'dueDone' | 'color' | 'isTemplate' | 'checklistsOpen'
+    >
   >,
 ): boolean {
   const column = findColumn(board, columnId);
@@ -276,6 +281,7 @@ export function updateCard(
   if (patch.dueDone !== undefined) card.dueDone = patch.dueDone;
   if (patch.color !== undefined) card.color = patch.color;
   if (patch.isTemplate !== undefined) card.isTemplate = patch.isTemplate;
+  if (patch.checklistsOpen !== undefined) card.checklistsOpen = patch.checklistsOpen;
   touch(board);
   return true;
 }

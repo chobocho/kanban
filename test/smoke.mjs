@@ -175,6 +175,20 @@ try {
   const checkBadge = await page.locator('.column').nth(1).locator('.card-check').textContent();
   assert(checkBadge.includes('0/1'), `checklist badge shows progress (got "${checkBadge}")`);
 
+  // The badge toggles the checklist inline on the card front.
+  await page.locator('.column').nth(1).locator('.card-check').click();
+  await page.waitForTimeout(100);
+  const inlineItems = await page.locator('.column').nth(1).locator('.card-check-item').count();
+  assert(inlineItems === 1, `badge click expands the checklist on the card (got ${inlineItems})`);
+  await page.locator('.column').nth(1).locator('.card-check-item').first().click();
+  await page.waitForTimeout(100);
+  const badgeAfterDone = await page.locator('.column').nth(1).locator('.card-check').textContent();
+  assert(badgeAfterDone.includes('1/1'), `inline item click marks it done (got "${badgeAfterDone}")`);
+  await page.locator('.column').nth(1).locator('.card-check').click();
+  await page.waitForTimeout(100);
+  const collapsedItems = await page.locator('.column').nth(1).locator('.card-check-item').count();
+  assert(collapsedItems === 0, `badge click collapses the checklist again (got ${collapsedItems})`);
+
   // Reopen and confirm the start/due dates round-trip into the pickers.
   await detailCard.hover();
   await detailCard.locator('.icon-btn[title="Open card details"]').click();
