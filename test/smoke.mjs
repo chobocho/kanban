@@ -491,11 +491,18 @@ try {
   const attBadge = await commentCard.locator('.card-badge', { hasText: '📎' }).count();
   assert(attBadge === 1, `attachment badge appears on the card (got ${attBadge})`);
 
-  // Label management: create a label (name + color), then delete it again.
+  // Label management: rows with edit buttons appear only in manage mode.
   await commentCard.hover();
   await commentCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
+  assert(
+    (await page.locator('.card-detail-label-row').count()) === 0,
+    'compact label view shows chips without edit rows',
+  );
+  await page.locator('.card-detail-label-manage').click();
+  await page.waitForTimeout(100);
   const labelRows = await page.locator('.card-detail-label-row').count();
+  assert(labelRows > 0, `manage mode lists label rows (got ${labelRows})`);
   await page.locator('.card-detail-label-add').click();
   await page.waitForTimeout(100);
   await page.locator('.modal-overlay').last().locator('.modal-input').fill('Urgent');

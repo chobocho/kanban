@@ -962,6 +962,8 @@ select.control {
   padding: 6px 8px;
   border: 1px solid transparent;
   border-radius: 6px;
+  background: transparent;
+  color: var(--text);
 }
 
 .checklist-item-text:hover {
@@ -971,6 +973,31 @@ select.control {
 .checklist-item-text:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+/* Reorder/delete controls stay dimmed until the row is hovered or focused,
+   so a long checklist reads as plain text instead of a wall of buttons. */
+.checklist-item-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0.25;
+  transition: opacity 0.12s;
+}
+
+.checklist-item:hover .checklist-item-tools,
+.checklist-item:focus-within .checklist-item-tools {
+  opacity: 1;
+}
+
+.checklist-group-header .checklist-item-del {
+  opacity: 0.25;
+  transition: opacity 0.12s;
+}
+
+.checklist-group-header:hover .checklist-item-del,
+.checklist-group-header:focus-within .checklist-item-del {
+  opacity: 1;
 }
 
 .checklist-item-text.is-done {
@@ -1037,6 +1064,7 @@ select.control {
 /* Soft (neutral) buttons in the card detail modal: add-label/file/checklist
    and the copy/move/template actions. */
 .card-detail-label-add,
+.card-detail-label-manage,
 .attachment-add-btn,
 .checklist-group-add,
 .card-detail-op-btn {
@@ -1051,6 +1079,7 @@ select.control {
 }
 
 .card-detail-label-add:hover,
+.card-detail-label-manage:hover,
 .attachment-add-btn:hover,
 .checklist-group-add:hover,
 .card-detail-op-btn:hover {
@@ -1621,11 +1650,18 @@ html[data-theme='dark'] .calendar-day-num.is-sat {
   text-overflow: ellipsis;
 }
 
-/* Label rows inside the card detail modal. */
+/* Labels inside the card detail modal: a compact wrapping chip row by
+   default; the manage toggle switches to stacked rows with edit buttons. */
 .card-detail-labels {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
+}
+
+.card-detail-labels.is-managing {
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .card-detail-label-row {
@@ -1635,9 +1671,9 @@ html[data-theme='dark'] .calendar-day-num.is-sat {
 }
 
 .card-detail-label-chip {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 32px;
-  padding: 0 10px;
+  padding: 0 12px;
   border: none;
   border-radius: 6px;
   color: #fff;
@@ -1646,6 +1682,11 @@ html[data-theme='dark'] .calendar-day-num.is-sat {
   text-align: left;
   cursor: pointer;
   opacity: 0.85;
+}
+
+/* In manage rows the chip stretches so the edit buttons line up. */
+.card-detail-label-row .card-detail-label-chip {
+  flex: 1 1 auto;
 }
 
 .card-detail-label-chip.is-on {
@@ -1764,6 +1805,21 @@ button.card-check {
 }
 
 /* Due-date controls inside the card detail modal. */
+/* Start/due date blocks side by side (stacked on narrow screens). */
+.card-detail-dates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px 12px;
+  margin-top: 14px;
+}
+
+.card-detail-sublabel {
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 .card-detail-due {
   display: flex;
   flex-wrap: wrap;

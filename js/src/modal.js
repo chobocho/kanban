@@ -253,76 +253,88 @@ export function openCardDetail(init, cb) {
         title.type = 'text';
         title.value = init.text;
         dialog.appendChild(title);
-        // --- Labels: toggle assignment by clicking a chip, rename via ✏️. ---
+        // --- Labels: a compact chip row (click = assign/unassign). Rename,
+        // recolor and delete live behind a small manage toggle so the default
+        // view stays clean.
         addLabel(t('labels'));
         const labelList = document.createElement('div');
         labelList.className = 'card-detail-labels';
         dialog.appendChild(labelList);
         const assigned = new Set(init.assignedLabelIds);
-        const renderLabels = () => {
-            labelList.replaceChildren();
-            for (const label of init.labels) {
-                const row = document.createElement('div');
-                row.className = 'card-detail-label-row';
-                const chip = document.createElement('button');
-                chip.className = 'card-detail-label-chip';
-                chip.style.background = label.color;
-                const on = assigned.has(label.id);
-                if (on)
-                    chip.classList.add('is-on');
-                chip.textContent = (on ? '✓ ' : '') + (label.name || '');
-                chip.addEventListener('click', () => {
-                    if (assigned.has(label.id))
-                        assigned.delete(label.id);
-                    else
-                        assigned.add(label.id);
-                    cb.onToggleLabel(label.id);
+        let managingLabels = false;
+        const buildAssignChip = (label) => {
+            const chip = document.createElement('button');
+            chip.className = 'card-detail-label-chip';
+            chip.style.background = label.color;
+            const on = assigned.has(label.id);
+            if (on)
+                chip.classList.add('is-on');
+            chip.textContent = (on ? '✓ ' : '') + (label.name || '');
+            chip.addEventListener('click', () => {
+                if (assigned.has(label.id))
+                    assigned.delete(label.id);
+                else
+                    assigned.add(label.id);
+                cb.onToggleLabel(label.id);
+                renderLabels();
+            });
+            return chip;
+        };
+        // One manage-mode row: the assign chip plus rename/recolor/delete.
+        const buildManageRow = (label) => {
+            const row = document.createElement('div');
+            row.className = 'card-detail-label-row';
+            const rename = document.createElement('button');
+            rename.className = 'card-detail-label-edit';
+            rename.textContent = '✏️';
+            rename.title = t('rename');
+            rename.addEventListener('click', () => {
+                void customPrompt(t('labelNamePrompt'), label.name).then((name) => {
+                    if (name === null)
+                        return;
+                    cb.onRenameLabel(label.id, name); // mutates the shared label object
                     renderLabels();
                 });
-                const rename = document.createElement('button');
-                rename.className = 'card-detail-label-edit';
-                rename.textContent = '✏️';
-                rename.title = t('rename');
-                rename.addEventListener('click', () => {
-                    void customPrompt(t('labelNamePrompt'), label.name).then((name) => {
-                        if (name === null)
-                            return;
-                        cb.onRenameLabel(label.id, name); // mutates the shared label object
-                        renderLabels();
-                    });
+            });
+            const recolor = document.createElement('button');
+            recolor.className = 'card-detail-label-edit';
+            recolor.textContent = '🎨';
+            recolor.title = t('color');
+            recolor.addEventListener('click', () => {
+                void openColorPicker(t('labelColorPrompt'), init.labelColors, label.color).then((color) => {
+                    if (color === null)
+                        return;
+                    cb.onRecolorLabel(label.id, color);
+                    renderLabels();
                 });
-                const recolor = document.createElement('button');
-                recolor.className = 'card-detail-label-edit';
-                recolor.textContent = '🎨';
-                recolor.title = t('color');
-                recolor.addEventListener('click', () => {
-                    void openColorPicker(t('labelColorPrompt'), init.labelColors, label.color).then((color) => {
-                        if (color === null)
-                            return;
-                        cb.onRecolorLabel(label.id, color);
-                        renderLabels();
-                    });
+            });
+            const remove = document.createElement('button');
+            remove.className = 'card-detail-label-edit';
+            remove.textContent = '🗑️';
+            remove.title = t('delete');
+            remove.addEventListener('click', () => {
+                void customConfirm(t('deleteLabelConfirm')).then((ok) => {
+                    if (!ok)
+                        return;
+                    assigned.delete(label.id);
+                    cb.onRemoveLabel(label.id);
+                    renderLabels();
                 });
-                const remove = document.createElement('button');
-                remove.className = 'card-detail-label-edit';
-                remove.textContent = '🗑️';
-                remove.title = t('delete');
-                remove.addEventListener('click', () => {
-                    void customConfirm(t('deleteLabelConfirm')).then((ok) => {
-                        if (!ok)
-                            return;
-                        assigned.delete(label.id);
-                        cb.onRemoveLabel(label.id);
-                        renderLabels();
-                    });
-                });
-                row.append(chip, rename, recolor, remove);
-                labelList.appendChild(row);
+            });
+            row.append(buildAssignChip(label), rename, recolor, remove);
+            return row;
+        };
+        const renderLabels = () => {
+            labelList.replaceChildren();
+            labelList.classList.toggle('is-managing', managingLabels);
+            for (const label of init.labels) {
+                labelList.appendChild(managingLabels ? buildManageRow(label) : buildAssignChip(label));
             }
             // Create a new label: ask for a name, then a color from the palette.
             const add = document.createElement('button');
             add.className = 'card-detail-label-add';
-            add.textContent = `➕ ${t('addLabelBtn')}`;
+            add.textContent = managingLabels ? `➕ ${t('addLabelBtn')}` : '➕';
+            add.title = t('addLabelBtn');
             add.addEventListener('click', () => {
                 void customPrompt(t('labelNamePrompt')).then((name) => {
                     if (name === null)
@@ -335,11 +347,33 @@ export function openCardDetail(init, cb) {
                     });
                 });
             });
-            labelList.appendChild(add);
+            const manage = document.createElement('button');
+            manage.className = 'card-detail-label-manage';
+            manage.textContent = managingLabels ? `✅ ${t('close')}` : '✏️';
+            manage.title = t('manageLabels');
+            manage.addEventListener('click', () => {
+                managingLabels = !managingLabels;
+                renderLabels();
+            });
+            labelList.append(add, manage);
         };
         renderLabels();
-        // --- Start date: a datetime picker with a clear button. ---
-        addLabel(t('startDate'));
+        // --- Dates: start and due side by side (stacked on narrow screens). ---
+        const dates = document.createElement('div');
+        dates.className = 'card-detail-dates';
+        dialog.appendChild(dates);
+        const dateBlock = (labelKey) => {
+            const block = document.createElement('div');
+            block.className = 'card-detail-date-block';
+            const lbl = document.createElement('div');
+            lbl.className = 'card-detail-sublabel';
+            lbl.textContent = t(labelKey);
+            block.appendChild(lbl);
+            dates.appendChild(block);
+            return block;
+        };
+        // Start date: a datetime picker with a clear button.
+        const startBlock = dateBlock('startDate');
         const startRow = document.createElement('div');
         startRow.className = 'card-detail-due';
         const startInput = document.createElement('input');
@@ -355,9 +389,9 @@ export function openCardDetail(init, cb) {
             startInput.value = '';
         });
         startRow.append(startInput, startClear);
-        dialog.appendChild(startRow);
-        // --- Due date: a datetime picker, a "done" toggle and a clear button. ---
-        addLabel(t('dueDate'));
+        startBlock.appendChild(startRow);
+        // Due date: a datetime picker, a "done" toggle and a clear button.
+        const dueBlock = dateBlock('dueDate');
         const dueRow = document.createElement('div');
         dueRow.className = 'card-detail-due';
         const dueInput = document.createElement('input');
@@ -380,7 +414,7 @@ export function openCardDetail(init, cb) {
             doneCheck.checked = false;
         });
         dueRow.append(dueInput, doneLabel, clearBtn);
-        dialog.appendChild(dueRow);
+        dueBlock.appendChild(dueRow);
         addLabel(t('description'));
         const desc = document.createElement('textarea');
         desc.className = 'card-detail-desc';
@@ -494,7 +528,11 @@ export function openCardDetail(init, cb) {
                     cb.onRemoveChecklistItem(checklist.id, item.id);
                     rerender();
                 });
-                row.append(check, text, moveBtn('🔼', 'moveUp', -1), moveBtn('🔽', 'moveDown', 1), del);
+                // Reorder/delete controls are dimmed until the row is hovered/focused.
+                const tools = document.createElement('span');
+                tools.className = 'checklist-item-tools';
+                tools.append(moveBtn('🔼', 'moveUp', -1), moveBtn('🔽', 'moveDown', 1), del);
+                row.append(check, text, tools);
                 box.appendChild(row);
             });
             const addRow = document.createElement('div');
