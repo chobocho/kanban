@@ -152,10 +152,38 @@ export function buildMonthGrid(year: number, month: number): CalendarCell[] {
   return cells;
 }
 
+/** Build the 7 day cells of the Sunday-first week containing the timestamp. */
+export function buildWeekGrid(ts: number): CalendarCell[] {
+  const d = new Date(ts);
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay());
+  const cells: CalendarCell[] = [];
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    // Every cell of a week view is part of the view, unlike month padding days.
+    cells.push({ ts: day.getTime(), key: dayKey(day.getTime()), day: day.getDate(), inMonth: true });
+  }
+  return cells;
+}
+
 /** Localized title for a month view, e.g. "2026년 7월" / "July 2026". */
 function monthTitle(year: number, month: number): string {
   const names = t('monthNames').split(',');
   return tf('monthTitle', [String(year), names[month] ?? '']);
+}
+
+/** Localized "year month day" label, e.g. "2026년 7월 5일" / "July 5, 2026". */
+function monthDayLong(d: Date): string {
+  const names = t('monthNames').split(',');
+  return tf('monthDayLong', [String(d.getFullYear()), names[d.getMonth()] ?? '', String(d.getDate())]);
+}
+
+/**
+ * Localized title for the week containing the timestamp, spelled out as a full
+ * first-day ~ last-day range so month/year boundaries stay unambiguous.
+ */
+export function weekTitle(ts: number): string {
+  const cells = buildWeekGrid(ts);
+  return `${monthDayLong(new Date(cells[0].ts))} ~ ${monthDayLong(new Date(cells[6].ts))}`;
 }
 
 /**
@@ -173,8 +201,9 @@ export function openCalendar(
 
     const now = new Date();
     const todayKey = dayKey(now.getTime());
-    let year = now.getFullYear();
-    let month = now.getMonth();
+    /** Month or week granularity; the anchor day selects which one is shown. */
+    let mode: 'month' | 'week' = 'month';
+    let anchor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     const byDay = buildDayEntries(boards);
     // With a single board the board name on every chip would be noise.
@@ -202,7 +231,26 @@ export function openCalendar(
     const title = document.createElement('div');
     title.className = 'calendar-title';
 
-    head.append(prevBtn, title, nextBtn, todayBtn);
+    // --- Month/week granularity toggle. ---
+    const modeToggle = document.createElement('div');
+    modeToggle.className = 'calendar-mode-toggle';
+    const makeModeBtn = (target: 'month' | 'week', labelKey: string): HTMLButtonElement => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `calendar-mode-btn calendar-mode-${target}`;
+      btn.textContent = t(labelKey);
+      btn.addEventListener('click', () => {
+        if (mode === target) return;
+        mode = target;
+        render();
+      });
+      return btn;
+    };
+    const monthModeBtn = makeModeBtn('month', 'monthView');
+    const weekModeBtn = makeModeBtn('week', 'weekView');
+    modeToggle.append(monthModeBtn, weekModeBtn);
+
+    head.append(prevBtn, title, nextBtn, todayBtn, modeToggle);
     dialog.appendChild(head);
 
     const grid = document.createElement('div');
@@ -265,7 +313,13 @@ export function openCalendar(
     };
 
     const render = (): void => {
-      title.textContent = monthTitle(year, month);
+      const isWeek = mode === 'week';
+      title.textContent = isWeek
+        ? weekTitle(anchor.getTime())
+        : monthTitle(anchor.getFullYear(), anchor.getMonth());
+      monthModeBtn.classList.toggle('is-active', !isWeek);
+      weekModeBtn.classList.toggle('is-active', isWeek);
+      grid.classList.toggle('is-week', isWeek);
       grid.replaceChildren();
 
       for (const name of t('weekdaysShort').split(',')) {
@@ -275,8 +329,11 @@ export function openCalendar(
         grid.appendChild(headCell);
       }
 
-      let monthHasEvents = false;
-      for (const cell of buildMonthGrid(year, month)) {
+      const cells = isWeek
+        ? buildWeekGrid(anchor.getTime())
+        : buildMonthGrid(anchor.getFullYear(), anchor.getMonth());
+      let viewHasEvents = false;
+      for (const cell of cells) {
         const cellEl = document.createElement('div');
         cellEl.className = 'calendar-cell';
         if (!cell.inMonth) cellEl.classList.add('is-outside');
@@ -284,29 +341,33 @@ export function openCalendar(
 
         const num = document.createElement('div');
         num.className = 'calendar-day-num';
-        num.textContent = String(cell.day);
+        // A week can straddle two months, so week cells carry the month too.
+        num.textContent = isWeek
+          ? `${new Date(cell.ts).getMonth() + 1}/${cell.day}`
+          : String(cell.day);
         cellEl.appendChild(num);
 
         for (const entry of byDay.get(cell.key) ?? []) {
-          if (cell.inMonth) monthHasEvents = true;
+          if (cell.inMonth) viewHasEvents = true;
           cellEl.appendChild(renderEntry(entry));
         }
         grid.appendChild(cellEl);
       }
-      emptyNote.hidden = monthHasEvents;
+      emptyNote.hidden = viewHasEvents;
     };
 
-    const shiftMonth = (delta: number): void => {
-      const shifted = new Date(year, month + delta, 1);
-      year = shifted.getFullYear();
-      month = shifted.getMonth();
+    // Previous/next moves by one month or one week, matching the mode.
+    const shift = (delta: number): void => {
+      anchor =
+        mode === 'month'
+          ? new Date(anchor.getFullYear(), anchor.getMonth() + delta, 1)
+          : new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + delta * 7);
       render();
     };
-    prevBtn.addEventListener('click', () => shiftMonth(-1));
-    nextBtn.addEventListener('click', () => shiftMonth(1));
+    prevBtn.addEventListener('click', () => shift(-1));
+    nextBtn.addEventListener('click', () => shift(1));
     todayBtn.addEventListener('click', () => {
-      year = now.getFullYear();
-      month = now.getMonth();
+      anchor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       render();
     });
 

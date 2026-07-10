@@ -1336,7 +1336,36 @@ select.control {
 .calendar-head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Month/week segmented toggle. */
+.calendar-mode-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.calendar-mode-btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border: none;
+  background: var(--soft-bg);
+  color: var(--text);
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.calendar-mode-btn:hover {
+  background: var(--hover-bg);
+}
+
+.calendar-mode-btn.is-active {
+  background: var(--accent);
+  color: #fff;
 }
 
 .calendar-title {
@@ -1393,6 +1422,11 @@ select.control {
 .calendar-cell.is-outside {
   opacity: 0.45;
   background: transparent;
+}
+
+/* Week mode: a single row of tall cells with room for more entries. */
+.calendar-grid.is-week .calendar-cell {
+  min-height: 220px;
 }
 
 .calendar-cell.is-today {

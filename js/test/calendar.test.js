@@ -1,6 +1,7 @@
 // Unit tests for the pure calendar-view logic in src/calendar.ts.
 import { test, assert, assertEqual } from './harness.js';
-import { buildDayEntries, buildMonthGrid, dayKey } from '../src/calendar.js';
+import { buildDayEntries, buildMonthGrid, buildWeekGrid, dayKey, weekTitle } from '../src/calendar.js';
+import { setLanguage } from '../src/i18n.js';
 /** Build a card with sane defaults, overridden by the patch. */
 function card(patch) {
     return {
@@ -63,6 +64,27 @@ test('buildMonthGrid handles February and out-of-range month rollover', () => {
     const rolled = buildMonthGrid(2026, 12);
     const jan = buildMonthGrid(2027, 0);
     assertEqual(rolled[0].key, jan[0].key, 'month 12 equals January of the next year');
+});
+test('buildWeekGrid returns the Sunday-first week containing the day', () => {
+    const cells = buildWeekGrid(new Date(2026, 6, 10).getTime()); // Friday, July 10 2026
+    assertEqual(cells.length, 7, 'a week has 7 cells');
+    assertEqual(new Date(cells[0].ts).getDay(), 0, 'week starts on Sunday');
+    assertEqual(cells[0].key, '2026-07-05', 'first cell is the preceding Sunday');
+    assertEqual(cells[6].key, '2026-07-11', 'last cell is the following Saturday');
+    assert(cells.every((c) => c.inMonth), 'every week cell counts as in view');
+});
+test('buildWeekGrid spans month boundaries', () => {
+    const cells = buildWeekGrid(new Date(2026, 6, 1).getTime()); // Wednesday, July 1 2026
+    assertEqual(cells[0].key, '2026-06-28', 'week reaches back into June');
+    assertEqual(cells[6].key, '2026-07-04', 'week ends in July');
+});
+test('weekTitle localizes the week range', () => {
+    const ts = new Date(2026, 6, 10).getTime();
+    setLanguage('ko');
+    assertEqual(weekTitle(ts), '2026년 7월 5일 ~ 2026년 7월 11일', 'Korean week title');
+    setLanguage('en');
+    assertEqual(weekTitle(ts), 'July 5, 2026 ~ July 11, 2026', 'English week title');
+    setLanguage('ko'); // restore the default for other tests
 });
 test('buildDayEntries turns start-only and due-only cards into point entries', () => {
     const start = new Date(2026, 6, 3, 9, 0).getTime();

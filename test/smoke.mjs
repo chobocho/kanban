@@ -219,6 +219,23 @@ try {
   const calTitleBack = await page.locator('.calendar-title').textContent();
   assert(calTitleBack === calTitleStart, `today returns to the current month (got "${calTitleBack}")`);
 
+  // Week view: exactly 7 tall cells, week-by-week navigation, then back.
+  await page.locator('.calendar-mode-week').click();
+  const weekCells = await page.locator('.calendar-grid.is-week .calendar-cell').count();
+  assert(weekCells === 7, `week view shows exactly 7 day cells (got ${weekCells})`);
+  const weekTodayCells = await page.locator('.calendar-cell.is-today').count();
+  assert(weekTodayCells === 1, `week view highlights today (got ${weekTodayCells})`);
+  const weekTitle1 = await page.locator('.calendar-title').textContent();
+  await page.locator('.calendar-nav-next').click();
+  const weekTitle2 = await page.locator('.calendar-title').textContent();
+  assert(weekTitle2 !== weekTitle1, `next moves by one week (got "${weekTitle2}")`);
+  await page.locator('.calendar-nav-today').click();
+  const weekTitle3 = await page.locator('.calendar-title').textContent();
+  assert(weekTitle3 === weekTitle1, `today returns to the current week (got "${weekTitle3}")`);
+  await page.locator('.calendar-mode-month').click();
+  const monthTitleBack = await page.locator('.calendar-title').textContent();
+  assert(monthTitleBack === calTitleStart, `month toggle restores the month view (got "${monthTitleBack}")`);
+
   // Walk forward to the card's start/due month; its chip opens the card detail.
   let calEvents = 0;
   for (let i = 0; i < 80 && calEvents === 0; i++) {

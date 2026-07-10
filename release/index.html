@@ -1343,7 +1343,36 @@ select.control {
 .calendar-head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Month/week segmented toggle. */
+.calendar-mode-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.calendar-mode-btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border: none;
+  background: var(--soft-bg);
+  color: var(--text);
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.calendar-mode-btn:hover {
+  background: var(--hover-bg);
+}
+
+.calendar-mode-btn.is-active {
+  background: var(--accent);
+  color: #fff;
 }
 
 .calendar-title {
@@ -1400,6 +1429,11 @@ select.control {
 .calendar-cell.is-outside {
   opacity: 0.45;
   background: transparent;
+}
+
+/* Week mode: a single row of tall cells with room for more entries. */
+.calendar-grid.is-week .calendar-cell {
+  min-height: 220px;
 }
 
 .calendar-cell.is-today {
@@ -2912,10 +2946,35 @@ function buildMonthGrid(year, month) {
     }
     return cells;
 }
+/** Build the 7 day cells of the Sunday-first week containing the timestamp. */
+function buildWeekGrid(ts) {
+    const d = new Date(ts);
+    const start = new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay());
+    const cells = [];
+    for (let i = 0; i < 7; i++) {
+        const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+        // Every cell of a week view is part of the view, unlike month padding days.
+        cells.push({ ts: day.getTime(), key: dayKey(day.getTime()), day: day.getDate(), inMonth: true });
+    }
+    return cells;
+}
 /** Localized title for a month view, e.g. "2026년 7월" / "July 2026". */
 function monthTitle(year, month) {
     const names = t('monthNames').split(',');
     return tf('monthTitle', [String(year), names[month] ?? '']);
+}
+/** Localized "year month day" label, e.g. "2026년 7월 5일" / "July 5, 2026". */
+function monthDayLong(d) {
+    const names = t('monthNames').split(',');
+    return tf('monthDayLong', [String(d.getFullYear()), names[d.getMonth()] ?? '', String(d.getDate())]);
+}
+/**
+ * Localized title for the week containing the timestamp, spelled out as a full
+ * first-day ~ last-day range so month/year boundaries stay unambiguous.
+ */
+function weekTitle(ts) {
+    const cells = buildWeekGrid(ts);
+    return `${monthDayLong(new Date(cells[0].ts))} ~ ${monthDayLong(new Date(cells[6].ts))}`;
 }
 /**
  * Open the all-boards calendar: a month grid where each cell lists the cards
@@ -2928,8 +2987,9 @@ function openCalendar(boards, onOpenCard) {
         const { dialog, close } = openShell('calendar-view', () => resolve());
         const now = new Date();
         const todayKey = dayKey(now.getTime());
-        let year = now.getFullYear();
-        let month = now.getMonth();
+        /** Month or week granularity; the anchor day selects which one is shown. */
+        let mode = 'month';
+        let anchor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
         const byDay = buildDayEntries(boards);
         // With a single board the board name on every chip would be noise.
         const showBoardName = boards.length > 1;
@@ -2952,7 +3012,26 @@ function openCalendar(boards, onOpenCard) {
         todayBtn.textContent = t('calendarToday');
         const title = document.createElement('div');
         title.className = 'calendar-title';
-        head.append(prevBtn, title, nextBtn, todayBtn);
+        // --- Month/week granularity toggle. ---
+        const modeToggle = document.createElement('div');
+        modeToggle.className = 'calendar-mode-toggle';
+        const makeModeBtn = (target, labelKey) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `calendar-mode-btn calendar-mode-${target}`;
+            btn.textContent = t(labelKey);
+            btn.addEventListener('click', () => {
+                if (mode === target)
+                    return;
+                mode = target;
+                render();
+            });
+            return btn;
+        };
+        const monthModeBtn = makeModeBtn('month', 'monthView');
+        const weekModeBtn = makeModeBtn('week', 'weekView');
+        modeToggle.append(monthModeBtn, weekModeBtn);
+        head.append(prevBtn, title, nextBtn, todayBtn, modeToggle);
         dialog.appendChild(head);
         const grid = document.createElement('div');
         grid.className = 'calendar-grid';
@@ -3014,7 +3093,13 @@ function openCalendar(boards, onOpenCard) {
             return chip;
         };
         const render = () => {
-            title.textContent = monthTitle(year, month);
+            const isWeek = mode === 'week';
+            title.textContent = isWeek
+                ? weekTitle(anchor.getTime())
+                : monthTitle(anchor.getFullYear(), anchor.getMonth());
+            monthModeBtn.classList.toggle('is-active', !isWeek);
+            weekModeBtn.classList.toggle('is-active', isWeek);
+            grid.classList.toggle('is-week', isWeek);
             grid.replaceChildren();
             for (const name of t('weekdaysShort').split(',')) {
                 const headCell = document.createElement('div');
@@ -3022,8 +3107,11 @@ function openCalendar(boards, onOpenCard) {
                 headCell.textContent = name;
                 grid.appendChild(headCell);
             }
-            let monthHasEvents = false;
-            for (const cell of buildMonthGrid(year, month)) {
+            const cells = isWeek
+                ? buildWeekGrid(anchor.getTime())
+                : buildMonthGrid(anchor.getFullYear(), anchor.getMonth());
+            let viewHasEvents = false;
+            for (const cell of cells) {
                 const cellEl = document.createElement('div');
                 cellEl.className = 'calendar-cell';
                 if (!cell.inMonth)
@@ -3032,28 +3120,32 @@ function openCalendar(boards, onOpenCard) {
                     cellEl.classList.add('is-today');
                 const num = document.createElement('div');
                 num.className = 'calendar-day-num';
-                num.textContent = String(cell.day);
+                // A week can straddle two months, so week cells carry the month too.
+                num.textContent = isWeek
+                    ? `${new Date(cell.ts).getMonth() + 1}/${cell.day}`
+                    : String(cell.day);
                 cellEl.appendChild(num);
                 for (const entry of byDay.get(cell.key) ?? []) {
                     if (cell.inMonth)
-                        monthHasEvents = true;
+                        viewHasEvents = true;
                     cellEl.appendChild(renderEntry(entry));
                 }
                 grid.appendChild(cellEl);
             }
-            emptyNote.hidden = monthHasEvents;
+            emptyNote.hidden = viewHasEvents;
         };
-        const shiftMonth = (delta) => {
-            const shifted = new Date(year, month + delta, 1);
-            year = shifted.getFullYear();
-            month = shifted.getMonth();
+        // Previous/next moves by one month or one week, matching the mode.
+        const shift = (delta) => {
+            anchor =
+                mode === 'month'
+                    ? new Date(anchor.getFullYear(), anchor.getMonth() + delta, 1)
+                    : new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + delta * 7);
             render();
         };
-        prevBtn.addEventListener('click', () => shiftMonth(-1));
-        nextBtn.addEventListener('click', () => shiftMonth(1));
+        prevBtn.addEventListener('click', () => shift(-1));
+        nextBtn.addEventListener('click', () => shift(1));
         todayBtn.addEventListener('click', () => {
-            year = now.getFullYear();
-            month = now.getMonth();
+            anchor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             render();
         });
         const actions = document.createElement('div');
@@ -3072,6 +3164,8 @@ function openCalendar(boards, onOpenCard) {
 __exports.dayKey = dayKey;
 __exports.buildDayEntries = buildDayEntries;
 __exports.buildMonthGrid = buildMonthGrid;
+__exports.buildWeekGrid = buildWeekGrid;
+__exports.weekTitle = weekTitle;
 __exports.openCalendar = openCalendar;
 
 };
@@ -3563,8 +3657,11 @@ const translations = {
         calendarToday: '오늘',
         prevMonth: '이전 달',
         nextMonth: '다음 달',
-        calendarEmpty: '이 달에는 시작일·마감일이 있는 카드가 없습니다',
+        calendarEmpty: '이 기간에는 시작일·마감일이 있는 카드가 없습니다',
         calendarPeriod: '기간',
+        monthView: '월간',
+        weekView: '주간',
+        monthDayLong: '{0}년 {1} {2}일',
         weekdaysShort: '일,월,화,수,목,금,토',
         monthNames: '1월,2월,3월,4월,5월,6월,7월,8월,9월,10월,11월,12월',
         monthTitle: '{0}년 {1}',
@@ -3703,8 +3800,11 @@ const translations = {
         calendarToday: 'Today',
         prevMonth: 'Previous month',
         nextMonth: 'Next month',
-        calendarEmpty: 'No cards with a start or due date this month',
+        calendarEmpty: 'No cards with a start or due date in this period',
         calendarPeriod: 'Duration',
+        monthView: 'Month',
+        weekView: 'Week',
+        monthDayLong: '{1} {2}, {0}',
         weekdaysShort: 'Sun,Mon,Tue,Wed,Thu,Fri,Sat',
         monthNames: 'January,February,March,April,May,June,July,August,September,October,November,December',
         monthTitle: '{1} {0}',
