@@ -322,12 +322,17 @@ export function openCalendar(
       grid.classList.toggle('is-week', isWeek);
       grid.replaceChildren();
 
-      for (const name of t('weekdaysShort').split(',')) {
-        const headCell = document.createElement('div');
-        headCell.className = 'calendar-weekday';
-        headCell.textContent = name;
-        grid.appendChild(headCell);
-      }
+      t('weekdaysShort')
+        .split(',')
+        .forEach((name, day) => {
+          const headCell = document.createElement('div');
+          headCell.className = 'calendar-weekday';
+          // Weekend accents: Sunday red, Saturday blue (Korean calendar style).
+          if (day === 0) headCell.classList.add('is-sun');
+          else if (day === 6) headCell.classList.add('is-sat');
+          headCell.textContent = name;
+          grid.appendChild(headCell);
+        });
 
       const cells = isWeek
         ? buildWeekGrid(anchor.getTime())
@@ -341,6 +346,10 @@ export function openCalendar(
 
         const num = document.createElement('div');
         num.className = 'calendar-day-num';
+        // Weekend accents: Sunday red, Saturday blue (Korean calendar style).
+        const weekday = new Date(cell.ts).getDay();
+        if (weekday === 0) num.classList.add('is-sun');
+        else if (weekday === 6) num.classList.add('is-sat');
         // A week can straddle two months, so week cells carry the month too.
         num.textContent = isWeek
           ? `${new Date(cell.ts).getMonth() + 1}/${cell.day}`

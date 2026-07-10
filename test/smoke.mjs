@@ -210,6 +210,17 @@ try {
   const todayCells = await page.locator('.calendar-cell.is-today').count();
   assert(todayCells === 1, `calendar highlights today (got ${todayCells})`);
 
+  // Weekend accents: Sunday/Saturday headers and one day number per week.
+  const sunHead = await page.locator('.calendar-weekday.is-sun').count();
+  const satHead = await page.locator('.calendar-weekday.is-sat').count();
+  assert(sunHead === 1 && satHead === 1, `weekend headers are accented (got ${sunHead}/${satHead})`);
+  const sunNums = await page.locator('.calendar-day-num.is-sun').count();
+  const satNums = await page.locator('.calendar-day-num.is-sat').count();
+  assert(
+    sunNums === dayCells / 7 && satNums === dayCells / 7,
+    `weekend day numbers are accented once per week (got ${sunNums}/${satNums})`,
+  );
+
   // Month navigation: prev changes the title, today returns to the start.
   const calTitleStart = await page.locator('.calendar-title').textContent();
   await page.locator('.calendar-nav-prev').click();

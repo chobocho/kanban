@@ -1407,6 +1407,28 @@ select.control {
   padding: 2px 0;
 }
 
+/* Weekend accents (weekday headers and day numbers): Sunday red, Saturday
+   blue, with lighter shades in the dark theme for contrast. */
+.calendar-weekday.is-sun,
+.calendar-day-num.is-sun {
+  color: #d93025;
+}
+
+.calendar-weekday.is-sat,
+.calendar-day-num.is-sat {
+  color: #1a73e8;
+}
+
+html[data-theme='dark'] .calendar-weekday.is-sun,
+html[data-theme='dark'] .calendar-day-num.is-sun {
+  color: #ff7b6e;
+}
+
+html[data-theme='dark'] .calendar-weekday.is-sat,
+html[data-theme='dark'] .calendar-day-num.is-sat {
+  color: #7cb2ff;
+}
+
 .calendar-cell {
   min-height: 68px;
   padding: 4px;

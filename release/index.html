@@ -1414,6 +1414,28 @@ select.control {
   padding: 2px 0;
 }
 
+/* Weekend accents (weekday headers and day numbers): Sunday red, Saturday
+   blue, with lighter shades in the dark theme for contrast. */
+.calendar-weekday.is-sun,
+.calendar-day-num.is-sun {
+  color: #d93025;
+}
+
+.calendar-weekday.is-sat,
+.calendar-day-num.is-sat {
+  color: #1a73e8;
+}
+
+html[data-theme='dark'] .calendar-weekday.is-sun,
+html[data-theme='dark'] .calendar-day-num.is-sun {
+  color: #ff7b6e;
+}
+
+html[data-theme='dark'] .calendar-weekday.is-sat,
+html[data-theme='dark'] .calendar-day-num.is-sat {
+  color: #7cb2ff;
+}
+
 .calendar-cell {
   min-height: 68px;
   padding: 4px;
@@ -3101,12 +3123,19 @@ function openCalendar(boards, onOpenCard) {
             weekModeBtn.classList.toggle('is-active', isWeek);
             grid.classList.toggle('is-week', isWeek);
             grid.replaceChildren();
-            for (const name of t('weekdaysShort').split(',')) {
+            t('weekdaysShort')
+                .split(',')
+                .forEach((name, day) => {
                 const headCell = document.createElement('div');
                 headCell.className = 'calendar-weekday';
+                // Weekend accents: Sunday red, Saturday blue (Korean calendar style).
+                if (day === 0)
+                    headCell.classList.add('is-sun');
+                else if (day === 6)
+                    headCell.classList.add('is-sat');
                 headCell.textContent = name;
                 grid.appendChild(headCell);
-            }
+            });
             const cells = isWeek
                 ? buildWeekGrid(anchor.getTime())
                 : buildMonthGrid(anchor.getFullYear(), anchor.getMonth());
@@ -3120,6 +3149,12 @@ function openCalendar(boards, onOpenCard) {
                     cellEl.classList.add('is-today');
                 const num = document.createElement('div');
                 num.className = 'calendar-day-num';
+                // Weekend accents: Sunday red, Saturday blue (Korean calendar style).
+                const weekday = new Date(cell.ts).getDay();
+                if (weekday === 0)
+                    num.classList.add('is-sun');
+                else if (weekday === 6)
+                    num.classList.add('is-sat');
                 // A week can straddle two months, so week cells carry the month too.
                 num.textContent = isWeek
                     ? `${new Date(cell.ts).getMonth() + 1}/${cell.day}`
