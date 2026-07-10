@@ -126,7 +126,10 @@ export function customPrompt(message: string, defaultValue = ''): Promise<string
  * exactly once after the modal is removed. Callers build content into
  * `dialog` and call `close()` (setting any result beforehand).
  */
-function openShell(dialogClass: string, onClosed: () => void): { dialog: HTMLDivElement; close(): void } {
+export function openShell(
+  dialogClass: string,
+  onClosed: () => void,
+): { dialog: HTMLDivElement; close(): void } {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
 

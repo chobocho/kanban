@@ -1332,6 +1332,159 @@ select.control {
   background: #ffd6cc;
 }
 
+/* --- All-boards calendar view --- */
+.calendar-view {
+  width: min(860px, 100%);
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+
+.calendar-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.calendar-title {
+  flex: 1 1 auto;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.calendar-nav-btn {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--soft-bg);
+  color: var(--text);
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.calendar-nav-btn:hover {
+  background: var(--hover-bg);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 12px;
+}
+
+.calendar-weekday {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 2px 0;
+}
+
+.calendar-cell {
+  min-height: 68px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--soft-bg);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.calendar-cell.is-outside {
+  opacity: 0.45;
+  background: transparent;
+}
+
+.calendar-cell.is-today {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.calendar-day-num {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.calendar-cell.is-today .calendar-day-num {
+  color: var(--accent);
+}
+
+.calendar-event {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.3;
+  padding: 2px 4px;
+  border: none;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  background: var(--card-bg);
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: 0 1px 1px var(--tint);
+}
+
+.calendar-event:hover {
+  background: var(--hover-bg);
+}
+
+.calendar-event.is-overdue {
+  background: #ffebe6;
+  color: #bf2600;
+}
+
+.calendar-event.is-done {
+  opacity: 0.7;
+  text-decoration: line-through;
+}
+
+.calendar-event-board,
+.calendar-event-text {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calendar-event-board {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.calendar-event.is-overdue .calendar-event-board {
+  color: inherit;
+}
+
+.calendar-empty {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Phones: keep all 7 columns visible with tighter cells. */
+@media (max-width: 560px) {
+  .calendar-cell {
+    min-height: 52px;
+    padding: 2px;
+  }
+
+  .calendar-event-board {
+    display: none;
+  }
+}
+
 /* Labels assigned to a card, shown as chips above the card text. */
 .card-labels {
   display: flex;
@@ -1574,6 +1727,7 @@ button.card-check {
     <div class="toolbar-group">
       <button id="undoBtn" class="control icon-control" data-i18n-title="undo">↶</button>
       <button id="redoBtn" class="control icon-control" data-i18n-title="redo">↷</button>
+      <button id="calendarBtn" class="control icon-control" data-i18n-title="calendarView">📅</button>
     </div>
 
     <div class="toolbar-group filter-group">
@@ -1700,6 +1854,7 @@ const { ZoomController } = __require("zoom");
 const { LayoutController } = __require("layout");
 const { downloadJson, readJsonFile, downloadBoardJson, readBoardJsonFile } = __require("jsonio");
 const { exportBoardPng } = __require("png");
+const { openCalendar } = __require("calendar");
 const { customAlert, customConfirm, customPrompt, customTextPrompt, openCardDetail, openArchive, openColorPicker, openActivityLog } = __require("modal");
 /** Maximum number of undo steps kept per board. */
 const MAX_HISTORY = 8;
@@ -2183,6 +2338,7 @@ class KanbanApp {
         });
         this.undoBtn.addEventListener('click', () => this.undo());
         this.redoBtn.addEventListener('click', () => this.redo());
+        this.byId('calendarBtn').addEventListener('click', () => this.openCalendarView());
         this.filterInput.addEventListener('input', () => {
             this.filter.query = this.filterInput.value;
             this.render();
@@ -2397,6 +2553,19 @@ class KanbanApp {
         this.persist();
         this.render();
     }
+    /**
+     * Open the all-boards calendar. Picking a card switches to its board (when it
+     * is not the active one) and opens the card's detail view.
+     */
+    openCalendarView() {
+        void openCalendar(sortedBoards(this.data), (boardId, columnId, cardId) => {
+            if (this.data.activeBoardId !== boardId) {
+                this.data.activeBoardId = boardId;
+                this.commitReset();
+            }
+            this.handlers.openCard(columnId, cardId);
+        });
+    }
     /** Open the archive view, wiring restore/permanent-delete back to the model. */
     openArchiveView() {
         if (!this.active())
@@ -2610,6 +2779,227 @@ class KanbanApp {
 }
 
 __exports.KanbanApp = KanbanApp;
+
+};
+__modules["calendar"] = function(__exports, __require){
+// Calendar view: aggregates every dated card from every board into one month
+// grid. The date math is pure (and unit-tested); the modal below renders it
+// with plain DOM, reusing the shared modal shell.
+const { t, tf } = __require("i18n");
+const { openShell } = __require("modal");
+/**
+ * Collect the start/due dates of every card on every board (a card with both
+ * dates yields two events). Templates are blueprints, not scheduled work, so
+ * they are skipped. The result is sorted by time ascending.
+ */
+function collectCalendarEvents(boards) {
+    const events = [];
+    for (const board of boards) {
+        for (const column of board.columns) {
+            for (const card of column.cards) {
+                if (card.isTemplate)
+                    continue;
+                const base = {
+                    boardId: board.id,
+                    boardName: board.name,
+                    columnId: column.id,
+                    columnTitle: column.title,
+                    cardId: card.id,
+                    cardText: card.text,
+                    dueDone: card.dueDone,
+                    color: card.color,
+                };
+                if (card.startAt != null)
+                    events.push({ ...base, at: card.startAt, kind: 'start' });
+                if (card.dueAt != null)
+                    events.push({ ...base, at: card.dueAt, kind: 'due' });
+            }
+        }
+    }
+    return events.sort((a, b) => a.at - b.at);
+}
+/** Local-time day key (YYYY-MM-DD) used to bucket events into grid cells. */
+function dayKey(ts) {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+/** Bucket events by local day; only days that have events appear in the map. */
+function groupEventsByDay(events) {
+    const byDay = new Map();
+    for (const event of events) {
+        const key = dayKey(event.at);
+        const bucket = byDay.get(key);
+        if (bucket)
+            bucket.push(event);
+        else
+            byDay.set(key, [event]);
+    }
+    return byDay;
+}
+/**
+ * Build the day cells for a month (0-based), as whole Sunday-first weeks: from
+ * the Sunday on/before the 1st through the Saturday on/after the last day.
+ * Out-of-range months roll over per Date semantics (month 12 = next January).
+ */
+function buildMonthGrid(year, month) {
+    const first = new Date(year, month, 1);
+    const last = new Date(year, month + 1, 0);
+    const start = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay());
+    const end = new Date(last.getFullYear(), last.getMonth(), last.getDate() + (6 - last.getDay()));
+    const cells = [];
+    for (let d = start; d.getTime() <= end.getTime(); d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+        cells.push({
+            ts: d.getTime(),
+            key: dayKey(d.getTime()),
+            day: d.getDate(),
+            inMonth: d.getMonth() === first.getMonth() && d.getFullYear() === first.getFullYear(),
+        });
+    }
+    return cells;
+}
+/** Localized title for a month view, e.g. "2026년 7월" / "July 2026". */
+function monthTitle(year, month) {
+    const names = t('monthNames').split(',');
+    return tf('monthTitle', [String(year), names[month] ?? '']);
+}
+/**
+ * Open the all-boards calendar: a month grid where each cell lists the cards
+ * starting or due that day. Clicking an entry invokes `onOpenCard` (which is
+ * expected to switch boards if needed and open the card) and closes the view.
+ * Resolves when the dialog closes.
+ */
+function openCalendar(boards, onOpenCard) {
+    return new Promise((resolve) => {
+        const { dialog, close } = openShell('calendar-view', () => resolve());
+        const now = new Date();
+        const todayKey = dayKey(now.getTime());
+        let year = now.getFullYear();
+        let month = now.getMonth();
+        const byDay = groupEventsByDay(collectCalendarEvents(boards));
+        // With a single board the board name on every chip would be noise.
+        const showBoardName = boards.length > 1;
+        // --- Header: previous/next month, title, and a "today" shortcut. ---
+        const head = document.createElement('div');
+        head.className = 'calendar-head';
+        const makeNavBtn = (cls, glyph, titleKey) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `calendar-nav-btn ${cls}`;
+            btn.textContent = glyph;
+            btn.title = t(titleKey);
+            return btn;
+        };
+        const prevBtn = makeNavBtn('calendar-nav-prev', '◀', 'prevMonth');
+        const nextBtn = makeNavBtn('calendar-nav-next', '▶', 'nextMonth');
+        const todayBtn = document.createElement('button');
+        todayBtn.type = 'button';
+        todayBtn.className = 'calendar-nav-btn calendar-nav-today';
+        todayBtn.textContent = t('calendarToday');
+        const title = document.createElement('div');
+        title.className = 'calendar-title';
+        head.append(prevBtn, title, nextBtn, todayBtn);
+        dialog.appendChild(head);
+        const grid = document.createElement('div');
+        grid.className = 'calendar-grid';
+        dialog.appendChild(grid);
+        const emptyNote = document.createElement('div');
+        emptyNote.className = 'calendar-empty';
+        emptyNote.textContent = t('calendarEmpty');
+        dialog.appendChild(emptyNote);
+        /** Build one clickable event chip. */
+        const renderEvent = (event) => {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'calendar-event';
+            if (event.kind === 'due') {
+                if (event.dueDone)
+                    chip.classList.add('is-done');
+                else if (event.at < Date.now())
+                    chip.classList.add('is-overdue');
+            }
+            if (event.color)
+                chip.style.borderLeftColor = event.color;
+            const icon = event.kind === 'start' ? '🚩' : event.dueDone ? '✅' : '⏰';
+            const kindName = t(event.kind === 'start' ? 'startDate' : 'dueDate');
+            chip.title = `${icon} ${kindName} · ${event.boardName} / ${event.columnTitle}\n${event.cardText}`;
+            if (showBoardName) {
+                const boardTag = document.createElement('span');
+                boardTag.className = 'calendar-event-board';
+                boardTag.textContent = event.boardName;
+                chip.appendChild(boardTag);
+            }
+            const text = document.createElement('span');
+            text.className = 'calendar-event-text';
+            text.textContent = `${icon} ${event.cardText}`;
+            chip.appendChild(text);
+            chip.addEventListener('click', () => {
+                onOpenCard(event.boardId, event.columnId, event.cardId);
+                close();
+            });
+            return chip;
+        };
+        const render = () => {
+            title.textContent = monthTitle(year, month);
+            grid.replaceChildren();
+            for (const name of t('weekdaysShort').split(',')) {
+                const headCell = document.createElement('div');
+                headCell.className = 'calendar-weekday';
+                headCell.textContent = name;
+                grid.appendChild(headCell);
+            }
+            let monthHasEvents = false;
+            for (const cell of buildMonthGrid(year, month)) {
+                const cellEl = document.createElement('div');
+                cellEl.className = 'calendar-cell';
+                if (!cell.inMonth)
+                    cellEl.classList.add('is-outside');
+                if (cell.key === todayKey)
+                    cellEl.classList.add('is-today');
+                const num = document.createElement('div');
+                num.className = 'calendar-day-num';
+                num.textContent = String(cell.day);
+                cellEl.appendChild(num);
+                for (const event of byDay.get(cell.key) ?? []) {
+                    if (cell.inMonth)
+                        monthHasEvents = true;
+                    cellEl.appendChild(renderEvent(event));
+                }
+                grid.appendChild(cellEl);
+            }
+            emptyNote.hidden = monthHasEvents;
+        };
+        const shiftMonth = (delta) => {
+            const shifted = new Date(year, month + delta, 1);
+            year = shifted.getFullYear();
+            month = shifted.getMonth();
+            render();
+        };
+        prevBtn.addEventListener('click', () => shiftMonth(-1));
+        nextBtn.addEventListener('click', () => shiftMonth(1));
+        todayBtn.addEventListener('click', () => {
+            year = now.getFullYear();
+            month = now.getMonth();
+            render();
+        });
+        const actions = document.createElement('div');
+        actions.className = 'modal-actions';
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'modal-btn modal-ok';
+        closeBtn.textContent = t('close');
+        closeBtn.addEventListener('click', () => close());
+        actions.appendChild(closeBtn);
+        dialog.appendChild(actions);
+        render();
+        closeBtn.focus();
+    });
+}
+
+__exports.collectCalendarEvents = collectCalendarEvents;
+__exports.dayKey = dayKey;
+__exports.groupEventsByDay = groupEventsByDay;
+__exports.buildMonthGrid = buildMonthGrid;
+__exports.openCalendar = openCalendar;
 
 };
 __modules["dnd"] = function(__exports, __require){
@@ -3096,6 +3486,14 @@ const translations = {
         dueDate: '마감일',
         dueComplete: '완료',
         clear: '지우기',
+        calendarView: '달력 보기',
+        calendarToday: '오늘',
+        prevMonth: '이전 달',
+        nextMonth: '다음 달',
+        calendarEmpty: '이 달에는 시작일·마감일이 있는 카드가 없습니다',
+        weekdaysShort: '일,월,화,수,목,금,토',
+        monthNames: '1월,2월,3월,4월,5월,6월,7월,8월,9월,10월,11월,12월',
+        monthTitle: '{0}년 {1}',
         filter: '필터',
         searchPlaceholder: '카드 검색…',
         clearFilter: '필터 지우기',
@@ -3227,6 +3625,14 @@ const translations = {
         dueDate: 'Due date',
         dueComplete: 'Complete',
         clear: 'Clear',
+        calendarView: 'Calendar',
+        calendarToday: 'Today',
+        prevMonth: 'Previous month',
+        nextMonth: 'Next month',
+        calendarEmpty: 'No cards with a start or due date this month',
+        weekdaysShort: 'Sun,Mon,Tue,Wed,Thu,Fri,Sat',
+        monthNames: 'January,February,March,April,May,June,July,August,September,October,November,December',
+        monthTitle: '{1} {0}',
         filter: 'Filter',
         searchPlaceholder: 'Search cards…',
         clearFilter: 'Clear filter',
@@ -4664,6 +5070,7 @@ function openArchive(cb) {
 __exports.customAlert = customAlert;
 __exports.customConfirm = customConfirm;
 __exports.customPrompt = customPrompt;
+__exports.openShell = openShell;
 __exports.customTextPrompt = customTextPrompt;
 __exports.openColorPicker = openColorPicker;
 __exports.openCardDetail = openCardDetail;

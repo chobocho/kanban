@@ -200,6 +200,38 @@ try {
   await page.locator('.card-detail .modal-cancel').click();
   await page.waitForTimeout(100);
 
+  // Calendar view: opens on the current month with a Sunday-first grid.
+  await page.locator('#calendarBtn').click();
+  await page.waitForSelector('.calendar-view', { timeout: 3000 });
+  const weekdays = await page.locator('.calendar-weekday').count();
+  assert(weekdays === 7, `calendar shows 7 weekday headers (got ${weekdays})`);
+  const dayCells = await page.locator('.calendar-cell').count();
+  assert(dayCells >= 28 && dayCells % 7 === 0, `calendar grid is whole weeks (got ${dayCells})`);
+  const todayCells = await page.locator('.calendar-cell.is-today').count();
+  assert(todayCells === 1, `calendar highlights today (got ${todayCells})`);
+
+  // Month navigation: prev changes the title, today returns to the start.
+  const calTitleStart = await page.locator('.calendar-title').textContent();
+  await page.locator('.calendar-nav-prev').click();
+  const calTitlePrev = await page.locator('.calendar-title').textContent();
+  assert(calTitlePrev !== calTitleStart, `prev-month changes the title (got "${calTitlePrev}")`);
+  await page.locator('.calendar-nav-today').click();
+  const calTitleBack = await page.locator('.calendar-title').textContent();
+  assert(calTitleBack === calTitleStart, `today returns to the current month (got "${calTitleBack}")`);
+
+  // Walk forward to the card's start/due month; its chip opens the card detail.
+  let calEvents = 0;
+  for (let i = 0; i < 80 && calEvents === 0; i++) {
+    await page.locator('.calendar-nav-next').click();
+    calEvents = await page.locator('.calendar-event').count();
+  }
+  assert(calEvents >= 1, `navigating months reaches the dated card (got ${calEvents})`);
+  await page.locator('.calendar-event').first().click();
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  assert((await page.locator('.calendar-view').count()) === 0, 'picking an event closes the calendar');
+  await page.locator('.card-detail .modal-cancel').click();
+  await page.waitForTimeout(100);
+
   // Search/filter: a matching keyword keeps the card; a non-match hides it.
   await page.locator('#filterInput').fill('detailed');
   await page.waitForTimeout(100);

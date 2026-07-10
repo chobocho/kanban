@@ -5,6 +5,7 @@ import './model.test.js';
 import './normalize.test.js';
 import './history.test.js';
 import './filter.test.js';
+import './calendar.test.js';
 import './i18n.test.js';
 import './markdown.test.js';
 import './jsonio.test.js';

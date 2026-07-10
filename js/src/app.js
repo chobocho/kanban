@@ -14,6 +14,7 @@ import { ZoomController } from './zoom.js';
 import { LayoutController } from './layout.js';
 import { downloadJson, readJsonFile, downloadBoardJson, readBoardJsonFile } from './jsonio.js';
 import { exportBoardPng } from './png.js';
+import { openCalendar } from './calendar.js';
 import { customAlert, customConfirm, customPrompt, customTextPrompt, openCardDetail, openArchive, openColorPicker, openActivityLog, } from './modal.js';
 /** Maximum number of undo steps kept per board. */
 const MAX_HISTORY = 8;
@@ -497,6 +498,7 @@ export class KanbanApp {
         });
         this.undoBtn.addEventListener('click', () => this.undo());
         this.redoBtn.addEventListener('click', () => this.redo());
+        this.byId('calendarBtn').addEventListener('click', () => this.openCalendarView());
         this.filterInput.addEventListener('input', () => {
             this.filter.query = this.filterInput.value;
             this.render();
@@ -710,6 +712,19 @@ export class KanbanApp {
         this.resetHistory();
         this.persist();
         this.render();
+    }
+    /**
+     * Open the all-boards calendar. Picking a card switches to its board (when it
+     * is not the active one) and opens the card's detail view.
+     */
+    openCalendarView() {
+        void openCalendar(sortedBoards(this.data), (boardId, columnId, cardId) => {
+            if (this.data.activeBoardId !== boardId) {
+                this.data.activeBoardId = boardId;
+                this.commitReset();
+            }
+            this.handlers.openCard(columnId, cardId);
+        });
     }
     /** Open the archive view, wiring restore/permanent-delete back to the model. */
     openArchiveView() {
