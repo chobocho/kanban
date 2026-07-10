@@ -1086,6 +1086,33 @@ select.control {
   background: var(--hover-bg-strong);
 }
 
+/* Collapsible secondary sections (attachments, comments) in the card
+   detail modal: a disclosure header with an item count. */
+.card-detail-section-toggle {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 7px 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: left;
+  background: var(--soft-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.card-detail-section-toggle:hover {
+  background: var(--hover-bg);
+}
+
+.card-detail-attachments,
+.card-detail-comments {
+  margin-top: 8px;
+}
+
 /* Card actions (copy/move) inside the card detail modal. */
 .card-detail-ops {
   display: flex;

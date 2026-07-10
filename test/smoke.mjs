@@ -432,6 +432,9 @@ try {
   await commentCard.hover();
   await commentCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
+  // Comments live in a collapsed section; open it first.
+  assert(await page.locator('.card-detail-comments').isHidden(), 'comments start collapsed');
+  await page.locator('.section-comments').click();
   await page.locator('.comment-add-input').fill('looks good');
   await page.locator('.comment-add .comment-add-btn').click();
   await page.waitForTimeout(100);
@@ -474,6 +477,8 @@ try {
   await commentCard.hover();
   await commentCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
+  // Attachments live in a collapsed section; open it first.
+  await page.locator('.section-attachments').click();
   const pngBuf = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
     'base64',

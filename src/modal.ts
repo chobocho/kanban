@@ -769,11 +769,42 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     };
     renderChecklists();
 
+    /**
+     * A collapsible section: a disclosure header showing the item count, and
+     * a body that stays hidden until toggled open. Secondary sections start
+     * collapsed to keep the modal short.
+     */
+    const addCollapsibleSection = (
+      labelKey: string,
+      bodyClass: string,
+      count: () => number,
+    ): { body: HTMLDivElement; refresh(): void } => {
+      const header = document.createElement('button');
+      header.type = 'button';
+      header.className = `card-detail-section-toggle section-${labelKey}`;
+      const body = document.createElement('div');
+      body.className = bodyClass;
+      body.hidden = true;
+      const refresh = (): void => {
+        const n = count();
+        header.textContent = `${body.hidden ? '▸' : '▾'} ${t(labelKey)}${n > 0 ? ` (${n})` : ''}`;
+      };
+      header.addEventListener('click', () => {
+        body.hidden = !body.hidden;
+        refresh();
+      });
+      refresh();
+      dialog.append(header, body);
+      return { body, refresh };
+    };
+
     // --- Attachments: image files stored inline as data URLs. ---
-    addLabel(t('attachments'));
-    const attachBox = document.createElement('div');
-    attachBox.className = 'card-detail-attachments';
-    dialog.appendChild(attachBox);
+    const attachSection = addCollapsibleSection(
+      'attachments',
+      'card-detail-attachments',
+      () => init.attachments.length,
+    );
+    const attachBox = attachSection.body;
 
     const renderAttachments = (): void => {
       attachBox.replaceChildren();
@@ -848,14 +879,17 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
       addBtn.textContent = `📎 ${t('addAttachment')}`;
       addBtn.addEventListener('click', () => fileInput.click());
       attachBox.append(fileInput, addBtn);
+      attachSection.refresh();
     };
     renderAttachments();
 
     // --- Comments: newest first, add via textarea, edit in place, delete. ---
-    addLabel(t('comments'));
-    const commentsBox = document.createElement('div');
-    commentsBox.className = 'card-detail-comments';
-    dialog.appendChild(commentsBox);
+    const commentSection = addCollapsibleSection(
+      'comments',
+      'card-detail-comments',
+      () => init.comments.length,
+    );
+    const commentsBox = commentSection.body;
 
     const renderComments = (): void => {
       commentsBox.replaceChildren();
@@ -944,6 +978,7 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
         row.append(meta, text);
         commentsBox.appendChild(row);
       }
+      commentSection.refresh();
     };
     renderComments();
 
