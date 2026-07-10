@@ -581,11 +581,46 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     dueRow.append(dueInput, doneLabel, clearBtn);
     dueBlock.appendChild(dueRow);
 
-    addLabel(t('description'));
+    /**
+     * A collapsible section: a disclosure header with an optional hint (item
+     * count, content marker), and a body that stays hidden until toggled
+     * open. Secondary sections start collapsed to keep the modal short.
+     */
+    const addCollapsibleSection = (
+      labelKey: string,
+      bodyClass: string,
+      hint: () => string,
+    ): { body: HTMLDivElement; refresh(): void } => {
+      const header = document.createElement('button');
+      header.type = 'button';
+      header.className = `card-detail-section-toggle section-${labelKey}`;
+      const body = document.createElement('div');
+      body.className = bodyClass;
+      body.hidden = true;
+      const refresh = (): void => {
+        const suffix = hint();
+        header.textContent = `${body.hidden ? '▸' : '▾'} ${t(labelKey)}${suffix ? ` ${suffix}` : ''}`;
+      };
+      header.addEventListener('click', () => {
+        body.hidden = !body.hidden;
+        refresh();
+      });
+      refresh();
+      dialog.append(header, body);
+      return { body, refresh };
+    };
+
+    // --- Description: markdown editor/preview behind a collapsible header
+    // (a 📝 marker on the header shows there is content). ---
     const desc = document.createElement('textarea');
     desc.className = 'card-detail-desc';
     desc.value = init.description;
     desc.placeholder = t('descriptionPlaceholder');
+
+    const descSection = addCollapsibleSection('description', 'card-detail-desc-body', () =>
+      desc.value.trim() ? '📝' : '',
+    );
+    desc.addEventListener('input', () => descSection.refresh());
 
     // A non-empty description opens as a rendered markdown preview; clicking
     // it (anywhere but a link) swaps in the textarea. Save reads the textarea,
@@ -605,7 +640,7 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     } else {
       preview.hidden = true;
     }
-    dialog.append(preview, desc);
+    descSection.body.append(preview, desc);
 
     // --- Checklists: several named groups, all edits applied immediately. ---
     addLabel(t('checklist'));
@@ -769,40 +804,9 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     };
     renderChecklists();
 
-    /**
-     * A collapsible section: a disclosure header showing the item count, and
-     * a body that stays hidden until toggled open. Secondary sections start
-     * collapsed to keep the modal short.
-     */
-    const addCollapsibleSection = (
-      labelKey: string,
-      bodyClass: string,
-      count: () => number,
-    ): { body: HTMLDivElement; refresh(): void } => {
-      const header = document.createElement('button');
-      header.type = 'button';
-      header.className = `card-detail-section-toggle section-${labelKey}`;
-      const body = document.createElement('div');
-      body.className = bodyClass;
-      body.hidden = true;
-      const refresh = (): void => {
-        const n = count();
-        header.textContent = `${body.hidden ? '▸' : '▾'} ${t(labelKey)}${n > 0 ? ` (${n})` : ''}`;
-      };
-      header.addEventListener('click', () => {
-        body.hidden = !body.hidden;
-        refresh();
-      });
-      refresh();
-      dialog.append(header, body);
-      return { body, refresh };
-    };
-
     // --- Attachments: image files stored inline as data URLs. ---
-    const attachSection = addCollapsibleSection(
-      'attachments',
-      'card-detail-attachments',
-      () => init.attachments.length,
+    const attachSection = addCollapsibleSection('attachments', 'card-detail-attachments', () =>
+      init.attachments.length > 0 ? `(${init.attachments.length})` : '',
     );
     const attachBox = attachSection.body;
 
@@ -884,10 +888,8 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     renderAttachments();
 
     // --- Comments: newest first, add via textarea, edit in place, delete. ---
-    const commentSection = addCollapsibleSection(
-      'comments',
-      'card-detail-comments',
-      () => init.comments.length,
+    const commentSection = addCollapsibleSection('comments', 'card-detail-comments', () =>
+      init.comments.length > 0 ? `(${init.comments.length})` : '',
     );
     const commentsBox = commentSection.body;
 

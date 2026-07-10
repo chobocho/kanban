@@ -117,6 +117,9 @@ try {
   await detailCard.hover();
   await detailCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
+  // The description lives in a collapsed section; open it first.
+  assert(await page.locator('.card-detail-desc').isHidden(), 'description starts collapsed');
+  await page.locator('.section-description').click();
   await page.locator('.card-detail-desc').fill('detailed notes');
   await page.locator('.card-detail .modal-ok').click();
   await page.waitForTimeout(100);
@@ -561,11 +564,14 @@ try {
   await mdCard.hover();
   await mdCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
+  await page.locator('.section-description').click();
   await page.locator('.card-detail-desc').fill('# Title\n- item one\n**bold**');
   await page.locator('.card-detail .modal-ok').click();
   await page.waitForTimeout(100);
   await mdCard.hover();
   await mdCard.locator('.icon-btn[title="Open card details"]').click();
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  await page.locator('.section-description').click();
   await page.waitForSelector('.card-detail-desc-preview', { timeout: 3000 });
   const mdH1 = await page.locator('.card-detail-desc-preview h1').textContent();
   assert(mdH1 === 'Title', `markdown heading renders in the preview (got "${mdH1}")`);

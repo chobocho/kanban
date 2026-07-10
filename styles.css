@@ -1108,6 +1108,7 @@ select.control {
   background: var(--hover-bg);
 }
 
+.card-detail-desc-body,
 .card-detail-attachments,
 .card-detail-comments {
   margin-top: 8px;
