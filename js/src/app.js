@@ -727,7 +727,19 @@ export class KanbanApp {
                 this.commitReset();
             }
             this.handlers.openCard(columnId, cardId);
-        }, (dayTs, text) => this.addCardFromCalendar(dayTs, text));
+        }, (dayTs, text) => this.addCardFromCalendar(dayTs, text), (boardId, columnId, cardId, patch) => this.moveCardDates(boardId, columnId, cardId, patch));
+    }
+    /** Apply a calendar drag-and-drop date change to a card on any board. */
+    moveCardDates(boardId, columnId, cardId, patch) {
+        const board = this.data.boards.find((b) => b.id === boardId);
+        if (!board || !updateCard(board, columnId, cardId, patch))
+            return;
+        // Undo history only tracks the active board's columns; a change on another
+        // board is persisted without recording a bogus undo step.
+        if (board.id === this.data.activeBoardId)
+            this.commit();
+        else
+            this.refresh();
     }
     /** Create a card in the active board's first list, due on the picked day. */
     addCardFromCalendar(dayTs, text) {

@@ -1487,6 +1487,20 @@ html[data-theme='dark'] .calendar-day-num.is-sat {
   color: var(--text);
   cursor: pointer;
   box-shadow: 0 1px 1px var(--tint);
+  /* Chips are draggable onto other days; handle the pointer moves ourselves. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.calendar-event.is-dragging {
+  opacity: 0.5;
+}
+
+.calendar-cell.is-drop-target {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  background: var(--hover-bg);
 }
 
 .calendar-event:hover {

@@ -257,6 +257,22 @@ try {
   const addedChips = await dayCell.locator('.calendar-event').count();
   assert(addedChips === 1, `day-cell click creates a card on that day (got ${addedChips})`);
 
+  // Drag the new chip three days forward; the due date follows the drop cell.
+  const dragChip = dayCell.locator('.calendar-event').first();
+  const dropCell = page.locator('.calendar-cell:not(.is-outside)').nth(17); // the 18th
+  const chipBox = await dragChip.boundingBox();
+  const dropBox = await dropCell.boundingBox();
+  await page.mouse.move(chipBox.x + chipBox.width / 2, chipBox.y + chipBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(chipBox.x + chipBox.width / 2, chipBox.y + chipBox.height / 2 + 15, { steps: 4 });
+  await page.mouse.move(dropBox.x + dropBox.width / 2, dropBox.y + dropBox.height / 2, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+  const chipsAtSource = await page.locator('.calendar-cell:not(.is-outside)').nth(14).locator('.calendar-event').count();
+  const chipsAtTarget = await dropCell.locator('.calendar-event').count();
+  assert(chipsAtSource === 0 && chipsAtTarget === 1, `dragging a chip moves it to the drop day (got ${chipsAtSource}/${chipsAtTarget})`);
+  assert((await page.locator('.card-detail').count()) === 0, 'finishing a drag does not open the card detail');
+
   // Walk forward to the card's start/due month; its chip opens the card detail.
   let calEvents = 0;
   for (let i = 0; i < 80 && calEvents === 0; i++) {
@@ -275,10 +291,12 @@ try {
   await page.locator('.card-detail .modal-cancel').click();
   await page.waitForTimeout(100);
 
-  // The calendar-created card landed on the board; undo removes it again so
-  // the card counts in the following sections stay unchanged.
+  // The calendar-created card landed on the board; two undos (date move, then
+  // the add) remove it again so later card counts stay unchanged.
   const cardsWithCalCard = await page.locator('.card').count();
   assert(cardsWithCalCard === 2, `calendar-created card is on the board (got ${cardsWithCalCard})`);
+  await page.locator('#undoBtn').click();
+  await page.waitForTimeout(100);
   await page.locator('#undoBtn').click();
   await page.waitForTimeout(100);
   const cardsAfterUndo = await page.locator('.card').count();

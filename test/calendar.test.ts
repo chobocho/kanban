@@ -1,7 +1,15 @@
 // Unit tests for the pure calendar-view logic in src/calendar.ts.
 
 import { test, assert, assertEqual } from './harness.js';
-import { buildDayEntries, buildMonthGrid, buildWeekGrid, dayKey, weekTitle } from '../src/calendar.js';
+import {
+  buildDayEntries,
+  buildMonthGrid,
+  buildWeekGrid,
+  CalendarEntry,
+  computeDropPatch,
+  dayKey,
+  weekTitle,
+} from '../src/calendar.js';
 import { setLanguage } from '../src/i18n.js';
 import { Board, Card } from '../src/types.js';
 
@@ -161,6 +169,78 @@ test('buildDayEntries falls back to points when the due day precedes the start d
   const byDay = buildDayEntries(boardOf(card({ id: 'x', text: 'reversed', startAt, dueAt })));
   assertEqual(byDay.get('2026-07-10')?.[0]?.kind, 'start', 'start renders as a point');
   assertEqual(byDay.get('2026-07-08')?.[0]?.kind, 'due', 'due renders as a point');
+});
+
+/** Build a drop-patch entry with dummy card context. */
+function dropEntry(patch: Partial<CalendarEntry>): CalendarEntry {
+  return {
+    boardId: 'b',
+    boardName: 'B',
+    columnId: 'col',
+    columnTitle: 'T',
+    cardId: 'c',
+    cardText: 'card',
+    at: 0,
+    kind: 'due',
+    segment: null,
+    dueAt: null,
+    dueDone: false,
+    color: '',
+    ...patch,
+  };
+}
+
+/** Local timestamp helper for July 2026. */
+function july(day: number, hour = 0, minute = 0): number {
+  return new Date(2026, 6, day, hour, minute).getTime();
+}
+
+test('computeDropPatch moves point entries to the target day keeping the time', () => {
+  const due = dropEntry({ kind: 'due', at: july(9, 18, 30), dueAt: july(9, 18, 30) });
+  const duePatch = computeDropPatch(due, july(9), july(12));
+  assertEqual(duePatch?.dueAt, july(12, 18, 30), 'due point moves and keeps 18:30');
+  assert(duePatch != null && !('startAt' in duePatch), 'due move leaves the start untouched');
+
+  const start = dropEntry({ kind: 'start', at: july(9, 8, 0) });
+  const startPatch = computeDropPatch(start, july(9), july(5));
+  assertEqual(startPatch?.startAt, july(5, 8, 0), 'start point moves backward keeping 08:00');
+
+  assertEqual(computeDropPatch(due, july(9), july(9)), null, 'same-day drop is a no-op');
+});
+
+test('computeDropPatch shifts a whole range when dragged by a middle day', () => {
+  const range = dropEntry({
+    kind: 'range',
+    segment: 'middle',
+    at: july(3, 9, 0),
+    dueAt: july(6, 18, 0),
+  });
+  const patch = computeDropPatch(range, july(4), july(11));
+  assertEqual(patch?.startAt, july(10, 9, 0), 'start shifts by the same number of days');
+  assertEqual(patch?.dueAt, july(13, 18, 0), 'due shifts too, preserving the duration');
+});
+
+test('computeDropPatch resizes a range via its start/end segments', () => {
+  const startSeg = dropEntry({
+    kind: 'range',
+    segment: 'start',
+    at: july(3, 9, 0),
+    dueAt: july(6, 18, 0),
+  });
+  const grow = computeDropPatch(startSeg, july(3), july(5));
+  assertEqual(grow?.startAt, july(5, 9, 0), 'dragging the start segment moves the start');
+  assert(grow != null && !('dueAt' in grow), 'start-segment drag leaves the due untouched');
+  assertEqual(computeDropPatch(startSeg, july(3), july(8)), null, 'start past due is rejected');
+
+  const endSeg = dropEntry({
+    kind: 'range',
+    segment: 'end',
+    at: july(3, 9, 0),
+    dueAt: july(6, 18, 0),
+  });
+  const shrink = computeDropPatch(endSeg, july(6), july(4));
+  assertEqual(shrink?.dueAt, july(4, 18, 0), 'dragging the end segment moves the due');
+  assertEqual(computeDropPatch(endSeg, july(6), july(1)), null, 'due before start is rejected');
 });
 
 test('buildDayEntries sorts ranges before points within a day', () => {

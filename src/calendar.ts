@@ -113,6 +113,59 @@ export function buildDayEntries(boards: Board[]): Map<string, CalendarEntry[]> {
   return byDay;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Move a timestamp by whole days, preserving its local time of day. */
+function addDays(ts: number, days: number): number {
+  const d = new Date(ts);
+  return new Date(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate() + days,
+    d.getHours(),
+    d.getMinutes(),
+    d.getSeconds(),
+    d.getMilliseconds(),
+  ).getTime();
+}
+
+/** The card-date fields changed by dropping a calendar entry on a day. */
+export interface DropPatch {
+  startAt?: number;
+  dueAt?: number;
+}
+
+/**
+ * Compute the date change for dragging an entry from its day onto another day.
+ * Points move their own date; a range's start/end segment moves just that end
+ * (rejected with null when the ends would cross); a middle or single segment
+ * shifts the whole range, preserving its duration. Times of day are kept.
+ * Returns null when nothing should change.
+ */
+export function computeDropPatch(
+  entry: CalendarEntry,
+  sourceDayTs: number,
+  targetDayTs: number,
+): DropPatch | null {
+  // Both inputs are local midnights, so rounding absorbs any DST hour skew.
+  const delta = Math.round((targetDayTs - sourceDayTs) / DAY_MS);
+  if (delta === 0) return null;
+  if (entry.kind === 'start') return { startAt: addDays(entry.at, delta) };
+  if (entry.kind === 'due') return { dueAt: addDays(entry.at, delta) };
+
+  const startAt = entry.at;
+  const dueAt = entry.dueAt as number; // ranges always carry both dates
+  if (entry.segment === 'start') {
+    const next = addDays(startAt, delta);
+    return startOfDay(next) <= startOfDay(dueAt) ? { startAt: next } : null;
+  }
+  if (entry.segment === 'end') {
+    const next = addDays(dueAt, delta);
+    return startOfDay(next) >= startOfDay(startAt) ? { dueAt: next } : null;
+  }
+  return { startAt: addDays(startAt, delta), dueAt: addDays(dueAt, delta) };
+}
+
 /** One day cell of the month grid. */
 export interface CalendarCell {
   /** Local midnight of the day. */
@@ -192,12 +245,15 @@ export function weekTitle(ts: number): string {
  * (which is expected to switch boards if needed and open the card) and closes
  * the view. Clicking a day cell's empty area asks for a title and invokes
  * `onAddCard` with the day's local midnight; the caller creates the card and
- * the calendar re-reads the boards to show it. Resolves when the dialog closes.
+ * the calendar re-reads the boards to show it. Dragging an entry onto another
+ * day invokes `onMoveCard` with the date patch from {@link computeDropPatch}.
+ * Resolves when the dialog closes.
  */
 export function openCalendar(
   boards: Board[],
   onOpenCard: (boardId: string, columnId: string, cardId: string) => void,
   onAddCard: (dayTs: number, text: string) => void,
+  onMoveCard: (boardId: string, columnId: string, cardId: string, patch: DropPatch) => void,
 ): Promise<void> {
   return new Promise((resolve) => {
     const { dialog, close } = openShell('calendar-view', () => resolve());
@@ -272,8 +328,75 @@ export function openCalendar(
       return entry.dueDone ? '✅' : '⏰'; // due point or range end
     };
 
+    // A finished drag fires a click on the dragged chip right after pointerup;
+    // this flag swallows that one click so the card detail does not open.
+    let suppressClick = false;
+
+    /** Re-read the boards and repaint (after an add or a date move). */
+    const refreshEntries = (): void => {
+      byDay = buildDayEntries(boards);
+      render();
+    };
+
+    /**
+     * Pointer-based drag of an entry chip onto another day cell. A real drag
+     * starts only after a small movement threshold, so plain clicks/taps keep
+     * opening the card.
+     */
+    const startDrag = (
+      e: PointerEvent,
+      chip: HTMLElement,
+      entry: CalendarEntry,
+      sourceDayTs: number,
+    ): void => {
+      const fromX = e.clientX;
+      const fromY = e.clientY;
+      let dragging = false;
+      let dropCell: HTMLElement | null = null;
+
+      const onMove = (ev: PointerEvent): void => {
+        if (!dragging) {
+          if (Math.hypot(ev.clientX - fromX, ev.clientY - fromY) < 6) return;
+          dragging = true;
+          chip.classList.add('is-dragging');
+        }
+        const under = document
+          .elementFromPoint(ev.clientX, ev.clientY)
+          ?.closest<HTMLElement>('.calendar-cell');
+        if (under !== dropCell) {
+          dropCell?.classList.remove('is-drop-target');
+          dropCell = under ?? null;
+          dropCell?.classList.add('is-drop-target');
+        }
+      };
+
+      const finish = (drop: boolean): void => {
+        chip.removeEventListener('pointermove', onMove);
+        chip.classList.remove('is-dragging');
+        dropCell?.classList.remove('is-drop-target');
+        if (!dragging) return;
+        // Swallow the click this drag produces; a dropped chip may be replaced
+        // by the re-render (no click at all), so the flag also self-clears.
+        suppressClick = true;
+        window.setTimeout(() => {
+          suppressClick = false;
+        }, 0);
+        const targetTs = drop && dropCell ? Number(dropCell.dataset.dayTs) : NaN;
+        if (!Number.isFinite(targetTs)) return;
+        const patch = computeDropPatch(entry, sourceDayTs, targetTs);
+        if (!patch) return;
+        onMoveCard(entry.boardId, entry.columnId, entry.cardId, patch);
+        refreshEntries();
+      };
+
+      chip.setPointerCapture(e.pointerId);
+      chip.addEventListener('pointermove', onMove);
+      chip.addEventListener('pointerup', () => finish(true), { once: true });
+      chip.addEventListener('pointercancel', () => finish(false), { once: true });
+    };
+
     /** Build one clickable entry chip (a point or one day of a range bar). */
-    const renderEntry = (entry: CalendarEntry): HTMLElement => {
+    const renderEntry = (entry: CalendarEntry, sourceDayTs: number): HTMLElement => {
       const chip = document.createElement('button');
       chip.type = 'button';
       chip.className = 'calendar-event';
@@ -308,7 +431,12 @@ export function openCalendar(
         chip.appendChild(text);
       }
 
+      chip.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        startDrag(e, chip, entry, sourceDayTs);
+      });
       chip.addEventListener('click', () => {
+        if (suppressClick) return;
         onOpenCard(entry.boardId, entry.columnId, entry.cardId);
         close();
       });
@@ -347,6 +475,8 @@ export function openCalendar(
         if (!cell.inMonth) cellEl.classList.add('is-outside');
         if (cell.key === todayKey) cellEl.classList.add('is-today');
         cellEl.title = t('calendarAddCard');
+        // Day timestamp for drag-and-drop target lookup.
+        cellEl.dataset.dayTs = String(cell.ts);
 
         // Clicking the cell's empty area (not an entry chip) creates a card
         // due on that day; the boards are re-read so the chip shows up.
@@ -355,8 +485,7 @@ export function openCalendar(
           void customPrompt(t('calendarAddCardPrompt'), t('newCardText')).then((text) => {
             if (text === null) return;
             onAddCard(cell.ts, text.trim() || t('newCardText'));
-            byDay = buildDayEntries(boards);
-            render();
+            refreshEntries();
           });
         });
 
@@ -374,7 +503,7 @@ export function openCalendar(
 
         for (const entry of byDay.get(cell.key) ?? []) {
           if (cell.inMonth) viewHasEvents = true;
-          cellEl.appendChild(renderEntry(entry));
+          cellEl.appendChild(renderEntry(entry, cell.ts));
         }
         grid.appendChild(cellEl);
       }
