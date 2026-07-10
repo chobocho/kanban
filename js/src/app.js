@@ -721,13 +721,21 @@ export class KanbanApp {
      * day creates a card due that day.
      */
     openCalendarView() {
-        void openCalendar(sortedBoards(this.data), (boardId, columnId, cardId) => {
-            if (this.data.activeBoardId !== boardId) {
-                this.data.activeBoardId = boardId;
-                this.commitReset();
-            }
-            this.handlers.openCard(columnId, cardId);
-        }, (dayTs, text) => this.addCardFromCalendar(dayTs, text), (boardId, columnId, cardId, patch) => this.moveCardDates(boardId, columnId, cardId, patch));
+        void openCalendar(sortedBoards(this.data), this.data.settings.calendarHideDone, {
+            onOpenCard: (boardId, columnId, cardId) => {
+                if (this.data.activeBoardId !== boardId) {
+                    this.data.activeBoardId = boardId;
+                    this.commitReset();
+                }
+                this.handlers.openCard(columnId, cardId);
+            },
+            onAddCard: (dayTs, text) => this.addCardFromCalendar(dayTs, text),
+            onMoveCard: (boardId, columnId, cardId, patch) => this.moveCardDates(boardId, columnId, cardId, patch),
+            onToggleHideDone: (hidden) => {
+                this.data.settings.calendarHideDone = hidden;
+                this.persist(); // a view setting: no board re-render, no undo step
+            },
+        });
     }
     /** Apply a calendar drag-and-drop date change to a card on any board. */
     moveCardDates(boardId, columnId, cardId, patch) {

@@ -135,6 +135,8 @@ export interface Settings {
   lang: Language;
   zoom: number;
   theme: Theme;
+  /** Calendar view: whether cards with a completed due date are hidden. */
+  calendarHideDone: boolean;
 }
 
 /** The whole application state, serialized as one JSON document. */

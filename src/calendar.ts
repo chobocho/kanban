@@ -239,21 +239,30 @@ export function weekTitle(ts: number): string {
   return `${monthDayLong(new Date(cells[0].ts))} ~ ${monthDayLong(new Date(cells[6].ts))}`;
 }
 
+/** Callbacks invoked by the calendar view. */
+export interface CalendarCallbacks {
+  /** Open a card's detail (switching boards first when needed). */
+  onOpenCard(boardId: string, columnId: string, cardId: string): void;
+  /** Create a card due on the given day (local midnight of that day). */
+  onAddCard(dayTs: number, text: string): void;
+  /** Apply a drag-and-drop date change ({@link computeDropPatch}) to a card. */
+  onMoveCard(boardId: string, columnId: string, cardId: string, patch: DropPatch): void;
+  /** Persist the "hide completed cards" toggle. */
+  onToggleHideDone(hidden: boolean): void;
+}
+
 /**
  * Open the all-boards calendar: a month grid where each cell lists the cards
- * starting, due or in progress that day. Clicking an entry invokes `onOpenCard`
- * (which is expected to switch boards if needed and open the card) and closes
- * the view. Clicking a day cell's empty area asks for a title and invokes
- * `onAddCard` with the day's local midnight; the caller creates the card and
- * the calendar re-reads the boards to show it. Dragging an entry onto another
- * day invokes `onMoveCard` with the date patch from {@link computeDropPatch}.
- * Resolves when the dialog closes.
+ * starting, due or in progress that day. Clicking an entry opens its card and
+ * closes the view; clicking a day cell's empty area asks for a title and
+ * creates a card due that day; dragging an entry onto another day moves the
+ * card's dates. `hideDone` starts the "hide completed" toggle, whose changes
+ * are reported back for persistence. Resolves when the dialog closes.
  */
 export function openCalendar(
   boards: Board[],
-  onOpenCard: (boardId: string, columnId: string, cardId: string) => void,
-  onAddCard: (dayTs: number, text: string) => void,
-  onMoveCard: (boardId: string, columnId: string, cardId: string, patch: DropPatch) => void,
+  hideDone: boolean,
+  cb: CalendarCallbacks,
 ): Promise<void> {
   return new Promise((resolve) => {
     const { dialog, close } = openShell('calendar-view', () => resolve());
@@ -309,7 +318,20 @@ export function openCalendar(
     const weekModeBtn = makeModeBtn('week', 'weekView');
     modeToggle.append(monthModeBtn, weekModeBtn);
 
-    head.append(prevBtn, title, nextBtn, todayBtn, modeToggle);
+    // --- "Hide completed cards" toggle (persisted via the callback). ---
+    const hideDoneLabel = document.createElement('label');
+    hideDoneLabel.className = 'calendar-hide-done';
+    const hideDoneCheck = document.createElement('input');
+    hideDoneCheck.type = 'checkbox';
+    hideDoneCheck.checked = hideDone;
+    hideDoneCheck.addEventListener('change', () => {
+      hideDone = hideDoneCheck.checked;
+      cb.onToggleHideDone(hideDone);
+      render();
+    });
+    hideDoneLabel.append(hideDoneCheck, document.createTextNode(t('calendarHideDone')));
+
+    head.append(prevBtn, title, nextBtn, todayBtn, modeToggle, hideDoneLabel);
     dialog.appendChild(head);
 
     const grid = document.createElement('div');
@@ -385,7 +407,7 @@ export function openCalendar(
         if (!Number.isFinite(targetTs)) return;
         const patch = computeDropPatch(entry, sourceDayTs, targetTs);
         if (!patch) return;
-        onMoveCard(entry.boardId, entry.columnId, entry.cardId, patch);
+        cb.onMoveCard(entry.boardId, entry.columnId, entry.cardId, patch);
         refreshEntries();
       };
 
@@ -437,7 +459,7 @@ export function openCalendar(
       });
       chip.addEventListener('click', () => {
         if (suppressClick) return;
-        onOpenCard(entry.boardId, entry.columnId, entry.cardId);
+        cb.onOpenCard(entry.boardId, entry.columnId, entry.cardId);
         close();
       });
       return chip;
@@ -484,7 +506,7 @@ export function openCalendar(
           if ((e.target as HTMLElement).closest('.calendar-event')) return;
           void customPrompt(t('calendarAddCardPrompt'), t('newCardText')).then((text) => {
             if (text === null) return;
-            onAddCard(cell.ts, text.trim() || t('newCardText'));
+            cb.onAddCard(cell.ts, text.trim() || t('newCardText'));
             refreshEntries();
           });
         });
@@ -502,6 +524,7 @@ export function openCalendar(
         cellEl.appendChild(num);
 
         for (const entry of byDay.get(cell.key) ?? []) {
+          if (hideDone && entry.dueDone) continue;
           if (cell.inMonth) viewHasEvents = true;
           cellEl.appendChild(renderEntry(entry, cell.ts));
         }

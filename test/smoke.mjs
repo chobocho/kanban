@@ -273,6 +273,27 @@ try {
   assert(chipsAtSource === 0 && chipsAtTarget === 1, `dragging a chip moves it to the drop day (got ${chipsAtSource}/${chipsAtTarget})`);
   assert((await page.locator('.card-detail').count()) === 0, 'finishing a drag does not open the card detail');
 
+  // Mark the calendar-created card done, then hide/show it with the toggle.
+  await page.locator('.calendar-view .modal-ok').click();
+  await page.waitForTimeout(100);
+  const calCardOnBoard = page.locator('.card', { hasText: 'calendar card' });
+  await calCardOnBoard.hover();
+  await calCardOnBoard.locator('.icon-btn[title="Open card details"]').click();
+  await page.waitForSelector('.card-detail', { timeout: 3000 });
+  await page.locator('.card-detail-due-done input').check();
+  await page.locator('.card-detail .modal-ok').click();
+  await page.waitForTimeout(100);
+  await page.locator('#calendarBtn').click();
+  await page.waitForSelector('.calendar-view', { timeout: 3000 });
+  const doneChips = await page.locator('.calendar-event.is-done').count();
+  assert(doneChips === 1, `done card shows as a done chip (got ${doneChips})`);
+  await page.locator('.calendar-hide-done input').check();
+  const hiddenChips = await page.locator('.calendar-event').count();
+  assert(hiddenChips === 0, `hide-done removes completed chips (got ${hiddenChips})`);
+  await page.locator('.calendar-hide-done input').uncheck();
+  const shownChips = await page.locator('.calendar-event.is-done').count();
+  assert(shownChips === 1, `unchecking shows completed chips again (got ${shownChips})`);
+
   // Walk forward to the card's start/due month; its chip opens the card detail.
   let calEvents = 0;
   for (let i = 0; i < 80 && calEvents === 0; i++) {
@@ -291,14 +312,14 @@ try {
   await page.locator('.card-detail .modal-cancel').click();
   await page.waitForTimeout(100);
 
-  // The calendar-created card landed on the board; two undos (date move, then
-  // the add) remove it again so later card counts stay unchanged.
+  // The calendar-created card landed on the board; three undos (done mark,
+  // date move, then the add) remove it so later card counts stay unchanged.
   const cardsWithCalCard = await page.locator('.card').count();
   assert(cardsWithCalCard === 2, `calendar-created card is on the board (got ${cardsWithCalCard})`);
-  await page.locator('#undoBtn').click();
-  await page.waitForTimeout(100);
-  await page.locator('#undoBtn').click();
-  await page.waitForTimeout(100);
+  for (let i = 0; i < 3; i++) {
+    await page.locator('#undoBtn').click();
+    await page.waitForTimeout(100);
+  }
   const cardsAfterUndo = await page.locator('.card').count();
   assert(cardsAfterUndo === 1, `undo removes the calendar-created card (got ${cardsAfterUndo})`);
 

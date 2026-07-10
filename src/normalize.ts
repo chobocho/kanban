@@ -244,6 +244,7 @@ export function normalizeAppData(raw: unknown): AppData {
       lang: normalizeLang(settings.lang),
       zoom: Math.max(0.4, Math.min(zoom, 2.5)),
       theme: normalizeTheme(settings.theme),
+      calendarHideDone: settings.calendarHideDone === true,
     },
   };
 }

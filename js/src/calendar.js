@@ -162,15 +162,13 @@ export function weekTitle(ts) {
 }
 /**
  * Open the all-boards calendar: a month grid where each cell lists the cards
- * starting, due or in progress that day. Clicking an entry invokes `onOpenCard`
- * (which is expected to switch boards if needed and open the card) and closes
- * the view. Clicking a day cell's empty area asks for a title and invokes
- * `onAddCard` with the day's local midnight; the caller creates the card and
- * the calendar re-reads the boards to show it. Dragging an entry onto another
- * day invokes `onMoveCard` with the date patch from {@link computeDropPatch}.
- * Resolves when the dialog closes.
+ * starting, due or in progress that day. Clicking an entry opens its card and
+ * closes the view; clicking a day cell's empty area asks for a title and
+ * creates a card due that day; dragging an entry onto another day moves the
+ * card's dates. `hideDone` starts the "hide completed" toggle, whose changes
+ * are reported back for persistence. Resolves when the dialog closes.
  */
-export function openCalendar(boards, onOpenCard, onAddCard, onMoveCard) {
+export function openCalendar(boards, hideDone, cb) {
     return new Promise((resolve) => {
         const { dialog, close } = openShell('calendar-view', () => resolve());
         const now = new Date();
@@ -219,7 +217,19 @@ export function openCalendar(boards, onOpenCard, onAddCard, onMoveCard) {
         const monthModeBtn = makeModeBtn('month', 'monthView');
         const weekModeBtn = makeModeBtn('week', 'weekView');
         modeToggle.append(monthModeBtn, weekModeBtn);
-        head.append(prevBtn, title, nextBtn, todayBtn, modeToggle);
+        // --- "Hide completed cards" toggle (persisted via the callback). ---
+        const hideDoneLabel = document.createElement('label');
+        hideDoneLabel.className = 'calendar-hide-done';
+        const hideDoneCheck = document.createElement('input');
+        hideDoneCheck.type = 'checkbox';
+        hideDoneCheck.checked = hideDone;
+        hideDoneCheck.addEventListener('change', () => {
+            hideDone = hideDoneCheck.checked;
+            cb.onToggleHideDone(hideDone);
+            render();
+        });
+        hideDoneLabel.append(hideDoneCheck, document.createTextNode(t('calendarHideDone')));
+        head.append(prevBtn, title, nextBtn, todayBtn, modeToggle, hideDoneLabel);
         dialog.appendChild(head);
         const grid = document.createElement('div');
         grid.className = 'calendar-grid';
@@ -288,7 +298,7 @@ export function openCalendar(boards, onOpenCard, onAddCard, onMoveCard) {
                 const patch = computeDropPatch(entry, sourceDayTs, targetTs);
                 if (!patch)
                     return;
-                onMoveCard(entry.boardId, entry.columnId, entry.cardId, patch);
+                cb.onMoveCard(entry.boardId, entry.columnId, entry.cardId, patch);
                 refreshEntries();
             };
             chip.setPointerCapture(e.pointerId);
@@ -342,7 +352,7 @@ export function openCalendar(boards, onOpenCard, onAddCard, onMoveCard) {
             chip.addEventListener('click', () => {
                 if (suppressClick)
                     return;
-                onOpenCard(entry.boardId, entry.columnId, entry.cardId);
+                cb.onOpenCard(entry.boardId, entry.columnId, entry.cardId);
                 close();
             });
             return chip;
@@ -391,7 +401,7 @@ export function openCalendar(boards, onOpenCard, onAddCard, onMoveCard) {
                     void customPrompt(t('calendarAddCardPrompt'), t('newCardText')).then((text) => {
                         if (text === null)
                             return;
-                        onAddCard(cell.ts, text.trim() || t('newCardText'));
+                        cb.onAddCard(cell.ts, text.trim() || t('newCardText'));
                         refreshEntries();
                     });
                 });
@@ -409,6 +419,8 @@ export function openCalendar(boards, onOpenCard, onAddCard, onMoveCard) {
                     : String(cell.day);
                 cellEl.appendChild(num);
                 for (const entry of byDay.get(cell.key) ?? []) {
+                    if (hideDone && entry.dueDone)
+                        continue;
                     if (cell.inMonth)
                         viewHasEvents = true;
                     cellEl.appendChild(renderEntry(entry, cell.ts));

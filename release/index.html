@@ -1375,6 +1375,18 @@ select.control {
   color: #fff;
 }
 
+/* "Hide completed cards" toggle. */
+.calendar-hide-done {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .calendar-title {
   flex: 1 1 auto;
   text-align: center;
@@ -2669,13 +2681,21 @@ class KanbanApp {
      * day creates a card due that day.
      */
     openCalendarView() {
-        void openCalendar(sortedBoards(this.data), (boardId, columnId, cardId) => {
-            if (this.data.activeBoardId !== boardId) {
-                this.data.activeBoardId = boardId;
-                this.commitReset();
-            }
-            this.handlers.openCard(columnId, cardId);
-        }, (dayTs, text) => this.addCardFromCalendar(dayTs, text), (boardId, columnId, cardId, patch) => this.moveCardDates(boardId, columnId, cardId, patch));
+        void openCalendar(sortedBoards(this.data), this.data.settings.calendarHideDone, {
+            onOpenCard: (boardId, columnId, cardId) => {
+                if (this.data.activeBoardId !== boardId) {
+                    this.data.activeBoardId = boardId;
+                    this.commitReset();
+                }
+                this.handlers.openCard(columnId, cardId);
+            },
+            onAddCard: (dayTs, text) => this.addCardFromCalendar(dayTs, text),
+            onMoveCard: (boardId, columnId, cardId, patch) => this.moveCardDates(boardId, columnId, cardId, patch),
+            onToggleHideDone: (hidden) => {
+                this.data.settings.calendarHideDone = hidden;
+                this.persist(); // a view setting: no board re-render, no undo step
+            },
+        });
     }
     /** Apply a calendar drag-and-drop date change to a card on any board. */
     moveCardDates(boardId, columnId, cardId, patch) {
@@ -3085,15 +3105,13 @@ function weekTitle(ts) {
 }
 /**
  * Open the all-boards calendar: a month grid where each cell lists the cards
- * starting, due or in progress that day. Clicking an entry invokes `onOpenCard`
- * (which is expected to switch boards if needed and open the card) and closes
- * the view. Clicking a day cell's empty area asks for a title and invokes
- * `onAddCard` with the day's local midnight; the caller creates the card and
- * the calendar re-reads the boards to show it. Dragging an entry onto another
- * day invokes `onMoveCard` with the date patch from {@link computeDropPatch}.
- * Resolves when the dialog closes.
+ * starting, due or in progress that day. Clicking an entry opens its card and
+ * closes the view; clicking a day cell's empty area asks for a title and
+ * creates a card due that day; dragging an entry onto another day moves the
+ * card's dates. `hideDone` starts the "hide completed" toggle, whose changes
+ * are reported back for persistence. Resolves when the dialog closes.
  */
-function openCalendar(boards, onOpenCard, onAddCard, onMoveCard) {
+function openCalendar(boards, hideDone, cb) {
     return new Promise((resolve) => {
         const { dialog, close } = openShell('calendar-view', () => resolve());
         const now = new Date();
@@ -3142,7 +3160,19 @@ function openCalendar(boards, onOpenCard, onAddCard, onMoveCard) {
         const monthModeBtn = makeModeBtn('month', 'monthView');
         const weekModeBtn = makeModeBtn('week', 'weekView');
         modeToggle.append(monthModeBtn, weekModeBtn);
-        head.append(prevBtn, title, nextBtn, todayBtn, modeToggle);
+        // --- "Hide completed cards" toggle (persisted via the callback). ---
+        const hideDoneLabel = document.createElement('label');
+        hideDoneLabel.className = 'calendar-hide-done';
+        const hideDoneCheck = document.createElement('input');
+        hideDoneCheck.type = 'checkbox';
+        hideDoneCheck.checked = hideDone;
+        hideDoneCheck.addEventListener('change', () => {
+            hideDone = hideDoneCheck.checked;
+            cb.onToggleHideDone(hideDone);
+            render();
+        });
+        hideDoneLabel.append(hideDoneCheck, document.createTextNode(t('calendarHideDone')));
+        head.append(prevBtn, title, nextBtn, todayBtn, modeToggle, hideDoneLabel);
         dialog.appendChild(head);
         const grid = document.createElement('div');
         grid.className = 'calendar-grid';
@@ -3211,7 +3241,7 @@ function openCalendar(boards, onOpenCard, onAddCard, onMoveCard) {
                 const patch = computeDropPatch(entry, sourceDayTs, targetTs);
                 if (!patch)
                     return;
-                onMoveCard(entry.boardId, entry.columnId, entry.cardId, patch);
+                cb.onMoveCard(entry.boardId, entry.columnId, entry.cardId, patch);
                 refreshEntries();
             };
             chip.setPointerCapture(e.pointerId);
@@ -3265,7 +3295,7 @@ function openCalendar(boards, onOpenCard, onAddCard, onMoveCard) {
             chip.addEventListener('click', () => {
                 if (suppressClick)
                     return;
-                onOpenCard(entry.boardId, entry.columnId, entry.cardId);
+                cb.onOpenCard(entry.boardId, entry.columnId, entry.cardId);
                 close();
             });
             return chip;
@@ -3314,7 +3344,7 @@ function openCalendar(boards, onOpenCard, onAddCard, onMoveCard) {
                     void customPrompt(t('calendarAddCardPrompt'), t('newCardText')).then((text) => {
                         if (text === null)
                             return;
-                        onAddCard(cell.ts, text.trim() || t('newCardText'));
+                        cb.onAddCard(cell.ts, text.trim() || t('newCardText'));
                         refreshEntries();
                     });
                 });
@@ -3332,6 +3362,8 @@ function openCalendar(boards, onOpenCard, onAddCard, onMoveCard) {
                     : String(cell.day);
                 cellEl.appendChild(num);
                 for (const entry of byDay.get(cell.key) ?? []) {
+                    if (hideDone && entry.dueDone)
+                        continue;
                     if (cell.inMonth)
                         viewHasEvents = true;
                     cellEl.appendChild(renderEntry(entry, cell.ts));
@@ -3869,6 +3901,7 @@ const translations = {
         monthView: '월간',
         weekView: '주간',
         monthDayLong: '{0}년 {1} {2}일',
+        calendarHideDone: '완료 숨기기',
         calendarAddCard: '이 날짜에 새 카드 추가',
         calendarAddCardPrompt: '새 카드 제목을 입력하세요 (현재 보드의 첫 번째 리스트에 추가됩니다)',
         weekdaysShort: '일,월,화,수,목,금,토',
@@ -4014,6 +4047,7 @@ const translations = {
         monthView: 'Month',
         weekView: 'Week',
         monthDayLong: '{1} {2}, {0}',
+        calendarHideDone: 'Hide done',
         calendarAddCard: 'Add a card on this date',
         calendarAddCardPrompt: 'Enter a title for the new card (added to the first list of the current board)',
         weekdaysShort: 'Sun,Mon,Tue,Wed,Thu,Fri,Sat',
@@ -5563,7 +5597,7 @@ function createDefaultData() {
         version: SCHEMA_VERSION,
         boards: [board],
         activeBoardId: board.id,
-        settings: { lang: 'ko', zoom: 1, theme: 'auto' },
+        settings: { lang: 'ko', zoom: 1, theme: 'auto', calendarHideDone: false },
     };
 }
 /** Trello-like board background palette (empty = default theme color). */
@@ -6431,6 +6465,7 @@ function normalizeAppData(raw) {
             lang: normalizeLang(settings.lang),
             zoom: Math.max(0.4, Math.min(zoom, 2.5)),
             theme: normalizeTheme(settings.theme),
+            calendarHideDone: settings.calendarHideDone === true,
         },
     };
 }

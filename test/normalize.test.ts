@@ -308,6 +308,21 @@ test('theme is kept when valid and sanitized otherwise', () => {
   assertEqual(missing.settings.theme, 'auto', 'missing theme defaults to auto');
 });
 
+test('calendarHideDone is kept when boolean and defaults to false', () => {
+  const on = normalizeAppData({
+    boards: [{ id: 'b1', name: 'A', columns: [] }],
+    settings: { calendarHideDone: true },
+  });
+  assertEqual(on.settings.calendarHideDone, true, 'true is kept');
+  const junk = normalizeAppData({
+    boards: [{ id: 'b1', name: 'A', columns: [] }],
+    settings: { calendarHideDone: 'yes' },
+  });
+  assertEqual(junk.settings.calendarHideDone, false, 'non-boolean falls back to false');
+  const missing = normalizeAppData({ boards: [{ id: 'b1', name: 'A', columns: [] }] });
+  assertEqual(missing.settings.calendarHideDone, false, 'missing defaults to false');
+});
+
 test('non-array columns and cards are coerced to empty', () => {
   const data = normalizeAppData({
     boards: [{ id: 'b1', name: 'A', columns: 'nope' }],
