@@ -1431,14 +1431,46 @@ select.control {
   background: var(--hover-bg);
 }
 
+/* Range bars: one segment per day, half-rounded at the ends so the pieces
+   read as one continuous span across the cell gaps. */
+.calendar-event.is-seg-start {
+  border-radius: 4px 0 0 4px;
+}
+
+.calendar-event.is-seg-end {
+  border-radius: 0 4px 4px 0;
+  border-left-color: transparent;
+}
+
+.calendar-event.is-seg-middle {
+  height: 8px;
+  padding: 0;
+  border-left: none;
+  border-radius: 0;
+  background: var(--accent);
+  opacity: 0.55;
+}
+
+.calendar-event.is-seg-middle:hover {
+  opacity: 0.9;
+}
+
 .calendar-event.is-overdue {
   background: #ffebe6;
   color: #bf2600;
 }
 
+.calendar-event.is-seg-middle.is-overdue {
+  background: #e5493a;
+}
+
 .calendar-event.is-done {
   opacity: 0.7;
   text-decoration: line-through;
+}
+
+.calendar-event.is-seg-middle.is-done {
+  opacity: 0.35;
 }
 
 .calendar-event-board,

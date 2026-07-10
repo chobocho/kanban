@@ -1,15 +1,37 @@
 // Calendar view: aggregates every dated card from every board into one month
-// grid. The date math is pure (and unit-tested); the modal below renders it
-// with plain DOM, reusing the shared modal shell.
+// grid. A card with both a start and a due date is shown as a day-by-day range
+// bar; cards with a single date show as point entries. The date math is pure
+// (and unit-tested); the modal below renders it with plain DOM, reusing the
+// shared modal shell.
 import { t, tf } from './i18n.js';
 import { openShell } from './modal.js';
+/** Local-time day key (YYYY-MM-DD) used to bucket entries into grid cells. */
+export function dayKey(ts) {
+    const d = new Date(ts);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+/** Local midnight of the day containing the timestamp. */
+function startOfDay(ts) {
+    const d = new Date(ts);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
 /**
- * Collect the start/due dates of every card on every board (a card with both
- * dates yields two events). Templates are blueprints, not scheduled work, so
- * they are skipped. The result is sorted by time ascending.
+ * Collect every dated card on every board into per-day entries. A card with
+ * both dates expands into a range entry on each day from its start day through
+ * its due day (a reversed pair falls back to two points); a single date yields
+ * one point entry. Templates are blueprints, not scheduled work, so they are
+ * skipped. Within a day, range bars sort before points, then by time.
  */
-export function collectCalendarEvents(boards) {
-    const events = [];
+export function buildDayEntries(boards) {
+    const byDay = new Map();
+    const push = (key, entry) => {
+        const bucket = byDay.get(key);
+        if (bucket)
+            bucket.push(entry);
+        else
+            byDay.set(key, [entry]);
+    };
     for (const board of boards) {
         for (const column of board.columns) {
             for (const card of column.cards) {
@@ -22,34 +44,34 @@ export function collectCalendarEvents(boards) {
                     columnTitle: column.title,
                     cardId: card.id,
                     cardText: card.text,
+                    dueAt: card.dueAt,
                     dueDone: card.dueDone,
                     color: card.color,
                 };
-                if (card.startAt != null)
-                    events.push({ ...base, at: card.startAt, kind: 'start' });
-                if (card.dueAt != null)
-                    events.push({ ...base, at: card.dueAt, kind: 'due' });
+                const { startAt, dueAt } = card;
+                if (startAt != null && dueAt != null && startOfDay(dueAt) >= startOfDay(startAt)) {
+                    const firstDay = startOfDay(startAt);
+                    const lastDay = startOfDay(dueAt);
+                    for (let d = new Date(firstDay); d.getTime() <= lastDay; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+                        const isFirst = d.getTime() === firstDay;
+                        const isLast = d.getTime() === lastDay;
+                        const segment = isFirst && isLast ? 'single' : isFirst ? 'start' : isLast ? 'end' : 'middle';
+                        push(dayKey(d.getTime()), { ...base, at: startAt, kind: 'range', segment });
+                    }
+                }
+                else {
+                    if (startAt != null) {
+                        push(dayKey(startAt), { ...base, at: startAt, kind: 'start', segment: null });
+                    }
+                    if (dueAt != null) {
+                        push(dayKey(dueAt), { ...base, at: dueAt, kind: 'due', segment: null });
+                    }
+                }
             }
         }
     }
-    return events.sort((a, b) => a.at - b.at);
-}
-/** Local-time day key (YYYY-MM-DD) used to bucket events into grid cells. */
-export function dayKey(ts) {
-    const d = new Date(ts);
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-/** Bucket events by local day; only days that have events appear in the map. */
-export function groupEventsByDay(events) {
-    const byDay = new Map();
-    for (const event of events) {
-        const key = dayKey(event.at);
-        const bucket = byDay.get(key);
-        if (bucket)
-            bucket.push(event);
-        else
-            byDay.set(key, [event]);
+    for (const bucket of byDay.values()) {
+        bucket.sort((a, b) => Number(a.kind !== 'range') - Number(b.kind !== 'range') || a.at - b.at);
     }
     return byDay;
 }
@@ -81,9 +103,9 @@ function monthTitle(year, month) {
 }
 /**
  * Open the all-boards calendar: a month grid where each cell lists the cards
- * starting or due that day. Clicking an entry invokes `onOpenCard` (which is
- * expected to switch boards if needed and open the card) and closes the view.
- * Resolves when the dialog closes.
+ * starting, due or in progress that day. Clicking an entry invokes `onOpenCard`
+ * (which is expected to switch boards if needed and open the card) and closes
+ * the view. Resolves when the dialog closes.
  */
 export function openCalendar(boards, onOpenCard) {
     return new Promise((resolve) => {
@@ -92,7 +114,7 @@ export function openCalendar(boards, onOpenCard) {
         const todayKey = dayKey(now.getTime());
         let year = now.getFullYear();
         let month = now.getMonth();
-        const byDay = groupEventsByDay(collectCalendarEvents(boards));
+        const byDay = buildDayEntries(boards);
         // With a single board the board name on every chip would be noise.
         const showBoardName = boards.length > 1;
         // --- Header: previous/next month, title, and a "today" shortcut. ---
@@ -123,34 +145,54 @@ export function openCalendar(boards, onOpenCard) {
         emptyNote.className = 'calendar-empty';
         emptyNote.textContent = t('calendarEmpty');
         dialog.appendChild(emptyNote);
-        /** Build one clickable event chip. */
-        const renderEvent = (event) => {
+        /** The icon shown on an entry chip (none on middle range segments). */
+        const entryIcon = (entry) => {
+            if (entry.kind === 'start' || entry.segment === 'start')
+                return '🚩';
+            if (entry.segment === 'single')
+                return entry.dueDone ? '✅' : '🕒';
+            return entry.dueDone ? '✅' : '⏰'; // due point or range end
+        };
+        /** Build one clickable entry chip (a point or one day of a range bar). */
+        const renderEntry = (entry) => {
             const chip = document.createElement('button');
             chip.type = 'button';
             chip.className = 'calendar-event';
-            if (event.kind === 'due') {
-                if (event.dueDone)
+            if (entry.kind === 'range')
+                chip.classList.add('is-range', `is-seg-${entry.segment}`);
+            // Done/overdue state colors the whole bar, but never a start point.
+            if (entry.kind !== 'start') {
+                if (entry.dueDone)
                     chip.classList.add('is-done');
-                else if (event.at < Date.now())
+                else if (entry.dueAt != null && entry.dueAt < Date.now())
                     chip.classList.add('is-overdue');
             }
-            if (event.color)
-                chip.style.borderLeftColor = event.color;
-            const icon = event.kind === 'start' ? '🚩' : event.dueDone ? '✅' : '⏰';
-            const kindName = t(event.kind === 'start' ? 'startDate' : 'dueDate');
-            chip.title = `${icon} ${kindName} · ${event.boardName} / ${event.columnTitle}\n${event.cardText}`;
-            if (showBoardName) {
-                const boardTag = document.createElement('span');
-                boardTag.className = 'calendar-event-board';
-                boardTag.textContent = event.boardName;
-                chip.appendChild(boardTag);
+            const kindName = entry.kind === 'range'
+                ? t('calendarPeriod')
+                : t(entry.kind === 'start' ? 'startDate' : 'dueDate');
+            chip.title = `${kindName} · ${entry.boardName} / ${entry.columnTitle}\n${entry.cardText}`;
+            // Middle segments are thin connector bars: color only, no text.
+            if (entry.kind === 'range' && entry.segment === 'middle') {
+                if (entry.color)
+                    chip.style.background = entry.color;
             }
-            const text = document.createElement('span');
-            text.className = 'calendar-event-text';
-            text.textContent = `${icon} ${event.cardText}`;
-            chip.appendChild(text);
+            else {
+                // The end segment keeps a transparent stripe so the bar reads as one.
+                if (entry.color && entry.segment !== 'end')
+                    chip.style.borderLeftColor = entry.color;
+                if (showBoardName) {
+                    const boardTag = document.createElement('span');
+                    boardTag.className = 'calendar-event-board';
+                    boardTag.textContent = entry.boardName;
+                    chip.appendChild(boardTag);
+                }
+                const text = document.createElement('span');
+                text.className = 'calendar-event-text';
+                text.textContent = `${entryIcon(entry)} ${entry.cardText}`;
+                chip.appendChild(text);
+            }
             chip.addEventListener('click', () => {
-                onOpenCard(event.boardId, event.columnId, event.cardId);
+                onOpenCard(entry.boardId, entry.columnId, entry.cardId);
                 close();
             });
             return chip;
@@ -176,10 +218,10 @@ export function openCalendar(boards, onOpenCard) {
                 num.className = 'calendar-day-num';
                 num.textContent = String(cell.day);
                 cellEl.appendChild(num);
-                for (const event of byDay.get(cell.key) ?? []) {
+                for (const entry of byDay.get(cell.key) ?? []) {
                     if (cell.inMonth)
                         monthHasEvents = true;
-                    cellEl.appendChild(renderEvent(event));
+                    cellEl.appendChild(renderEntry(entry));
                 }
                 grid.appendChild(cellEl);
             }

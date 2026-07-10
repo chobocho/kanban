@@ -86,6 +86,7 @@ const translations: Record<Language, Dict> = {
     prevMonth: '이전 달',
     nextMonth: '다음 달',
     calendarEmpty: '이 달에는 시작일·마감일이 있는 카드가 없습니다',
+    calendarPeriod: '기간',
     weekdaysShort: '일,월,화,수,목,금,토',
     monthNames: '1월,2월,3월,4월,5월,6월,7월,8월,9월,10월,11월,12월',
     monthTitle: '{0}년 {1}',
@@ -225,6 +226,7 @@ const translations: Record<Language, Dict> = {
     prevMonth: 'Previous month',
     nextMonth: 'Next month',
     calendarEmpty: 'No cards with a start or due date this month',
+    calendarPeriod: 'Duration',
     weekdaysShort: 'Sun,Mon,Tue,Wed,Thu,Fri,Sat',
     monthNames:
       'January,February,March,April,May,June,July,August,September,October,November,December',

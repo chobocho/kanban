@@ -226,6 +226,11 @@ try {
     calEvents = await page.locator('.calendar-event').count();
   }
   assert(calEvents >= 1, `navigating months reaches the dated card (got ${calEvents})`);
+  // The card has both dates, so it renders as a range bar with a start segment.
+  const rangeStarts = await page.locator('.calendar-event.is-seg-start').count();
+  assert(rangeStarts === 1, `start+due card shows a range start segment (got ${rangeStarts})`);
+  const rangeSegs = await page.locator('.calendar-event.is-range').count();
+  assert(rangeSegs >= 2, `range spans multiple day segments (got ${rangeSegs})`);
   await page.locator('.calendar-event').first().click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
   assert((await page.locator('.calendar-view').count()) === 0, 'picking an event closes the calendar');

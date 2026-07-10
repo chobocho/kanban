@@ -1,12 +1,7 @@
 // Unit tests for the pure calendar-view logic in src/calendar.ts.
 
 import { test, assert, assertEqual } from './harness.js';
-import {
-  buildMonthGrid,
-  collectCalendarEvents,
-  dayKey,
-  groupEventsByDay,
-} from '../src/calendar.js';
+import { buildDayEntries, buildMonthGrid, dayKey } from '../src/calendar.js';
 import { Board, Card } from '../src/types.js';
 
 /** Build a card with sane defaults, overridden by the patch. */
@@ -47,6 +42,11 @@ function board(id: string, name: string, columns: Board['columns']): Board {
   };
 }
 
+/** Wrap cards into a single-board, single-column fixture. */
+function boardOf(...cards: Card[]): Board[] {
+  return [board('b', 'Board', [{ id: 'col', title: 'List', cards }])];
+}
+
 test('dayKey formats a local date with zero padding', () => {
   const ts = new Date(2026, 0, 5, 23, 59).getTime();
   assertEqual(dayKey(ts), '2026-01-05', 'dayKey pads month and day');
@@ -73,16 +73,18 @@ test('buildMonthGrid handles February and out-of-range month rollover', () => {
   assertEqual(rolled[0].key, jan[0].key, 'month 12 equals January of the next year');
 });
 
-test('collectCalendarEvents gathers start/due dates across all boards', () => {
+test('buildDayEntries turns start-only and due-only cards into point entries', () => {
+  const start = new Date(2026, 6, 3, 9, 0).getTime();
+  const due = new Date(2026, 6, 5, 18, 0).getTime();
   const boards = [
     board('b1', 'Work', [
       {
         id: 'col1',
         title: 'To Do',
         cards: [
-          card({ id: 'a', text: 'both', startAt: 2000, dueAt: 5000 }),
+          card({ id: 'a', text: 'starts', startAt: start }),
           card({ id: 'b', text: 'none' }),
-          card({ id: 'tpl', text: 'template', dueAt: 1000, isTemplate: true }),
+          card({ id: 'tpl', text: 'template', dueAt: due, isTemplate: true }),
         ],
       },
     ]),
@@ -90,41 +92,62 @@ test('collectCalendarEvents gathers start/due dates across all boards', () => {
       {
         id: 'col2',
         title: 'Doing',
-        cards: [card({ id: 'd', text: 'due only', dueAt: 1500, dueDone: true })],
+        cards: [card({ id: 'd', text: 'due only', dueAt: due, dueDone: true })],
       },
     ]),
   ];
-  const events = collectCalendarEvents(boards);
-  assertEqual(events.length, 3, 'both-dates card yields 2 events, template/undated none');
-  assertEqual(
-    events.map((e) => `${e.cardId}:${e.kind}`).join(','),
-    'd:due,a:start,a:due',
-    'events are sorted by time ascending',
-  );
-  const due = events[0];
-  assertEqual(due.boardName, 'Home', 'event carries its board name');
-  assertEqual(due.columnTitle, 'Doing', 'event carries its column title');
-  assert(due.dueDone, 'event carries the due-done flag');
+  const byDay = buildDayEntries(boards);
+  assertEqual(byDay.size, 2, 'undated and template cards yield no entries');
+  const startEntry = byDay.get('2026-07-03')?.[0];
+  assertEqual(startEntry?.kind, 'start', 'start-only card yields a start point');
+  assertEqual(startEntry?.segment, null, 'point entries carry no segment');
+  const dueEntry = byDay.get('2026-07-05')?.[0];
+  assertEqual(dueEntry?.kind, 'due', 'due-only card yields a due point');
+  assertEqual(dueEntry?.boardName, 'Home', 'entry carries its board name');
+  assertEqual(dueEntry?.columnTitle, 'Doing', 'entry carries its column title');
+  assert(dueEntry?.dueDone === true, 'entry carries the due-done flag');
 });
 
-test('groupEventsByDay buckets events by their local day', () => {
-  const sameDayA = new Date(2026, 6, 10, 9, 0).getTime();
-  const sameDayB = new Date(2026, 6, 10, 18, 0).getTime();
-  const otherDay = new Date(2026, 6, 11, 0, 0).getTime();
-  const boards = [
-    board('b', 'B', [
-      {
-        id: 'col',
-        title: 'T',
-        cards: [
-          card({ id: 'x', text: 'x', startAt: sameDayA, dueAt: sameDayB }),
-          card({ id: 'y', text: 'y', dueAt: otherDay }),
-        ],
-      },
-    ]),
-  ];
-  const byDay = groupEventsByDay(collectCalendarEvents(boards));
-  assertEqual(byDay.get('2026-07-10')?.length, 2, 'same-day events share a bucket');
-  assertEqual(byDay.get('2026-07-11')?.length, 1, 'other-day event gets its own bucket');
-  assertEqual(byDay.size, 2, 'only days with events appear');
+test('buildDayEntries expands a start+due card into a day-by-day range', () => {
+  const startAt = new Date(2026, 6, 3, 9, 0).getTime();
+  const dueAt = new Date(2026, 6, 6, 18, 0).getTime();
+  const byDay = buildDayEntries(boardOf(card({ id: 'r', text: 'range', startAt, dueAt })));
+  assertEqual(byDay.size, 4, 'range covers each day from start through due');
+  const segments = ['2026-07-03', '2026-07-04', '2026-07-05', '2026-07-06'].map(
+    (key) => byDay.get(key)?.[0]?.segment,
+  );
+  assertEqual(segments.join(','), 'start,middle,middle,end', 'segments mark the bar shape');
+  const first = byDay.get('2026-07-03')![0];
+  assertEqual(first.kind, 'range', 'expanded entries are range entries');
+  assertEqual(first.dueAt, dueAt, 'range entries keep the due timestamp for overdue checks');
+});
+
+test('buildDayEntries marks a same-day start+due as a single-segment range', () => {
+  const startAt = new Date(2026, 6, 10, 9, 0).getTime();
+  const dueAt = new Date(2026, 6, 10, 18, 0).getTime();
+  const byDay = buildDayEntries(boardOf(card({ id: 's', text: 'one day', startAt, dueAt })));
+  assertEqual(byDay.size, 1, 'same-day range occupies one day');
+  assertEqual(byDay.get('2026-07-10')?.[0]?.segment, 'single', 'segment is single');
+});
+
+test('buildDayEntries falls back to points when the due day precedes the start day', () => {
+  const startAt = new Date(2026, 6, 10).getTime();
+  const dueAt = new Date(2026, 6, 8).getTime();
+  const byDay = buildDayEntries(boardOf(card({ id: 'x', text: 'reversed', startAt, dueAt })));
+  assertEqual(byDay.get('2026-07-10')?.[0]?.kind, 'start', 'start renders as a point');
+  assertEqual(byDay.get('2026-07-08')?.[0]?.kind, 'due', 'due renders as a point');
+});
+
+test('buildDayEntries sorts ranges before points within a day', () => {
+  const day9 = new Date(2026, 6, 9, 8, 0).getTime();
+  const startAt = new Date(2026, 6, 8).getTime();
+  const dueAt = new Date(2026, 6, 10).getTime();
+  const byDay = buildDayEntries(
+    boardOf(
+      card({ id: 'p', text: 'point', dueAt: day9 }),
+      card({ id: 'r', text: 'range', startAt, dueAt }),
+    ),
+  );
+  const kinds = byDay.get('2026-07-09')?.map((e) => e.kind);
+  assertEqual(kinds?.join(','), 'range,due', 'range bars stack above point entries');
 });
