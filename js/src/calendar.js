@@ -4,7 +4,7 @@
 // (and unit-tested); the modal below renders it with plain DOM, reusing the
 // shared modal shell.
 import { t, tf } from './i18n.js';
-import { openShell } from './modal.js';
+import { customPrompt, openShell } from './modal.js';
 /** Local-time day key (YYYY-MM-DD) used to bucket entries into grid cells. */
 export function dayKey(ts) {
     const d = new Date(ts);
@@ -130,9 +130,11 @@ export function weekTitle(ts) {
  * Open the all-boards calendar: a month grid where each cell lists the cards
  * starting, due or in progress that day. Clicking an entry invokes `onOpenCard`
  * (which is expected to switch boards if needed and open the card) and closes
- * the view. Resolves when the dialog closes.
+ * the view. Clicking a day cell's empty area asks for a title and invokes
+ * `onAddCard` with the day's local midnight; the caller creates the card and
+ * the calendar re-reads the boards to show it. Resolves when the dialog closes.
  */
-export function openCalendar(boards, onOpenCard) {
+export function openCalendar(boards, onOpenCard, onAddCard) {
     return new Promise((resolve) => {
         const { dialog, close } = openShell('calendar-view', () => resolve());
         const now = new Date();
@@ -140,7 +142,7 @@ export function openCalendar(boards, onOpenCard) {
         /** Month or week granularity; the anchor day selects which one is shown. */
         let mode = 'month';
         let anchor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const byDay = buildDayEntries(boards);
+        let byDay = buildDayEntries(boards);
         // With a single board the board name on every chip would be noise.
         const showBoardName = boards.length > 1;
         // --- Header: previous/next month, title, and a "today" shortcut. ---
@@ -275,6 +277,20 @@ export function openCalendar(boards, onOpenCard) {
                     cellEl.classList.add('is-outside');
                 if (cell.key === todayKey)
                     cellEl.classList.add('is-today');
+                cellEl.title = t('calendarAddCard');
+                // Clicking the cell's empty area (not an entry chip) creates a card
+                // due on that day; the boards are re-read so the chip shows up.
+                cellEl.addEventListener('click', (e) => {
+                    if (e.target.closest('.calendar-event'))
+                        return;
+                    void customPrompt(t('calendarAddCardPrompt'), t('newCardText')).then((text) => {
+                        if (text === null)
+                            return;
+                        onAddCard(cell.ts, text.trim() || t('newCardText'));
+                        byDay = buildDayEntries(boards);
+                        render();
+                    });
+                });
                 const num = document.createElement('div');
                 num.className = 'calendar-day-num';
                 // Weekend accents: Sunday red, Saturday blue (Korean calendar style).

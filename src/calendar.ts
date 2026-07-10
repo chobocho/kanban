@@ -6,7 +6,7 @@
 
 import { Board } from './types.js';
 import { t, tf } from './i18n.js';
-import { openShell } from './modal.js';
+import { customPrompt, openShell } from './modal.js';
 
 /** What a calendar entry represents: a start/due point or a range day. */
 export type CalendarEntryKind = 'start' | 'due' | 'range';
@@ -190,11 +190,14 @@ export function weekTitle(ts: number): string {
  * Open the all-boards calendar: a month grid where each cell lists the cards
  * starting, due or in progress that day. Clicking an entry invokes `onOpenCard`
  * (which is expected to switch boards if needed and open the card) and closes
- * the view. Resolves when the dialog closes.
+ * the view. Clicking a day cell's empty area asks for a title and invokes
+ * `onAddCard` with the day's local midnight; the caller creates the card and
+ * the calendar re-reads the boards to show it. Resolves when the dialog closes.
  */
 export function openCalendar(
   boards: Board[],
   onOpenCard: (boardId: string, columnId: string, cardId: string) => void,
+  onAddCard: (dayTs: number, text: string) => void,
 ): Promise<void> {
   return new Promise((resolve) => {
     const { dialog, close } = openShell('calendar-view', () => resolve());
@@ -205,7 +208,7 @@ export function openCalendar(
     let mode: 'month' | 'week' = 'month';
     let anchor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    const byDay = buildDayEntries(boards);
+    let byDay = buildDayEntries(boards);
     // With a single board the board name on every chip would be noise.
     const showBoardName = boards.length > 1;
 
@@ -343,6 +346,19 @@ export function openCalendar(
         cellEl.className = 'calendar-cell';
         if (!cell.inMonth) cellEl.classList.add('is-outside');
         if (cell.key === todayKey) cellEl.classList.add('is-today');
+        cellEl.title = t('calendarAddCard');
+
+        // Clicking the cell's empty area (not an entry chip) creates a card
+        // due on that day; the boards are re-read so the chip shows up.
+        cellEl.addEventListener('click', (e) => {
+          if ((e.target as HTMLElement).closest('.calendar-event')) return;
+          void customPrompt(t('calendarAddCardPrompt'), t('newCardText')).then((text) => {
+            if (text === null) return;
+            onAddCard(cell.ts, text.trim() || t('newCardText'));
+            byDay = buildDayEntries(boards);
+            render();
+          });
+        });
 
         const num = document.createElement('div');
         num.className = 'calendar-day-num';

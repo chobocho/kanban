@@ -18,6 +18,8 @@ import { openCalendar } from './calendar.js';
 import { customAlert, customConfirm, customPrompt, customTextPrompt, openCardDetail, openArchive, openColorPicker, openActivityLog, } from './modal.js';
 /** Maximum number of undo steps kept per board. */
 const MAX_HISTORY = 8;
+/** Default due time (local hour) for cards created from a calendar day. */
+const CALENDAR_DUE_HOUR = 9;
 /** Shorten a card/list title for a compact activity-log line. */
 function snip(text) {
     const oneLine = text.replace(/\s+/g, ' ').trim();
@@ -715,7 +717,8 @@ export class KanbanApp {
     }
     /**
      * Open the all-boards calendar. Picking a card switches to its board (when it
-     * is not the active one) and opens the card's detail view.
+     * is not the active one) and opens the card's detail view; picking an empty
+     * day creates a card due that day.
      */
     openCalendarView() {
         void openCalendar(sortedBoards(this.data), (boardId, columnId, cardId) => {
@@ -724,7 +727,23 @@ export class KanbanApp {
                 this.commitReset();
             }
             this.handlers.openCard(columnId, cardId);
-        });
+        }, (dayTs, text) => this.addCardFromCalendar(dayTs, text));
+    }
+    /** Create a card in the active board's first list, due on the picked day. */
+    addCardFromCalendar(dayTs, text) {
+        const board = this.active();
+        if (!board)
+            return;
+        // An empty board gets a fresh list so the calendar add always lands somewhere.
+        const column = board.columns[0] ?? addColumn(board, t('newColumnTitle'));
+        const card = addCard(board, column.id, text);
+        if (!card)
+            return;
+        const due = new Date(dayTs);
+        due.setHours(CALENDAR_DUE_HOUR, 0, 0, 0);
+        updateCard(board, column.id, card.id, { dueAt: due.getTime() });
+        logActivity(board, 'activityCardAdd', [snip(card.text), snip(column.title)]);
+        this.commit();
     }
     /** Open the archive view, wiring restore/permanent-delete back to the model. */
     openArchiveView() {

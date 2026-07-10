@@ -1446,6 +1446,12 @@ html[data-theme='dark'] .calendar-day-num.is-sat {
   flex-direction: column;
   gap: 3px;
   overflow: hidden;
+  /* Clicking a cell's empty area creates a card due on that day. */
+  cursor: pointer;
+}
+
+.calendar-cell:hover {
+  border-color: var(--accent);
 }
 
 .calendar-cell.is-outside {
@@ -1946,6 +1952,8 @@ const { openCalendar } = __require("calendar");
 const { customAlert, customConfirm, customPrompt, customTextPrompt, openCardDetail, openArchive, openColorPicker, openActivityLog } = __require("modal");
 /** Maximum number of undo steps kept per board. */
 const MAX_HISTORY = 8;
+/** Default due time (local hour) for cards created from a calendar day. */
+const CALENDAR_DUE_HOUR = 9;
 /** Shorten a card/list title for a compact activity-log line. */
 function snip(text) {
     const oneLine = text.replace(/\s+/g, ' ').trim();
@@ -2643,7 +2651,8 @@ class KanbanApp {
     }
     /**
      * Open the all-boards calendar. Picking a card switches to its board (when it
-     * is not the active one) and opens the card's detail view.
+     * is not the active one) and opens the card's detail view; picking an empty
+     * day creates a card due that day.
      */
     openCalendarView() {
         void openCalendar(sortedBoards(this.data), (boardId, columnId, cardId) => {
@@ -2652,7 +2661,23 @@ class KanbanApp {
                 this.commitReset();
             }
             this.handlers.openCard(columnId, cardId);
-        });
+        }, (dayTs, text) => this.addCardFromCalendar(dayTs, text));
+    }
+    /** Create a card in the active board's first list, due on the picked day. */
+    addCardFromCalendar(dayTs, text) {
+        const board = this.active();
+        if (!board)
+            return;
+        // An empty board gets a fresh list so the calendar add always lands somewhere.
+        const column = board.columns[0] ?? addColumn(board, t('newColumnTitle'));
+        const card = addCard(board, column.id, text);
+        if (!card)
+            return;
+        const due = new Date(dayTs);
+        due.setHours(CALENDAR_DUE_HOUR, 0, 0, 0);
+        updateCard(board, column.id, card.id, { dueAt: due.getTime() });
+        logActivity(board, 'activityCardAdd', [snip(card.text), snip(column.title)]);
+        this.commit();
     }
     /** Open the archive view, wiring restore/permanent-delete back to the model. */
     openArchiveView() {
@@ -2876,7 +2901,7 @@ __modules["calendar"] = function(__exports, __require){
 // (and unit-tested); the modal below renders it with plain DOM, reusing the
 // shared modal shell.
 const { t, tf } = __require("i18n");
-const { openShell } = __require("modal");
+const { customPrompt, openShell } = __require("modal");
 /** Local-time day key (YYYY-MM-DD) used to bucket entries into grid cells. */
 function dayKey(ts) {
     const d = new Date(ts);
@@ -3002,9 +3027,11 @@ function weekTitle(ts) {
  * Open the all-boards calendar: a month grid where each cell lists the cards
  * starting, due or in progress that day. Clicking an entry invokes `onOpenCard`
  * (which is expected to switch boards if needed and open the card) and closes
- * the view. Resolves when the dialog closes.
+ * the view. Clicking a day cell's empty area asks for a title and invokes
+ * `onAddCard` with the day's local midnight; the caller creates the card and
+ * the calendar re-reads the boards to show it. Resolves when the dialog closes.
  */
-function openCalendar(boards, onOpenCard) {
+function openCalendar(boards, onOpenCard, onAddCard) {
     return new Promise((resolve) => {
         const { dialog, close } = openShell('calendar-view', () => resolve());
         const now = new Date();
@@ -3012,7 +3039,7 @@ function openCalendar(boards, onOpenCard) {
         /** Month or week granularity; the anchor day selects which one is shown. */
         let mode = 'month';
         let anchor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        const byDay = buildDayEntries(boards);
+        let byDay = buildDayEntries(boards);
         // With a single board the board name on every chip would be noise.
         const showBoardName = boards.length > 1;
         // --- Header: previous/next month, title, and a "today" shortcut. ---
@@ -3147,6 +3174,20 @@ function openCalendar(boards, onOpenCard) {
                     cellEl.classList.add('is-outside');
                 if (cell.key === todayKey)
                     cellEl.classList.add('is-today');
+                cellEl.title = t('calendarAddCard');
+                // Clicking the cell's empty area (not an entry chip) creates a card
+                // due on that day; the boards are re-read so the chip shows up.
+                cellEl.addEventListener('click', (e) => {
+                    if (e.target.closest('.calendar-event'))
+                        return;
+                    void customPrompt(t('calendarAddCardPrompt'), t('newCardText')).then((text) => {
+                        if (text === null)
+                            return;
+                        onAddCard(cell.ts, text.trim() || t('newCardText'));
+                        byDay = buildDayEntries(boards);
+                        render();
+                    });
+                });
                 const num = document.createElement('div');
                 num.className = 'calendar-day-num';
                 // Weekend accents: Sunday red, Saturday blue (Korean calendar style).
@@ -3697,6 +3738,8 @@ const translations = {
         monthView: '월간',
         weekView: '주간',
         monthDayLong: '{0}년 {1} {2}일',
+        calendarAddCard: '이 날짜에 새 카드 추가',
+        calendarAddCardPrompt: '새 카드 제목을 입력하세요 (현재 보드의 첫 번째 리스트에 추가됩니다)',
         weekdaysShort: '일,월,화,수,목,금,토',
         monthNames: '1월,2월,3월,4월,5월,6월,7월,8월,9월,10월,11월,12월',
         monthTitle: '{0}년 {1}',
@@ -3840,6 +3883,8 @@ const translations = {
         monthView: 'Month',
         weekView: 'Week',
         monthDayLong: '{1} {2}, {0}',
+        calendarAddCard: 'Add a card on this date',
+        calendarAddCardPrompt: 'Enter a title for the new card (added to the first list of the current board)',
         weekdaysShort: 'Sun,Mon,Tue,Wed,Thu,Fri,Sat',
         monthNames: 'January,February,March,April,May,June,July,August,September,October,November,December',
         monthTitle: '{1} {0}',

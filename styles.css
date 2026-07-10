@@ -1439,6 +1439,12 @@ html[data-theme='dark'] .calendar-day-num.is-sat {
   flex-direction: column;
   gap: 3px;
   overflow: hidden;
+  /* Clicking a cell's empty area creates a card due on that day. */
+  cursor: pointer;
+}
+
+.calendar-cell:hover {
+  border-color: var(--accent);
 }
 
 .calendar-cell.is-outside {

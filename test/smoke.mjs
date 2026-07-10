@@ -247,6 +247,16 @@ try {
   const monthTitleBack = await page.locator('.calendar-title').textContent();
   assert(monthTitleBack === calTitleStart, `month toggle restores the month view (got "${monthTitleBack}")`);
 
+  // Clicking a day cell prompts for a title and creates a card due that day.
+  const dayCell = page.locator('.calendar-cell:not(.is-outside)').nth(14); // the 15th
+  await dayCell.click();
+  await page.waitForSelector('.modal-input', { timeout: 3000 });
+  await page.locator('.modal-input').fill('calendar card');
+  await page.locator('.modal-overlay').last().locator('.modal-ok').click();
+  await page.waitForTimeout(100);
+  const addedChips = await dayCell.locator('.calendar-event').count();
+  assert(addedChips === 1, `day-cell click creates a card on that day (got ${addedChips})`);
+
   // Walk forward to the card's start/due month; its chip opens the card detail.
   let calEvents = 0;
   for (let i = 0; i < 80 && calEvents === 0; i++) {
@@ -264,6 +274,15 @@ try {
   assert((await page.locator('.calendar-view').count()) === 0, 'picking an event closes the calendar');
   await page.locator('.card-detail .modal-cancel').click();
   await page.waitForTimeout(100);
+
+  // The calendar-created card landed on the board; undo removes it again so
+  // the card counts in the following sections stay unchanged.
+  const cardsWithCalCard = await page.locator('.card').count();
+  assert(cardsWithCalCard === 2, `calendar-created card is on the board (got ${cardsWithCalCard})`);
+  await page.locator('#undoBtn').click();
+  await page.waitForTimeout(100);
+  const cardsAfterUndo = await page.locator('.card').count();
+  assert(cardsAfterUndo === 1, `undo removes the calendar-created card (got ${cardsAfterUndo})`);
 
   // Search/filter: a matching keyword keeps the card; a non-match hides it.
   await page.locator('#filterInput').fill('detailed');
