@@ -642,11 +642,13 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     }
     descSection.body.append(preview, desc);
 
-    // --- Checklists: several named groups, all edits applied immediately. ---
-    addLabel(t('checklist'));
-    const checklistBox = document.createElement('div');
-    checklistBox.className = 'card-detail-checklist';
-    dialog.appendChild(checklistBox);
+    // --- Checklists: several named groups, all edits applied immediately,
+    // behind a collapsible header showing the summed progress. ---
+    const checklistSection = addCollapsibleSection('checklist', 'card-detail-checklist', () => {
+      const items = init.checklists.flatMap((c) => c.items);
+      return items.length ? `(${items.filter((i) => i.done).length}/${items.length})` : '';
+    });
+    const checklistBox = checklistSection.body;
 
     // Build one checklist group (header, progress bar, items, add-item row).
     const renderOneChecklist = (checklist: Checklist, rerender: () => void): HTMLElement => {
@@ -801,6 +803,7 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
         });
       });
       checklistBox.appendChild(addGroup);
+      checklistSection.refresh();
     };
     renderChecklists();
 

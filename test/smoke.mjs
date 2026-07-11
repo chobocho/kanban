@@ -151,6 +151,9 @@ try {
   await detailCard.hover();
   await detailCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
+  // Checklists live in a collapsed section; open it first.
+  assert(await page.locator('.card-detail-checklist').isHidden(), 'checklist starts collapsed');
+  await page.locator('.section-checklist').click();
   await page.locator('.checklist-group-add').click();
   await page.waitForTimeout(100);
   await page.locator('.modal-overlay').last().locator('.modal-ok').click();
