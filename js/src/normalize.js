@@ -217,6 +217,9 @@ export function normalizeAppData(raw) {
             zoom: Math.max(0.4, Math.min(zoom, 2.5)),
             theme: normalizeTheme(settings.theme),
             calendarHideDone: settings.calendarHideDone === true,
+            cardOpenSections: Array.isArray(settings.cardOpenSections)
+                ? settings.cardOpenSections.filter((s) => typeof s === 'string')
+                : [],
         },
     };
 }

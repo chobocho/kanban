@@ -256,21 +256,24 @@ export function openCardDetail(init, cb) {
         /**
          * A collapsible section: a disclosure header with an optional hint (item
          * count, content marker), and a body that stays hidden until toggled
-         * open. Secondary sections start collapsed to keep the modal short.
+         * open. Sections start collapsed unless the user left them open last
+         * time; every toggle is reported back for persistence.
          */
+        const openSections = new Set(init.openSections);
         const addCollapsibleSection = (labelKey, bodyClass, hint) => {
             const header = document.createElement('button');
             header.type = 'button';
             header.className = `card-detail-section-toggle section-${labelKey}`;
             const body = document.createElement('div');
             body.className = bodyClass;
-            body.hidden = true;
+            body.hidden = !openSections.has(labelKey);
             const refresh = () => {
                 const suffix = hint();
                 header.textContent = `${body.hidden ? '▸' : '▾'} ${t(labelKey)}${suffix ? ` ${suffix}` : ''}`;
             };
             header.addEventListener('click', () => {
                 body.hidden = !body.hidden;
+                cb.onToggleSection(labelKey, !body.hidden);
                 refresh();
             });
             refresh();

@@ -296,6 +296,8 @@ export interface CardDetailInit {
   columnId: string;
   /** All board columns, offered as move targets. */
   columns: Array<{ id: string; title: string; cardCount: number }>;
+  /** Keys of the collapsible sections that should start open. */
+  openSections: string[];
 }
 
 /** Fields saved when the card detail modal is committed. */
@@ -357,6 +359,8 @@ export interface CardDetailCallbacks {
   onToggleTemplate(): void;
   /** Create a regular card from this template (appended to the list). */
   onCreateFromTemplate(): void;
+  /** Persist a collapsible section's open/closed state. */
+  onToggleSection(key: string, open: boolean): void;
 }
 
 /** Convert a timestamp to a `datetime-local` input value in local time. */
@@ -407,8 +411,10 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     /**
      * A collapsible section: a disclosure header with an optional hint (item
      * count, content marker), and a body that stays hidden until toggled
-     * open. Secondary sections start collapsed to keep the modal short.
+     * open. Sections start collapsed unless the user left them open last
+     * time; every toggle is reported back for persistence.
      */
+    const openSections = new Set(init.openSections);
     const addCollapsibleSection = (
       labelKey: string,
       bodyClass: string,
@@ -419,13 +425,14 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
       header.className = `card-detail-section-toggle section-${labelKey}`;
       const body = document.createElement('div');
       body.className = bodyClass;
-      body.hidden = true;
+      body.hidden = !openSections.has(labelKey);
       const refresh = (): void => {
         const suffix = hint();
         header.textContent = `${body.hidden ? '▸' : '▾'} ${t(labelKey)}${suffix ? ` ${suffix}` : ''}`;
       };
       header.addEventListener('click', () => {
         body.hidden = !body.hidden;
+        cb.onToggleSection(labelKey, !body.hidden);
         refresh();
       });
       refresh();

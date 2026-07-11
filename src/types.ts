@@ -137,6 +137,8 @@ export interface Settings {
   theme: Theme;
   /** Calendar view: whether cards with a completed due date are hidden. */
   calendarHideDone: boolean;
+  /** Card detail: keys of the collapsible sections the user left open. */
+  cardOpenSections: string[];
 }
 
 /** The whole application state, serialized as one JSON document. */

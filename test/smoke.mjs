@@ -33,6 +33,13 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 
+// Open a collapsible card-detail section only when it is still closed —
+// section open states persist across modal opens, so a blind toggle click
+// would close an already-open section.
+const ensureSectionOpen = async (toggleSel, bodySel) => {
+  if (await page.locator(bodySel).isHidden()) await page.locator(toggleSel).click();
+};
+
 try {
   await page.goto(base + '/index.html');
   await page.waitForSelector('.column', { timeout: 5000 });
@@ -119,7 +126,7 @@ try {
   await page.waitForSelector('.card-detail', { timeout: 3000 });
   // The description lives in a collapsed section; open it first.
   assert(await page.locator('.card-detail-desc').isHidden(), 'description starts collapsed');
-  await page.locator('.section-description').click();
+  await ensureSectionOpen('.section-description', '.card-detail-desc-body');
   await page.locator('.card-detail-desc').fill('detailed notes');
   await page.locator('.card-detail .modal-ok').click();
   await page.waitForTimeout(100);
@@ -135,12 +142,12 @@ try {
   // Assign the first label from the detail modal; it applies immediately.
   // Labels live in a collapsed section; open it first.
   assert(await page.locator('.card-detail-labels').isHidden(), 'labels start collapsed');
-  await page.locator('.section-labels').click();
+  await ensureSectionOpen('.section-labels', '.card-detail-labels');
   await page.locator('.card-detail-label-chip').first().click();
   await page.waitForTimeout(100);
   // Pick an accent color from its collapsed section (applies on Save).
   assert(await page.locator('.card-detail-colors').isHidden(), 'colors start collapsed');
-  await page.locator('.section-color').click();
+  await ensureSectionOpen('.section-color', '.card-detail-color-body');
   await page.locator('.card-detail .card-detail-swatch').nth(1).click();
   // Set a start date and a far-future due date, then save (applies on Save).
   await page.locator('.card-detail-due-input').first().fill('2030-12-31T09:00');
@@ -162,7 +169,7 @@ try {
   await page.waitForSelector('.card-detail', { timeout: 3000 });
   // Checklists live in a collapsed section; open it first.
   assert(await page.locator('.card-detail-checklist').isHidden(), 'checklist starts collapsed');
-  await page.locator('.section-checklist').click();
+  await ensureSectionOpen('.section-checklist', '.card-detail-checklist');
   await page.locator('.checklist-group-add').click();
   await page.waitForTimeout(100);
   await page.locator('.modal-overlay').last().locator('.modal-ok').click();
@@ -449,7 +456,7 @@ try {
   await page.waitForSelector('.card-detail', { timeout: 3000 });
   // Comments live in a collapsed section; open it first.
   assert(await page.locator('.card-detail-comments').isHidden(), 'comments start collapsed');
-  await page.locator('.section-comments').click();
+  await ensureSectionOpen('.section-comments', '.card-detail-comments');
   await page.locator('.comment-add-input').fill('looks good');
   await page.locator('.comment-add .comment-add-btn').click();
   await page.waitForTimeout(100);
@@ -466,7 +473,7 @@ try {
   await page.waitForSelector('.card-detail', { timeout: 3000 });
   // Actions live in a collapsed section; open it first.
   assert(await page.locator('.card-detail-ops').isHidden(), 'actions start collapsed');
-  await page.locator('.section-actions').click();
+  await ensureSectionOpen('.section-actions', '.card-detail-ops-body');
   await page.locator('.card-detail-op-btn', { hasText: 'Copy card' }).click();
   await page.waitForTimeout(100);
   const afterCopy = await page.locator('.column').nth(2).locator('.card').count();
@@ -476,7 +483,7 @@ try {
   await commentCard.hover();
   await commentCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
-  await page.locator('.section-actions').click();
+  await ensureSectionOpen('.section-actions', '.card-detail-ops-body');
   await page.locator('.card-detail-op-btn', { hasText: 'Make template' }).click();
   await page.waitForTimeout(100);
   const tplBadge = await commentCard.locator('.card-template').count();
@@ -484,7 +491,7 @@ try {
   await commentCard.hover();
   await commentCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
-  await page.locator('.section-actions').click();
+  await ensureSectionOpen('.section-actions', '.card-detail-ops-body');
   await page.locator('.card-detail-op-btn', { hasText: 'Create card from template' }).click();
   await page.waitForTimeout(100);
   const afterStamp = await page.locator('.column').nth(2).locator('.card').count();
@@ -498,7 +505,7 @@ try {
   await commentCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
   // Attachments live in a collapsed section; open it first.
-  await page.locator('.section-attachments').click();
+  await ensureSectionOpen('.section-attachments', '.card-detail-attachments');
   const pngBuf = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
     'base64',
@@ -520,7 +527,7 @@ try {
   await commentCard.hover();
   await commentCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
-  await page.locator('.section-labels').click();
+  await ensureSectionOpen('.section-labels', '.card-detail-labels');
   assert(
     (await page.locator('.card-detail-label-row').count()) === 0,
     'compact label view shows chips without edit rows',
@@ -582,14 +589,18 @@ try {
   await mdCard.hover();
   await mdCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
-  await page.locator('.section-description').click();
+  await ensureSectionOpen('.section-description', '.card-detail-desc-body');
   await page.locator('.card-detail-desc').fill('# Title\n- item one\n**bold**');
   await page.locator('.card-detail .modal-ok').click();
   await page.waitForTimeout(100);
   await mdCard.hover();
   await mdCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
-  await page.locator('.section-description').click();
+  // The open state was persisted when the section was opened earlier.
+  assert(
+    !(await page.locator('.card-detail-desc-body').isHidden()),
+    'description open state persists across modal opens',
+  );
   await page.waitForSelector('.card-detail-desc-preview', { timeout: 3000 });
   const mdH1 = await page.locator('.card-detail-desc-preview h1').textContent();
   assert(mdH1 === 'Title', `markdown heading renders in the preview (got "${mdH1}")`);

@@ -323,6 +323,25 @@ test('calendarHideDone is kept when boolean and defaults to false', () => {
   assertEqual(missing.settings.calendarHideDone, false, 'missing defaults to false');
 });
 
+test('cardOpenSections keeps string keys and defaults to empty', () => {
+  const kept = normalizeAppData({
+    boards: [{ id: 'b1', name: 'A', columns: [] }],
+    settings: { cardOpenSections: ['labels', 'comments', 7, null] },
+  });
+  assertEqual(
+    kept.settings.cardOpenSections.join(','),
+    'labels,comments',
+    'string keys are kept, junk entries dropped',
+  );
+  const junk = normalizeAppData({
+    boards: [{ id: 'b1', name: 'A', columns: [] }],
+    settings: { cardOpenSections: 'labels' },
+  });
+  assertEqual(junk.settings.cardOpenSections.length, 0, 'non-array falls back to empty');
+  const missing = normalizeAppData({ boards: [{ id: 'b1', name: 'A', columns: [] }] });
+  assertEqual(missing.settings.cardOpenSections.length, 0, 'missing defaults to empty');
+});
+
 test('non-array columns and cards are coerced to empty', () => {
   const data = normalizeAppData({
     boards: [{ id: 'b1', name: 'A', columns: 'nope' }],

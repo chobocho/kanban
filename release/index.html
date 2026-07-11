@@ -2319,6 +2319,7 @@ class KanbanApp {
                         title: c.title,
                         cardCount: c.cards.length,
                     })),
+                    openSections: this.data.settings.cardOpenSections,
                 }, {
                     onSave: (patch) => {
                         if (updateCard(board, colId, cardId, patch))
@@ -2423,6 +2424,15 @@ class KanbanApp {
                             logActivity(board, 'activityCardCopy', [snip(card.text)]);
                             this.commit();
                         }
+                    },
+                    onToggleSection: (key, open) => {
+                        const keys = new Set(this.data.settings.cardOpenSections);
+                        if (open)
+                            keys.add(key);
+                        else
+                            keys.delete(key);
+                        this.data.settings.cardOpenSections = [...keys];
+                        this.persist(); // a view setting: no board re-render, no undo step
                     },
                 });
             },
@@ -4867,21 +4877,24 @@ function openCardDetail(init, cb) {
         /**
          * A collapsible section: a disclosure header with an optional hint (item
          * count, content marker), and a body that stays hidden until toggled
-         * open. Secondary sections start collapsed to keep the modal short.
+         * open. Sections start collapsed unless the user left them open last
+         * time; every toggle is reported back for persistence.
          */
+        const openSections = new Set(init.openSections);
         const addCollapsibleSection = (labelKey, bodyClass, hint) => {
             const header = document.createElement('button');
             header.type = 'button';
             header.className = `card-detail-section-toggle section-${labelKey}`;
             const body = document.createElement('div');
             body.className = bodyClass;
-            body.hidden = true;
+            body.hidden = !openSections.has(labelKey);
             const refresh = () => {
                 const suffix = hint();
                 header.textContent = `${body.hidden ? '▸' : '▾'} ${t(labelKey)}${suffix ? ` ${suffix}` : ''}`;
             };
             header.addEventListener('click', () => {
                 body.hidden = !body.hidden;
+                cb.onToggleSection(labelKey, !body.hidden);
                 refresh();
             });
             refresh();
@@ -5755,7 +5768,13 @@ function createDefaultData() {
         version: SCHEMA_VERSION,
         boards: [board],
         activeBoardId: board.id,
-        settings: { lang: 'ko', zoom: 1, theme: 'auto', calendarHideDone: false },
+        settings: {
+            lang: 'ko',
+            zoom: 1,
+            theme: 'auto',
+            calendarHideDone: false,
+            cardOpenSections: [],
+        },
     };
 }
 /** Trello-like board background palette (empty = default theme color). */
@@ -6624,6 +6643,9 @@ function normalizeAppData(raw) {
             zoom: Math.max(0.4, Math.min(zoom, 2.5)),
             theme: normalizeTheme(settings.theme),
             calendarHideDone: settings.calendarHideDone === true,
+            cardOpenSections: Array.isArray(settings.cardOpenSections)
+                ? settings.cardOpenSections.filter((s) => typeof s === 'string')
+                : [],
         },
     };
 }

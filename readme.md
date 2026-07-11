@@ -81,7 +81,7 @@ python -m http.server 8001
 ## 🧪 테스트
 
 ```bash
-npm test      # ✅ 단위 테스트 (순수 로직 113개)
+npm test      # ✅ 단위 테스트 (순수 로직 114개)
 npm run smoke # 🎭 브라우저 스모크 테스트 (Playwright)
 ```
 

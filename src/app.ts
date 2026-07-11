@@ -358,6 +358,7 @@ export class KanbanApp {
               title: c.title,
               cardCount: c.cards.length,
             })),
+            openSections: this.data.settings.cardOpenSections,
           },
           {
             onSave: (patch) => {
@@ -447,6 +448,13 @@ export class KanbanApp {
                 logActivity(board, 'activityCardCopy', [snip(card.text)]);
                 this.commit();
               }
+            },
+            onToggleSection: (key, open) => {
+              const keys = new Set(this.data.settings.cardOpenSections);
+              if (open) keys.add(key);
+              else keys.delete(key);
+              this.data.settings.cardOpenSections = [...keys];
+              this.persist(); // a view setting: no board re-render, no undo step
             },
           },
         );
