@@ -778,10 +778,12 @@ export function openCardDetail(init, cb) {
             commentSection.refresh();
         };
         renderComments();
-        addLabel(t('color'));
+        // --- Accent color, behind a collapsible header (🎨 marks a custom color). ---
         let selectedColor = init.color;
-        dialog.appendChild(buildSwatchRow(init.colors, selectedColor, (color) => {
+        const colorSection = addCollapsibleSection('color', 'card-detail-color-body', () => selectedColor ? '🎨' : '');
+        colorSection.body.appendChild(buildSwatchRow(init.colors, selectedColor, (color) => {
             selectedColor = color;
+            colorSection.refresh();
         }));
         // --- Actions: copy/move/template, behind a collapsible header (a 📋
         // marker on the header shows the card is a template). ---

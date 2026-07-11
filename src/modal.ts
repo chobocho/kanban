@@ -988,11 +988,15 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     };
     renderComments();
 
-    addLabel(t('color'));
+    // --- Accent color, behind a collapsible header (🎨 marks a custom color). ---
     let selectedColor = init.color;
-    dialog.appendChild(
+    const colorSection = addCollapsibleSection('color', 'card-detail-color-body', () =>
+      selectedColor ? '🎨' : '',
+    );
+    colorSection.body.appendChild(
       buildSwatchRow(init.colors, selectedColor, (color) => {
         selectedColor = color;
+        colorSection.refresh();
       }),
     );
 

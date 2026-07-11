@@ -138,6 +138,10 @@ try {
   await page.locator('.section-labels').click();
   await page.locator('.card-detail-label-chip').first().click();
   await page.waitForTimeout(100);
+  // Pick an accent color from its collapsed section (applies on Save).
+  assert(await page.locator('.card-detail-colors').isHidden(), 'colors start collapsed');
+  await page.locator('.section-color').click();
+  await page.locator('.card-detail .card-detail-swatch').nth(1).click();
   // Set a start date and a far-future due date, then save (applies on Save).
   await page.locator('.card-detail-due-input').first().fill('2030-12-31T09:00');
   await page.locator('.card-detail-due-input').last().fill('2031-01-02T10:30');
@@ -145,6 +149,8 @@ try {
   await page.waitForTimeout(100);
   const labelChips = await page.locator('.column').nth(1).locator('.card-label').count();
   assert(labelChips === 1, `assigning a label shows a chip on the card (got ${labelChips})`);
+  const stripeCount = await page.locator('.column').nth(1).locator('.card .card-stripe').count();
+  assert(stripeCount === 1, `picked accent color shows as a stripe on the card (got ${stripeCount})`);
   const dueBadge = await page.locator('.column').nth(1).locator('.card-due').count();
   assert(dueBadge === 1, `setting a due date shows a due badge (got ${dueBadge})`);
   const dueBadgeText = await page.locator('.column').nth(1).locator('.card-due').textContent();
