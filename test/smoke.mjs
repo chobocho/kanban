@@ -704,6 +704,17 @@ try {
   const importedCards = await page.locator('.card').count();
   assert(importedCards === 1, `imported board shows its cards (got ${importedCards})`);
 
+  // The active board selection persists: after a reload the last selected
+  // board (the imported one) is still the one shown.
+  await page.reload();
+  await page.waitForSelector('.column', { timeout: 5000 });
+  await page.waitForTimeout(200);
+  const activeAfterReload = await page.locator('#boardSelect option:checked').textContent();
+  assert(
+    activeAfterReload === 'Imported Board',
+    `last selected board reopens after reload (got "${activeAfterReload}")`,
+  );
+
   assert(errors.length === 0, `no runtime errors (${JSON.stringify(errors)})`);
 
   // --- Touch drag-and-drop (foldable / phone) ---------------------------------
