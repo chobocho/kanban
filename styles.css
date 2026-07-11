@@ -1108,6 +1108,7 @@ select.control {
   background: var(--hover-bg);
 }
 
+.card-detail-labels,
 .card-detail-desc-body,
 .card-detail-checklist,
 .card-detail-attachments,

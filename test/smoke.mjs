@@ -133,6 +133,9 @@ try {
   assert(descVal === 'detailed notes', `description round-trips on reopen (got "${descVal}")`);
 
   // Assign the first label from the detail modal; it applies immediately.
+  // Labels live in a collapsed section; open it first.
+  assert(await page.locator('.card-detail-labels').isHidden(), 'labels start collapsed');
+  await page.locator('.section-labels').click();
   await page.locator('.card-detail-label-chip').first().click();
   await page.waitForTimeout(100);
   // Set a start date and a far-future due date, then save (applies on Save).
@@ -506,6 +509,7 @@ try {
   await commentCard.hover();
   await commentCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
+  await page.locator('.section-labels').click();
   assert(
     (await page.locator('.card-detail-label-row').count()) === 0,
     'compact label view shows chips without edit rows',

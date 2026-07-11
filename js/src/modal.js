@@ -253,15 +253,37 @@ export function openCardDetail(init, cb) {
         title.type = 'text';
         title.value = init.text;
         dialog.appendChild(title);
-        // --- Labels: a compact chip row (click = assign/unassign). Rename,
-        // recolor and delete live behind a small manage toggle so the default
-        // view stays clean.
-        addLabel(t('labels'));
-        const labelList = document.createElement('div');
-        labelList.className = 'card-detail-labels';
-        dialog.appendChild(labelList);
+        /**
+         * A collapsible section: a disclosure header with an optional hint (item
+         * count, content marker), and a body that stays hidden until toggled
+         * open. Secondary sections start collapsed to keep the modal short.
+         */
+        const addCollapsibleSection = (labelKey, bodyClass, hint) => {
+            const header = document.createElement('button');
+            header.type = 'button';
+            header.className = `card-detail-section-toggle section-${labelKey}`;
+            const body = document.createElement('div');
+            body.className = bodyClass;
+            body.hidden = true;
+            const refresh = () => {
+                const suffix = hint();
+                header.textContent = `${body.hidden ? '▸' : '▾'} ${t(labelKey)}${suffix ? ` ${suffix}` : ''}`;
+            };
+            header.addEventListener('click', () => {
+                body.hidden = !body.hidden;
+                refresh();
+            });
+            refresh();
+            dialog.append(header, body);
+            return { body, refresh };
+        };
+        // --- Labels: a compact chip row (click = assign/unassign) behind a
+        // collapsible header showing how many labels are assigned. Rename,
+        // recolor and delete live behind a small manage toggle inside.
         const assigned = new Set(init.assignedLabelIds);
         let managingLabels = false;
+        const labelSection = addCollapsibleSection('labels', 'card-detail-labels', () => assigned.size > 0 ? `(${assigned.size})` : '');
+        const labelList = labelSection.body;
         const buildAssignChip = (label) => {
             const chip = document.createElement('button');
             chip.className = 'card-detail-label-chip';
@@ -356,6 +378,7 @@ export function openCardDetail(init, cb) {
                 renderLabels();
             });
             labelList.append(add, manage);
+            labelSection.refresh();
         };
         renderLabels();
         // --- Dates: start and due side by side (stacked on narrow screens). ---
@@ -415,30 +438,6 @@ export function openCardDetail(init, cb) {
         });
         dueRow.append(dueInput, doneLabel, clearBtn);
         dueBlock.appendChild(dueRow);
-        /**
-         * A collapsible section: a disclosure header with an optional hint (item
-         * count, content marker), and a body that stays hidden until toggled
-         * open. Secondary sections start collapsed to keep the modal short.
-         */
-        const addCollapsibleSection = (labelKey, bodyClass, hint) => {
-            const header = document.createElement('button');
-            header.type = 'button';
-            header.className = `card-detail-section-toggle section-${labelKey}`;
-            const body = document.createElement('div');
-            body.className = bodyClass;
-            body.hidden = true;
-            const refresh = () => {
-                const suffix = hint();
-                header.textContent = `${body.hidden ? '▸' : '▾'} ${t(labelKey)}${suffix ? ` ${suffix}` : ''}`;
-            };
-            header.addEventListener('click', () => {
-                body.hidden = !body.hidden;
-                refresh();
-            });
-            refresh();
-            dialog.append(header, body);
-            return { body, refresh };
-        };
         // --- Description: markdown editor/preview behind a collapsible header
         // (a 📝 marker on the header shows there is content). ---
         const desc = document.createElement('textarea');
