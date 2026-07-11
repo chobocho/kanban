@@ -996,11 +996,14 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
       }),
     );
 
-    // --- Actions: copy the card, or move it to another list/position. ---
-    addLabel(t('actions'));
+    // --- Actions: copy/move/template, behind a collapsible header (a 📋
+    // marker on the header shows the card is a template). ---
+    const opsSection = addCollapsibleSection('actions', 'card-detail-ops-body', () =>
+      init.isTemplate ? '📋' : '',
+    );
     const opsBox = document.createElement('div');
     opsBox.className = 'card-detail-ops';
-    dialog.appendChild(opsBox);
+    opsSection.body.appendChild(opsBox);
 
     const copyBtn = document.createElement('button');
     copyBtn.type = 'button';
@@ -1040,7 +1043,7 @@ export function openCardDetail(init: CardDetailInit, cb: CardDetailCallbacks): P
     const moveRow = document.createElement('div');
     moveRow.className = 'card-detail-move';
     moveRow.hidden = true;
-    dialog.insertBefore(moveRow, opsBox.nextSibling);
+    opsSection.body.appendChild(moveRow);
 
     const listSelect = document.createElement('select');
     listSelect.className = 'control card-detail-move-select';

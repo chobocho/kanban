@@ -458,6 +458,9 @@ try {
   await commentCard.hover();
   await commentCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
+  // Actions live in a collapsed section; open it first.
+  assert(await page.locator('.card-detail-ops').isHidden(), 'actions start collapsed');
+  await page.locator('.section-actions').click();
   await page.locator('.card-detail-op-btn', { hasText: 'Copy card' }).click();
   await page.waitForTimeout(100);
   const afterCopy = await page.locator('.column').nth(2).locator('.card').count();
@@ -467,6 +470,7 @@ try {
   await commentCard.hover();
   await commentCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
+  await page.locator('.section-actions').click();
   await page.locator('.card-detail-op-btn', { hasText: 'Make template' }).click();
   await page.waitForTimeout(100);
   const tplBadge = await commentCard.locator('.card-template').count();
@@ -474,6 +478,7 @@ try {
   await commentCard.hover();
   await commentCard.locator('.icon-btn[title="Open card details"]').click();
   await page.waitForSelector('.card-detail', { timeout: 3000 });
+  await page.locator('.section-actions').click();
   await page.locator('.card-detail-op-btn', { hasText: 'Create card from template' }).click();
   await page.waitForTimeout(100);
   const afterStamp = await page.locator('.column').nth(2).locator('.card').count();

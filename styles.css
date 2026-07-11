@@ -1112,7 +1112,8 @@ select.control {
 .card-detail-desc-body,
 .card-detail-checklist,
 .card-detail-attachments,
-.card-detail-comments {
+.card-detail-comments,
+.card-detail-ops-body {
   margin-top: 8px;
 }
 
